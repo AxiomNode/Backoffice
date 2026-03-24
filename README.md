@@ -67,6 +67,26 @@ npm run dev
 npm run build
 ```
 
+## Docker (dev / single VPS)
+
+El backoffice se puede levantar como contenedor web en `http://localhost:7080`.
+
+1. Inyectar secretos centralizados (dev):
+
+```bash
+cd ../secrets
+node scripts/prepare-runtime-secrets.mjs dev
+```
+
+2. Levantar stack edge + backoffice:
+
+```bash
+cd ../platform-infra/environments/dev
+docker compose -f docker-compose.edge-integration.yml up -d --build
+```
+
+El contenedor de backoffice lee las variables `VITE_*` desde `backoffice/.env.secrets` en runtime mediante `config.js`, para facilitar cambios futuros sin recompilar la app.
+
 ## Variables de entorno
 
 - `VITE_API_BASE_URL`: base del gateway edge (default `http://localhost:7005`)

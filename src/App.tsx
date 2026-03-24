@@ -1,6 +1,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 import { backofficeAuth, type BackofficeSession, type RuntimeAuthMode } from "./auth";
+import { getConfigValue } from "./runtimeConfig";
 
 type BackofficeRole = "SuperAdmin" | "Admin" | "Viewer" | "Gamer";
 type NavKey = "dashboard" | "leaderboard" | "hotfix" | "roles";
@@ -62,9 +63,9 @@ type NavItem = {
   subtitle: string;
 };
 
-const EDGE_API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:7005";
-const EDGE_API_TOKEN = import.meta.env.VITE_EDGE_API_TOKEN;
-const ADMIN_DEV_UID = import.meta.env.VITE_ADMIN_DEV_UID ?? "admin-dev-uid";
+const EDGE_API_BASE = getConfigValue("VITE_API_BASE_URL", "http://localhost:7005") ?? "http://localhost:7005";
+const EDGE_API_TOKEN = getConfigValue("VITE_EDGE_API_TOKEN");
+const ADMIN_DEV_UID = getConfigValue("VITE_ADMIN_DEV_UID", "admin-dev-uid") ?? "admin-dev-uid";
 
 function roleCanManageUsers(role: BackofficeRole): boolean {
   return role === "SuperAdmin";
