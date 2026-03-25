@@ -123,4 +123,18 @@ describe("BackofficeLayout integration", () => {
       expect(screen.getByText(/2 errores conexion/i)).toBeInTheDocument();
     });
   });
+
+  it("shows warning semaphore when services are partially offline without connection errors", async () => {
+    fetchServiceOperationalSummaryMock.mockResolvedValue({
+      rows: [],
+      totals: { total: 5, onlineCount: 4, accessIssues: 0, connectionErrors: 0 },
+    });
+
+    renderLayout();
+
+    await waitFor(() => {
+      expect(screen.getByText("Atencion")).toBeInTheDocument();
+      expect(screen.getByText(/4\/5 online/i)).toBeInTheDocument();
+    });
+  });
 });

@@ -95,4 +95,37 @@ describe("ServiceOverviewPanel integration", () => {
 
     expect(screen.getByRole("progressbar")).toBeInTheDocument();
   });
+
+  it("shows last known error when current row has no active error", async () => {
+    fetchServiceOperationalSummaryMock.mockResolvedValueOnce({
+      rows: [
+        {
+          key: "svc-ok",
+          title: "Service OK",
+          domain: "core",
+          supportsData: true,
+          online: true,
+          accessGuaranteed: true,
+          connectionError: false,
+          requestsTotal: 140,
+          requestsPerSecond: 3.1,
+          latencyMs: 38,
+          lastUpdatedAt: new Date().toISOString(),
+          errorMessage: null,
+          lastKnownError: {
+            message: "HTTP 503: previous outage",
+            at: "2026-03-25T18:00:00.000Z",
+          },
+        },
+      ],
+      totals: { total: 1, onlineCount: 1, accessIssues: 0, connectionErrors: 0 },
+    });
+
+    renderPanel();
+
+    await waitFor(() => {
+      expect(screen.getByText(/Ultimo error conocido/i)).toBeInTheDocument();
+      expect(screen.getByText(/HTTP 503: previous outage/i)).toBeInTheDocument();
+    });
+  });
 });
