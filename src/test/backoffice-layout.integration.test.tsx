@@ -1,8 +1,9 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { I18nProvider } from "../i18n/context";
 import type { BackofficeSession } from "../auth";
+import { UI_SERVICE_ROUTE_QUERY_STORAGE_PREFIX } from "../domain/constants/ui";
 import type { SessionContext } from "../domain/types/backoffice";
 import { BackofficeLayout } from "../ui/layout/BackofficeLayout";
 
@@ -62,8 +63,35 @@ function renderLayout() {
 }
 
 describe("BackofficeLayout integration", () => {
-  it("navigates from overview route to service console route", async () => {
+  beforeEach(() => {
+    window.localStorage.clear();
     window.location.hash = "#/backoffice/svc-overview";
+    fetchServiceOperationalSummaryMock.mockReset();
+  });
+
+  it("restores saved service query from localStorage on navigation", async () => {
+    window.localStorage.setItem(
+      `${UI_SERVICE_ROUTE_QUERY_STORAGE_PREFIX}.svc-api-gateway`,
+      "refreshMode=auto&refreshInterval=15&limit=50",
+    );
+
+    fetchServiceOperationalSummaryMock.mockResolvedValue({
+      rows: [],
+      totals: { total: 0, onlineCount: 0, accessIssues: 0, connectionErrors: 0 },
+    });
+
+    renderLayout();
+
+    const gatewayButtons = screen.getAllByRole("button", { name: /API Gateway/i });
+    fireEvent.click(gatewayButtons[0]);
+
+    await waitFor(() => {
+      expect(window.location.hash).toContain("#/backoffice/svc-api-gateway?refreshMode=auto&refreshInterval=15&limit=50");
+      expect(screen.getByTestId("service-console-panel")).toHaveTextContent("console-panel:svc-api-gateway");
+    });
+  });
+
+  it("navigates from overview route to service console route", async () => {
     fetchServiceOperationalSummaryMock.mockResolvedValue({
       rows: [],
       totals: { total: 0, onlineCount: 0, accessIssues: 0, connectionErrors: 0 },
@@ -83,7 +111,6 @@ describe("BackofficeLayout integration", () => {
   });
 
   it("shows critical semaphore when connection errors are present", async () => {
-    window.location.hash = "#/backoffice/svc-overview";
     fetchServiceOperationalSummaryMock.mockResolvedValue({
       rows: [],
       totals: { total: 4, onlineCount: 2, accessIssues: 0, connectionErrors: 2 },
