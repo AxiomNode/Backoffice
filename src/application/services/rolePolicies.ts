@@ -14,11 +14,18 @@ export function roleHasBackofficeAccess(role: BackofficeRole): boolean {
 }
 
 export function navItemsForRole(role: BackofficeRole): NavItem[] {
-  const items: NavItem[] = SERVICE_NAV_CONFIGS.map((config) => ({
+  const items: NavItem[] = [
+    {
+      key: "svc-overview",
+      title: "Resumen de servicios",
+      subtitle: "Estado operativo y consumo en tiempo real",
+    },
+    ...SERVICE_NAV_CONFIGS.map((config) => ({
     key: config.navKey,
     title: config.title,
     subtitle: config.subtitle,
-  }));
+    })),
+  ];
 
   if (roleCanModify(role)) {
     items.push({ key: "hotfix", title: "Modificacion en caliente", subtitle: "Acciones de administracion runtime" });

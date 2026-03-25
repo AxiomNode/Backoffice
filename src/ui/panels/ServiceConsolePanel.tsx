@@ -11,6 +11,7 @@ import { rowsFromUnknown } from "../utils/table";
 import { PaginatedFilterableTable } from "../components/PaginatedFilterableTable";
 
 const NAV_TITLE_KEYS: Record<NavKey, LabelKey> = {
+  "svc-overview": "nav.svc-overview.title",
   "svc-api-gateway": "nav.svc-api-gateway.title",
   "svc-bff-backoffice": "nav.svc-bff-backoffice.title",
   "svc-bff-mobile": "nav.svc-bff-mobile.title",
@@ -24,6 +25,7 @@ const NAV_TITLE_KEYS: Record<NavKey, LabelKey> = {
 };
 
 const NAV_SUBTITLE_KEYS: Record<NavKey, LabelKey> = {
+  "svc-overview": "nav.svc-overview.subtitle",
   "svc-api-gateway": "nav.svc-api-gateway.subtitle",
   "svc-bff-backoffice": "nav.svc-bff-backoffice.subtitle",
   "svc-bff-mobile": "nav.svc-bff-mobile.subtitle",

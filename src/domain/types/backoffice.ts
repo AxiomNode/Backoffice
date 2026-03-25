@@ -3,6 +3,7 @@ import type { RuntimeAuthMode } from "../../auth";
 export type BackofficeRole = "SuperAdmin" | "Admin" | "Viewer" | "Gamer";
 
 export type NavKey =
+  | "svc-overview"
   | "svc-api-gateway"
   | "svc-bff-backoffice"
   | "svc-bff-mobile"

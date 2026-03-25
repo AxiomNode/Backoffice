@@ -10,9 +10,11 @@ import { ACCENT_LABEL_KEYS, LANGUAGE_OPTIONS, type LabelKey } from "../../i18n/l
 import { HotfixPanel } from "../panels/HotfixPanel";
 import { RoleManagementPanel } from "../panels/RoleManagementPanel";
 import { ServiceConsolePanel } from "../panels/ServiceConsolePanel";
+import { ServiceOverviewPanel } from "../panels/ServiceOverviewPanel";
 import { Sidebar } from "../components/Sidebar";
 
 const NAV_LABELS: Record<NavKey, { title: LabelKey; subtitle: LabelKey }> = {
+  "svc-overview": { title: "nav.svc-overview.title", subtitle: "nav.svc-overview.subtitle" },
   "svc-api-gateway": { title: "nav.svc-api-gateway.title", subtitle: "nav.svc-api-gateway.subtitle" },
   "svc-bff-backoffice": { title: "nav.svc-bff-backoffice.title", subtitle: "nav.svc-bff-backoffice.subtitle" },
   "svc-bff-mobile": { title: "nav.svc-bff-mobile.title", subtitle: "nav.svc-bff-mobile.subtitle" },
@@ -343,7 +345,8 @@ export function BackofficeLayout({
           </div>
         </header>
 
-        {SERVICE_NAV_KEYS.has(current) && <ServiceConsolePanel key={current} navKey={current} context={context} density={density} />}
+        {current === "svc-overview" && <ServiceOverviewPanel context={context} density={density} />}
+        {current !== "svc-overview" && SERVICE_NAV_KEYS.has(current) && <ServiceConsolePanel key={current} navKey={current} context={context} density={density} />}
         {current === "hotfix" && roleCanModify(session.role) && <HotfixPanel session={session} context={context} />}
         {current === "roles" && roleCanManageUsers(session.role) && <RoleManagementPanel context={context} />}
       </main>
