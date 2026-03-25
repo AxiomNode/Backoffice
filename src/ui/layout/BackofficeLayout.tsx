@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
 import type { BackofficeSession } from "../../auth";
 import { navItemsForRole, roleCanManageUsers, roleCanModify } from "../../application/services/rolePolicies";
 import { SERVICE_NAV_KEYS } from "../../domain/constants/navigation";
-import { ACCENT_OPTIONS, UI_DENSITY_STORAGE_KEY } from "../../domain/constants/ui";
+import { ACCENT_OPTIONS, UI_DENSITY_STORAGE_KEY, UI_SERVICE_ROUTE_QUERY_STORAGE_PREFIX } from "../../domain/constants/ui";
 import type { NavKey, SessionContext, UiAccent, UiDensity, UiTheme, UiTypography } from "../../domain/types/backoffice";
 import { useI18n } from "../../i18n/context";
 import { ACCENT_LABEL_KEYS, LANGUAGE_OPTIONS, type LabelKey } from "../../i18n/labels";
@@ -160,7 +160,16 @@ export function BackofficeLayout({
 
   const onNavigate = (key: NavKey) => {
     if (typeof window !== "undefined") {
-      const nextRoute = routeFromNavKey(key);
+      const routeBase = routeFromNavKey(key);
+      let nextRoute = routeBase;
+
+      if (SERVICE_NAV_KEYS.has(key)) {
+        const savedQuery = window.localStorage.getItem(`${UI_SERVICE_ROUTE_QUERY_STORAGE_PREFIX}.${key}`);
+        if (savedQuery) {
+          nextRoute = `${routeBase}?${savedQuery}`;
+        }
+      }
+
       if (window.location.hash !== nextRoute) {
         window.location.hash = nextRoute;
       }

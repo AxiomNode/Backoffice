@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { navConfigByKey } from "../../domain/constants/navigation";
+import { UI_SERVICE_ROUTE_QUERY_STORAGE_PREFIX } from "../../domain/constants/ui";
 import type { DataDataset, NavKey, ServiceCatalogItem, SessionContext, UiDensity } from "../../domain/types/backoffice";
 import { composeAuthHeaders } from "../../infrastructure/backoffice/authHeaders";
 import { EDGE_API_BASE, fetchJson } from "../../infrastructure/http/apiClient";
@@ -200,6 +201,17 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
 
     const query = params.toString();
     const nextHash = query ? `${routePrefix}?${query}` : routePrefix;
+
+    try {
+      const storageKey = `${UI_SERVICE_ROUTE_QUERY_STORAGE_PREFIX}.${navKey}`;
+      if (query) {
+        window.localStorage.setItem(storageKey, query);
+      } else {
+        window.localStorage.removeItem(storageKey);
+      }
+    } catch {
+      // Ignore storage errors to keep route-state sync resilient.
+    }
 
     if (window.location.hash !== nextHash) {
       window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${nextHash}`);
