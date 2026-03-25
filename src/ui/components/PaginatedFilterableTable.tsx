@@ -1,0 +1,345 @@
+import { useEffect, useMemo, useState } from "react";
+
+import type { UiDensity } from "../../domain/types/backoffice";
+import { useI18n } from "../../i18n/context";
+import { compareCells, renderCellValue, stringifyCell } from "../utils/table";
+
+type PaginatedFilterableTableProps = {
+  rows: Array<Record<string, unknown>>;
+  defaultPageSize?: number;
+  density?: UiDensity;
+};
+
+export function PaginatedFilterableTable({ rows, defaultPageSize = 10, density = "comfortable" }: PaginatedFilterableTableProps) {
+  const { t } = useI18n();
+  const columns = useMemo(() => {
+    const keys = new Set<string>();
+    rows.slice(0, 50).forEach((row) => {
+      Object.keys(row).forEach((key) => keys.add(key));
+    });
+    return Array.from(keys);
+  }, [rows]);
+
+  const [filterText, setFilterText] = useState("");
+  const [sortBy, setSortBy] = useState<string>("");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  const [pageSize, setPageSize] = useState(defaultPageSize);
+  const [page, setPage] = useState(1);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogValue, setDialogValue] = useState("");
+  const [dialogColumn, setDialogColumn] = useState("");
+  const [dialogFormat, setDialogFormat] = useState<"auto" | "json" | "xml" | "plain" | "url">("auto");
+
+  useEffect(() => {
+    setSortBy((current) => {
+      if (current && columns.includes(current)) {
+        return current;
+      }
+      return columns[0] ?? "";
+    });
+  }, [columns]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [filterText, sortBy, sortDirection, pageSize, rows]);
+
+  const filteredRows = useMemo(() => {
+    const term = filterText.trim().toLowerCase();
+    if (!term) {
+      return rows;
+    }
+
+    return rows.filter((row) => columns.some((column) => stringifyCell(row[column]).toLowerCase().includes(term)));
+  }, [columns, filterText, rows]);
+
+  const sortedRows = useMemo(() => {
+    if (!sortBy) {
+      return filteredRows;
+    }
+
+    const direction = sortDirection === "asc" ? 1 : -1;
+    return [...filteredRows].sort((left, right) => compareCells(left[sortBy], right[sortBy]) * direction);
+  }, [filteredRows, sortBy, sortDirection]);
+
+  const totalPages = Math.max(1, Math.ceil(sortedRows.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const start = (currentPage - 1) * pageSize;
+  const pageRows = sortedRows.slice(start, start + pageSize);
+
+  const compact = density === "dense";
+  const controlsPadding = compact ? "p-2" : "p-3";
+  const controlInputPadding = compact ? "px-2 py-1.5" : "px-2 py-2";
+  const tableTextSize = compact ? "text-xs" : "text-xs sm:text-sm";
+  const tableCellPadding = compact ? "px-2 py-1.5" : "px-3 py-2";
+  const footerPadding = compact ? "p-2" : "p-3";
+  const footerText = compact ? "text-xs" : "text-sm";
+
+  const isLikelyUrl = (value: string) => /^https?:\/\//i.test(value.trim());
+
+  const isLikelyJson = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed || (!trimmed.startsWith("{") && !trimmed.startsWith("["))) {
+      return false;
+    }
+    try {
+      JSON.parse(trimmed);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const isLikelyXml = (value: string) => {
+    const trimmed = value.trim();
+    return trimmed.startsWith("<") && trimmed.endsWith(">") && /<[^>]+>/.test(trimmed);
+  };
+
+  const prettyXml = (xml: string) => {
+    const normalized = xml.replace(/>\s+</g, "><").trim();
+    const tokens = normalized.replace(/></g, ">\n<").split("\n");
+    let indent = 0;
+    return tokens
+      .map((line) => {
+        const isClosing = /^<\//.test(line);
+        const isSelfClosing = /\/>$/.test(line);
+        const isOpening = /^<[^!?/][^>]*>$/.test(line);
+
+        if (isClosing) {
+          indent = Math.max(0, indent - 1);
+        }
+
+        const formatted = `${"  ".repeat(indent)}${line}`;
+
+        if (isOpening && !isSelfClosing && !line.includes("</")) {
+          indent += 1;
+        }
+
+        return formatted;
+      })
+      .join("\n");
+  };
+
+  const resolveDialogContent = () => {
+    const trimmed = dialogValue.trim();
+    const effectiveFormat =
+      dialogFormat === "auto"
+        ? isLikelyJson(trimmed)
+          ? "json"
+          : isLikelyXml(trimmed)
+            ? "xml"
+            : isLikelyUrl(trimmed)
+              ? "url"
+              : "plain"
+        : dialogFormat;
+
+    if (effectiveFormat === "json") {
+      try {
+        return { format: "json" as const, content: JSON.stringify(JSON.parse(trimmed), null, 2) };
+      } catch {
+        return { format: "plain" as const, content: dialogValue };
+      }
+    }
+
+    if (effectiveFormat === "xml") {
+      return { format: "xml" as const, content: prettyXml(dialogValue) };
+    }
+
+    if (effectiveFormat === "url") {
+      return { format: "url" as const, content: dialogValue.trim() };
+    }
+
+    return { format: "plain" as const, content: dialogValue };
+  };
+
+  const openDialog = (column: string, rawValue: unknown) => {
+    setDialogColumn(column);
+    setDialogValue(stringifyCell(rawValue));
+    setDialogFormat("auto");
+    setDialogOpen(true);
+  };
+
+  const closeDialog = () => {
+    setDialogOpen(false);
+    setDialogValue("");
+    setDialogColumn("");
+    setDialogFormat("auto");
+  };
+
+  const dialogResolved = resolveDialogContent();
+
+  if (!columns.length) {
+    return <p className="rounded-lg border border-dashed border-[var(--md-sys-color-outline)] p-4 text-sm">{t("table.noColumns")}</p>;
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className={`grid gap-2 rounded-xl border border-[var(--md-sys-color-outline-variant)] bg-white md:grid-cols-2 xl:grid-cols-4 ${controlsPadding}`}>
+        <label className="text-xs">
+          {t("table.filter")}
+          <input
+            value={filterText}
+            onChange={(event) => setFilterText(event.target.value)}
+            placeholder={t("table.filterPlaceholder")}
+            className={`mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] text-sm ${controlInputPadding}`}
+          />
+        </label>
+
+        <label className="text-xs">
+          {t("table.sortBy")}
+          <select
+            value={sortBy}
+            onChange={(event) => setSortBy(event.target.value)}
+            className={`mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] text-sm ${controlInputPadding}`}
+          >
+            {columns.map((column) => (
+              <option key={column} value={column}>
+                {column}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="text-xs">
+          {t("table.direction")}
+          <select
+            value={sortDirection}
+            onChange={(event) => setSortDirection(event.target.value as "asc" | "desc")}
+            className={`mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] text-sm ${controlInputPadding}`}
+          >
+            <option value="asc">{t("table.directionAsc")}</option>
+            <option value="desc">{t("table.directionDesc")}</option>
+          </select>
+        </label>
+
+        <label className="text-xs">
+          {t("table.pageSize")}
+          <select
+            value={pageSize}
+            onChange={(event) => setPageSize(Number(event.target.value))}
+            className={`mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] text-sm ${controlInputPadding}`}
+          >
+            <option value={5}>5</option>
+            <option value={10}>10</option>
+            <option value={20}>20</option>
+            <option value={50}>50</option>
+          </select>
+        </label>
+      </div>
+
+      <div className="overflow-x-auto rounded-xl border border-[var(--md-sys-color-outline-variant)] bg-white">
+        <table className={`min-w-full ${tableTextSize}`}>
+          <thead className="bg-[var(--md-sys-color-surface-container)] text-left">
+            <tr>
+              {columns.map((column) => (
+                <th key={column} className={`${tableCellPadding} font-semibold`}>
+                  {column}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {pageRows.map((row, rowIndex) => (
+              <tr key={`${start + rowIndex}-${stringifyCell(row[columns[0]])}`} className="border-t border-[var(--md-sys-color-outline-variant)]">
+                {columns.map((column) => (
+                  <td key={column} className={`${tableCellPadding} align-top`}>
+                    <div className="flex items-start gap-1">
+                      <span className="break-words">{renderCellValue(row[column]) || "-"}</span>
+                      {stringifyCell(row[column]).length > 120 && (
+                        <button
+                          type="button"
+                          onClick={() => openDialog(column, row[column])}
+                          className="inline-flex h-5 min-w-5 items-center justify-center rounded-full border border-[var(--md-sys-color-outline-variant)] px-1 text-[10px] font-semibold leading-none"
+                          aria-label={t("table.expandCell")}
+                        >
+                          +
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                ))}
+              </tr>
+            ))}
+            {!pageRows.length && (
+              <tr>
+                <td colSpan={columns.length} className={`px-3 py-6 text-center ${footerText} text-[var(--md-sys-color-on-surface-variant)]`}>
+                  {t("table.noResults")}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div className={`flex flex-wrap items-center justify-between gap-2 rounded-xl bg-white ${footerPadding} ${footerText}`}>
+        <p>
+          {t("table.showing", {
+            from: pageRows.length ? start + 1 : 0,
+            to: Math.min(start + pageRows.length, sortedRows.length),
+            total: sortedRows.length,
+          })}
+        </p>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setPage((value) => Math.max(1, value - 1))}
+            disabled={currentPage <= 1}
+            className="rounded-lg border border-[var(--md-sys-color-outline-variant)] px-3 py-1 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {t("table.previous")}
+          </button>
+          <span>
+            {t("table.pageOf", { page: currentPage, total: totalPages })}
+          </span>
+          <button
+            type="button"
+            onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
+            disabled={currentPage >= totalPages}
+            className="rounded-lg border border-[var(--md-sys-color-outline-variant)] px-3 py-1 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {t("table.next")}
+          </button>
+        </div>
+      </div>
+
+      {dialogOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-3" role="dialog" aria-modal="true">
+          <div className="m3-card max-h-[85vh] w-full max-w-3xl overflow-hidden p-0">
+            <div className="flex items-center justify-between border-b border-[var(--md-sys-color-outline-variant)] px-4 py-3">
+              <div>
+                <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">{t("table.column")}</p>
+                <h4 className="m3-title text-base">{dialogColumn}</h4>
+              </div>
+              <button type="button" onClick={closeDialog} className="rounded-lg border border-[var(--md-sys-color-outline-variant)] px-3 py-1.5 text-sm">{t("table.close")}</button>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 border-b border-[var(--md-sys-color-outline-variant)] px-4 py-2">
+              <label className="text-xs">
+                {t("table.format")}
+                <select value={dialogFormat} onChange={(event) => setDialogFormat(event.target.value as "auto" | "json" | "xml" | "plain" | "url")} className="control-input ml-2 py-1">
+                  <option value="auto">{t("table.format.auto")}</option>
+                  <option value="json">JSON</option>
+                  <option value="xml">XML</option>
+                  <option value="plain">{t("table.format.plain")}</option>
+                  <option value="url">URL</option>
+                </select>
+              </label>
+            </div>
+
+            <div className="max-h-[60vh] overflow-auto p-4">
+              {dialogResolved.format === "url" ? (
+                <div className="space-y-3">
+                  <a href={dialogResolved.content} target="_blank" rel="noreferrer" className="text-sm font-semibold text-[var(--md-sys-color-primary)] underline">
+                    {t("table.openUrl")}
+                  </a>
+                  <iframe src={dialogResolved.content} title={t("table.urlPreviewTitle")} className="h-[45vh] w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] bg-white" />
+                </div>
+              ) : (
+                <pre className="whitespace-pre-wrap break-words rounded-lg border border-[var(--md-sys-color-outline-variant)] bg-[var(--md-sys-color-surface-container-low)] p-3 text-xs sm:text-sm">{dialogResolved.content || "-"}</pre>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
