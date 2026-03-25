@@ -4,6 +4,7 @@ import { backofficeAuth, type BackofficeSession } from "./auth";
 import {
   UI_ACCENT_STORAGE_KEY,
   UI_LANGUAGE_STORAGE_KEY,
+  UI_SERVICE_ROUTE_QUERY_STORAGE_PREFIX,
   UI_THEME_STORAGE_KEY,
   UI_TYPOGRAPHY_STORAGE_KEY,
 } from "./domain/constants/ui";
@@ -89,6 +90,18 @@ export function App() {
 
   const handleSignOut = async () => {
     await backofficeAuth.signOut();
+
+    if (typeof window !== "undefined") {
+      const keysToRemove: string[] = [];
+      for (let index = 0; index < window.localStorage.length; index += 1) {
+        const key = window.localStorage.key(index);
+        if (key && key.startsWith(`${UI_SERVICE_ROUTE_QUERY_STORAGE_PREFIX}.`)) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach((key) => window.localStorage.removeItem(key));
+    }
+
     setSession(null);
     setContext(null);
   };
