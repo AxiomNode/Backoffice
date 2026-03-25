@@ -45,6 +45,21 @@ type SectionResult<T> =
   | { ok: true; data: T }
   | { ok: false; error: string };
 
+function parseIntParam(value: string | null, fallback: number, min: number, max: number): number {
+  if (!value) {
+    return fallback;
+  }
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+  const rounded = Math.trunc(parsed);
+  if (rounded < min || rounded > max) {
+    return fallback;
+  }
+  return rounded;
+}
+
 function asSectionResult<T>(promise: Promise<T>): Promise<SectionResult<T>> {
   return promise
     .then((data) => ({ ok: true as const, data }))
@@ -105,13 +120,91 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
     setRefreshIntervalSeconds(10);
     setElapsedMs(0);
     requestVersionRef.current += 1;
+
+    if (typeof window === "undefined") {
+      if (serviceConfig?.defaultDataset) {
+        setDataset(serviceConfig.defaultDataset);
+      }
+      return;
+    }
+
+    const currentHash = window.location.hash;
+    const queryIndex = currentHash.indexOf("?");
+    const query = queryIndex >= 0 ? currentHash.slice(queryIndex + 1) : "";
+    const params = new URLSearchParams(query);
+
+    const datasetParam = params.get("dataset") as DataDataset | null;
+    const datasetIsSupported =
+      datasetParam !== null &&
+      !!serviceConfig?.datasets?.some((option) => option.value === datasetParam);
+
+    if (datasetIsSupported) {
+      setDataset(datasetParam as DataDataset);
+    } else if (serviceConfig?.defaultDataset) {
+      setDataset(serviceConfig.defaultDataset);
+    }
+
+    setFilter(params.get("filter") ?? "");
+    setSortBy(params.get("sortBy") ?? "");
+
+    const sortDirectionParam = params.get("sortDirection");
+    setSortDirection(sortDirectionParam === "asc" ? "asc" : "desc");
+
+    setPage(parseIntParam(params.get("page"), 1, 1, 100000));
+    setPageSize(parseIntParam(params.get("pageSize"), 20, 1, 200));
+    setLimit(parseIntParam(params.get("limit"), 200, 1, 1000));
+
+    const metricParam = params.get("metric");
+    if (metricParam === "won" || metricParam === "score" || metricParam === "played") {
+      setMetric(metricParam);
+    }
+
+    const refreshModeParam = params.get("refreshMode");
+    setRefreshMode(refreshModeParam === "auto" ? "auto" : "manual");
+
+    const interval = parseIntParam(params.get("refreshInterval"), 10, 5, 300);
+    setRefreshIntervalSeconds(interval);
   }, [navKey]);
 
   useEffect(() => {
-    if (serviceConfig?.defaultDataset) {
-      setDataset(serviceConfig.defaultDataset);
+    if (typeof window === "undefined" || !serviceConfig) {
+      return;
     }
-  }, [serviceConfig?.defaultDataset]);
+
+    const routePrefix = `#/backoffice/${navKey}`;
+    if (!window.location.hash.startsWith(routePrefix)) {
+      return;
+    }
+
+    const params = new URLSearchParams();
+
+    if (serviceConfig.datasets && serviceConfig.datasets.length > 0) {
+      params.set("dataset", dataset);
+      params.set("page", String(page));
+      params.set("pageSize", String(pageSize));
+      params.set("limit", String(limit));
+      params.set("sortDirection", sortDirection);
+      if (filter) {
+        params.set("filter", filter);
+      }
+      if (sortBy) {
+        params.set("sortBy", sortBy);
+      }
+      if (serviceConfig.service === "microservice-users" && dataset === "leaderboard") {
+        params.set("metric", metric);
+      }
+    }
+
+    params.set("refreshMode", refreshMode);
+    params.set("refreshInterval", String(refreshIntervalSeconds));
+
+    const query = params.toString();
+    const nextHash = query ? `${routePrefix}?${query}` : routePrefix;
+
+    if (window.location.hash !== nextHash) {
+      window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${nextHash}`);
+    }
+  }, [dataset, filter, limit, metric, navKey, page, pageSize, refreshIntervalSeconds, refreshMode, serviceConfig, sortBy, sortDirection]);
 
   useEffect(() => {
     setElapsedMs(0);
