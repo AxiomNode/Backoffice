@@ -137,4 +137,14 @@ describe("BackofficeLayout integration", () => {
       expect(screen.getByText(/4\/5 online/i)).toBeInTheDocument();
     });
   });
+
+  it("shows unknown semaphore when summary retrieval fails", async () => {
+    fetchServiceOperationalSummaryMock.mockRejectedValue(new Error("network unavailable"));
+
+    renderLayout();
+
+    await waitFor(() => {
+      expect(screen.getByText("Sin señal")).toBeInTheDocument();
+    });
+  });
 });

@@ -74,4 +74,70 @@ describe("fetchServiceOperationalSummary", () => {
     expect(deniedRow?.accessGuaranteed).toBe(false);
     expect(deniedRow?.lastKnownError?.message).toContain("HTTP 403");
   });
+
+  it("handles unknown rejection payloads, malformed stored errors, and computes req/s deltas", async () => {
+    fetchJsonMock.mockImplementation((url: string) => {
+      if (url.endsWith("/v1/backoffice/services")) {
+        return Promise.resolve({
+          services: [
+            { key: "svc-fast", title: "Service Fast", domain: "core", supportsData: true },
+            { key: "svc-unknown", title: "Service Unknown", domain: "edge", supportsData: false },
+            { key: "svc-bad-json", title: "Service Bad Json", domain: "ops", supportsData: false },
+            { key: "svc-bad-shape", title: "Service Bad Shape", domain: "ops", supportsData: false },
+          ],
+        });
+      }
+
+      if (url.includes("svc-fast/metrics")) {
+        return Promise.resolve({ metrics: { requestsReceivedTotal: 140 } });
+      }
+
+      if (url.includes("svc-unknown/metrics")) {
+        return Promise.reject("network-down");
+      }
+
+      if (url.includes("svc-bad-json/metrics")) {
+        return Promise.resolve({ metrics: { traffic: { requestsReceivedTotal: 11 } } });
+      }
+
+      if (url.includes("svc-bad-shape/metrics")) {
+        return Promise.resolve({ metrics: { traffic: { requestsReceivedTotal: 9 } } });
+      }
+
+      return Promise.reject(new Error(`Unexpected URL: ${url}`));
+    });
+
+    window.localStorage.setItem("backoffice.serviceLastError.svc-bad-json", "not-json");
+    window.localStorage.setItem(
+      "backoffice.serviceLastError.svc-bad-shape",
+      JSON.stringify({ message: 42, at: null }),
+    );
+
+    const nowSpy = vi.spyOn(Date, "now");
+    nowSpy.mockReturnValue(20000);
+
+    const previousByService: Record<string, { requestsTotal: number | null; fetchedAt: number }> = {
+      "svc-fast": { requestsTotal: 100, fetchedAt: 15000 },
+    };
+
+    const summary = await fetchServiceOperationalSummary(context, previousByService);
+
+    const fastRow = summary.rows.find((row) => row.key === "svc-fast");
+    const unknownRow = summary.rows.find((row) => row.key === "svc-unknown");
+    const badJsonRow = summary.rows.find((row) => row.key === "svc-bad-json");
+    const badShapeRow = summary.rows.find((row) => row.key === "svc-bad-shape");
+
+    expect(fastRow?.requestsPerSecond).toBe(8);
+    expect(fastRow?.lastKnownError).toBeNull();
+
+    expect(unknownRow?.online).toBe(false);
+    expect(unknownRow?.errorMessage).toBe("Unknown error");
+    expect(unknownRow?.connectionError).toBe(false);
+    expect(unknownRow?.accessGuaranteed).toBe(true);
+
+    expect(badJsonRow?.lastKnownError).toBeNull();
+    expect(badShapeRow?.lastKnownError).toBeNull();
+
+    nowSpy.mockRestore();
+  });
 });
