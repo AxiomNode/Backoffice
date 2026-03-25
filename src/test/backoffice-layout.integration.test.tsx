@@ -1,5 +1,5 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { I18nProvider } from "../i18n/context";
 import type { BackofficeSession } from "../auth";
@@ -69,6 +69,10 @@ describe("BackofficeLayout integration", () => {
     fetchServiceOperationalSummaryMock.mockReset();
   });
 
+  afterEach(() => {
+    cleanup();
+  });
+
   it("restores saved service query from localStorage on navigation", async () => {
     window.localStorage.setItem(
       `${UI_SERVICE_ROUTE_QUERY_STORAGE_PREFIX}.svc-api-gateway`,
@@ -135,6 +139,20 @@ describe("BackofficeLayout integration", () => {
     await waitFor(() => {
       expect(screen.getByText("Atencion")).toBeInTheDocument();
       expect(screen.getByText(/4\/5 online/i)).toBeInTheDocument();
+    });
+  });
+
+  it("shows healthy semaphore when all services are online", async () => {
+    fetchServiceOperationalSummaryMock.mockResolvedValue({
+      rows: [],
+      totals: { total: 3, onlineCount: 3, accessIssues: 0, connectionErrors: 0 },
+    });
+
+    renderLayout();
+
+    await waitFor(() => {
+      expect(screen.getByText("Estable")).toBeInTheDocument();
+      expect(screen.getByText(/3\/3 online/i)).toBeInTheDocument();
     });
   });
 

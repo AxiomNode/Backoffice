@@ -130,4 +130,119 @@ describe("ServiceConsolePanel integration", () => {
       expect(storageValue).toContain("filter=nuevo");
     });
   });
+
+  it("supports manual insert and delete actions for game history datasets", async () => {
+    window.location.hash = "#/backoffice/svc-quiz?dataset=history";
+
+    fetchJsonMock.mockImplementation((url: string, options?: RequestInit) => {
+      if (url.endsWith("/v1/backoffice/services")) {
+        return Promise.resolve({
+          services: [{ key: "microservice-quiz", title: "Quiz", domain: "games", supportsData: true }],
+        });
+      }
+      if (url.includes("/metrics")) {
+        return Promise.resolve({ metrics: { traffic: { requestsReceivedTotal: 10 } } });
+      }
+      if (url.includes("/logs")) {
+        return Promise.resolve({ logs: [] });
+      }
+      if (url.includes("/catalogs")) {
+        return Promise.resolve({
+          catalogs: {
+            categories: [{ id: "22", name: "Science" }],
+            languages: [{ code: "en", name: "English" }],
+          },
+        });
+      }
+      if (url.includes("/data/") && options?.method === "DELETE") {
+        return Promise.resolve({ deleted: true });
+      }
+      if (url.endsWith("/data") && options?.method === "POST") {
+        return Promise.resolve({ item: { id: "entry-1" } });
+      }
+      if (url.includes("/data?")) {
+        return Promise.resolve({ rows: [{ id: "entry-1", question: "Q" }] });
+      }
+      return Promise.reject(new Error(`Unhandled URL: ${url}`));
+    });
+
+    renderPanel("svc-quiz");
+
+    await waitFor(() => {
+      expect(screen.getByText("Alta/baja manual de datos")).toBeInTheDocument();
+      expect((screen.getByLabelText("Categoria") as HTMLSelectElement).value).toBe("22");
+      expect((screen.getByLabelText("Lenguaje") as HTMLSelectElement).value).toBe("en");
+    });
+
+    fireEvent.change(screen.getByLabelText("Contenido JSON"), {
+      target: { value: '{"question":"Q"}' },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Insertar entrada" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Entrada insertada correctamente.")).toBeInTheDocument();
+      expect(fetchJsonMock).toHaveBeenCalledWith(
+        expect.stringContaining("/v1/backoffice/services/microservice-quiz/data"),
+        expect.objectContaining({ method: "POST" }),
+      );
+    });
+
+    fireEvent.change(screen.getByLabelText("ID a eliminar"), {
+      target: { value: "entry-1" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Eliminar entrada" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Entrada eliminada correctamente.")).toBeInTheDocument();
+      expect(fetchJsonMock).toHaveBeenCalledWith(
+        expect.stringContaining("/v1/backoffice/services/microservice-quiz/data/entry-1?dataset=history"),
+        expect.objectContaining({ method: "DELETE" }),
+      );
+    });
+  });
+
+  it("shows validation errors for invalid manual json payload", async () => {
+    window.location.hash = "#/backoffice/svc-wordpass?dataset=history";
+
+    fetchJsonMock.mockImplementation((url: string) => {
+      if (url.endsWith("/v1/backoffice/services")) {
+        return Promise.resolve({
+          services: [{ key: "microservice-wordpass", title: "Wordpass", domain: "games", supportsData: true }],
+        });
+      }
+      if (url.includes("/metrics")) {
+        return Promise.resolve({ metrics: { traffic: { requestsReceivedTotal: 10 } } });
+      }
+      if (url.includes("/logs")) {
+        return Promise.resolve({ logs: [] });
+      }
+      if (url.includes("/catalogs")) {
+        return Promise.resolve({
+          catalogs: {
+            categories: [{ id: "31", name: "Words" }],
+            languages: [{ code: "es", name: "Español" }],
+          },
+        });
+      }
+      if (url.includes("/data?")) {
+        return Promise.resolve({ rows: [] });
+      }
+      return Promise.reject(new Error(`Unhandled URL: ${url}`));
+    });
+
+    renderPanel("svc-wordpass");
+
+    await waitFor(() => {
+      expect(screen.getByText("Alta/baja manual de datos")).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText("Contenido JSON"), {
+      target: { value: "[]" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Insertar entrada" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("El contenido debe ser un objeto JSON.")).toBeInTheDocument();
+    });
+  });
 });

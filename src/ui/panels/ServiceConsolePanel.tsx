@@ -49,6 +49,11 @@ type SectionResult<T> =
   | { ok: true; data: T }
   | { ok: false; error: string };
 
+type ServiceCatalogSnapshot = {
+  categories: Array<{ id: string; name: string }>;
+  languages: Array<{ code: string; name: string }>;
+};
+
 function parseIntParam(value: string | null, fallback: number, min: number, max: number): number {
   if (!value) {
     return fallback;
@@ -100,6 +105,16 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
   const [metricsError, setMetricsError] = useState<string | null>(null);
   const [logsError, setLogsError] = useState<string | null>(null);
   const [dataError, setDataError] = useState<string | null>(null);
+  const [manualCategoryId, setManualCategoryId] = useState("23");
+  const [manualLanguage, setManualLanguage] = useState("es");
+  const [manualDifficulty, setManualDifficulty] = useState(55);
+  const [manualContentJson, setManualContentJson] = useState('{"title":"", "content":""}');
+  const [deleteEntryId, setDeleteEntryId] = useState("");
+  const [manualCatalogs, setManualCatalogs] = useState<ServiceCatalogSnapshot>({ categories: [], languages: [] });
+  const [manualCatalogError, setManualCatalogError] = useState<string | null>(null);
+  const [dataMutationMessage, setDataMutationMessage] = useState<string | null>(null);
+  const [dataMutationError, setDataMutationError] = useState<string | null>(null);
+  const [dataMutationLoading, setDataMutationLoading] = useState(false);
   const compact = density === "dense";
 
   useEffect(() => {
@@ -123,6 +138,16 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
     setRefreshMode("manual");
     setRefreshIntervalSeconds(10);
     setElapsedMs(0);
+    setManualCategoryId("23");
+    setManualLanguage("es");
+    setManualDifficulty(55);
+    setManualContentJson('{"title":"", "content":""}');
+    setDeleteEntryId("");
+    setManualCatalogs({ categories: [], languages: [] });
+    setManualCatalogError(null);
+    setDataMutationMessage(null);
+    setDataMutationError(null);
+    setDataMutationLoading(false);
     requestVersionRef.current += 1;
 
     if (typeof window === "undefined") {
@@ -224,6 +249,51 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
   useEffect(() => {
     setElapsedMs(0);
   }, [refreshMode, refreshIntervalSeconds]);
+
+  useEffect(() => {
+    if (!serviceConfig || (serviceConfig.service !== "microservice-quiz" && serviceConfig.service !== "microservice-wordpass")) {
+      return;
+    }
+
+    let cancelled = false;
+    const loadCatalogs = async () => {
+      try {
+        setManualCatalogError(null);
+        const payload = await fetchJson<{ catalogs?: { categories?: Array<{ id: string; name: string }>; languages?: Array<{ code: string; name: string }> } }>(
+          `${EDGE_API_BASE}/v1/backoffice/services/${serviceConfig.service}/catalogs`,
+          {
+            headers: composeAuthHeaders(context),
+          },
+        );
+
+        if (cancelled) {
+          return;
+        }
+
+        const categories = payload.catalogs?.categories ?? [];
+        const languages = payload.catalogs?.languages ?? [];
+        setManualCatalogs({ categories, languages });
+
+        if (categories.length > 0 && !categories.some((item) => item.id === manualCategoryId)) {
+          setManualCategoryId(categories[0].id);
+        }
+        if (languages.length > 0 && !languages.some((item) => item.code === manualLanguage)) {
+          setManualLanguage(languages[0].code);
+        }
+      } catch (catalogError) {
+        if (cancelled) {
+          return;
+        }
+        setManualCatalogError(catalogError instanceof Error ? catalogError.message : t("roles.errorUnknown"));
+      }
+    };
+
+    void loadCatalogs();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [context, serviceConfig, t]);
 
   const loadAll = useCallback(async () => {
     if (!serviceConfig) {
@@ -368,6 +438,80 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
   if (!serviceConfig) {
     return <section className="m3-card p-5">{t("service.notFound")}</section>;
   }
+
+  const isGameHistoryDataset =
+    (serviceConfig.service === "microservice-quiz" || serviceConfig.service === "microservice-wordpass") &&
+    dataset === "history";
+
+  const parseManualContent = (): Record<string, unknown> => {
+    const parsed = JSON.parse(manualContentJson) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      throw new Error(t("service.data.manual.contentObjectOnly"));
+    }
+    const entries = Object.entries(parsed as Record<string, unknown>).filter(([, value]) => value !== null && value !== undefined);
+    if (entries.length === 0) {
+      throw new Error(t("service.data.manual.contentRequired"));
+    }
+    return Object.fromEntries(entries);
+  };
+
+  const insertManualEntry = async () => {
+    try {
+      setDataMutationLoading(true);
+      setDataMutationError(null);
+      setDataMutationMessage(null);
+
+      const content = parseManualContent();
+      await fetchJson<{ item: Record<string, unknown> }>(`${EDGE_API_BASE}/v1/backoffice/services/${serviceConfig.service}/data`, {
+        method: "POST",
+        headers: composeAuthHeaders(context),
+        body: JSON.stringify({
+          dataset: "history",
+          categoryId: manualCategoryId,
+          language: manualLanguage,
+          difficultyPercentage: manualDifficulty,
+          content,
+          status: "manual",
+        }),
+      });
+
+      setDataMutationMessage(t("service.data.manual.insertOk"));
+      await loadAll();
+    } catch (mutationError) {
+      setDataMutationError(mutationError instanceof Error ? mutationError.message : t("roles.errorUnknown"));
+    } finally {
+      setDataMutationLoading(false);
+    }
+  };
+
+  const deleteManualEntry = async () => {
+    if (!deleteEntryId.trim()) {
+      setDataMutationError(t("service.data.manual.deleteIdRequired"));
+      return;
+    }
+
+    try {
+      setDataMutationLoading(true);
+      setDataMutationError(null);
+      setDataMutationMessage(null);
+
+      await fetchJson<{ deleted: boolean }>(
+        `${EDGE_API_BASE}/v1/backoffice/services/${serviceConfig.service}/data/${encodeURIComponent(deleteEntryId.trim())}?dataset=history`,
+        {
+          method: "DELETE",
+          headers: composeAuthHeaders(context),
+        },
+      );
+
+      setDataMutationMessage(t("service.data.manual.deleteOk"));
+      setDeleteEntryId("");
+      await loadAll();
+    } catch (mutationError) {
+      setDataMutationError(mutationError instanceof Error ? mutationError.message : t("roles.errorUnknown"));
+    } finally {
+      setDataMutationLoading(false);
+    }
+  };
 
   const localizedDatasetLabel = (value: DataDataset, fallback: string) => {
     const keyMap: Record<DataDataset, "dataset.roles" | "dataset.leaderboard" | "dataset.history" | "dataset.processes"> = {
@@ -596,6 +740,71 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
               </select>
             </label>
           </div>
+
+          {isGameHistoryDataset && (
+            <div className={`space-y-3 rounded-xl border border-[var(--md-sys-color-outline-variant)] bg-[color:var(--md-sys-color-surface-container-low)] ${compact ? "p-3" : "p-4"}`}>
+              <h4 className="text-sm font-semibold">{t("service.data.manual.title")}</h4>
+              <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+                <label className="text-xs">
+                  {t("service.data.manual.categoryId")}
+                  {manualCatalogs.categories.length > 0 ? (
+                    <select value={manualCategoryId} onChange={(event) => setManualCategoryId(event.target.value)} className="mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] bg-white px-2 py-1.5 text-sm">
+                      {manualCatalogs.categories.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input value={manualCategoryId} onChange={(event) => setManualCategoryId(event.target.value)} className="mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] bg-white px-2 py-1.5 text-sm" />
+                  )}
+                </label>
+                <label className="text-xs">
+                  {t("service.data.manual.language")}
+                  {manualCatalogs.languages.length > 0 ? (
+                    <select value={manualLanguage} onChange={(event) => setManualLanguage(event.target.value)} className="mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] bg-white px-2 py-1.5 text-sm">
+                      {manualCatalogs.languages.map((item) => (
+                        <option key={item.code} value={item.code}>
+                          {item.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input value={manualLanguage} onChange={(event) => setManualLanguage(event.target.value)} className="mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] bg-white px-2 py-1.5 text-sm" />
+                  )}
+                </label>
+                <label className="text-xs">
+                  {t("service.data.manual.difficulty")}
+                  <input type="number" min={0} max={100} value={manualDifficulty} onChange={(event) => setManualDifficulty(Number(event.target.value || 0))} className="mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] bg-white px-2 py-1.5 text-sm" />
+                </label>
+              </div>
+
+              <label className="text-xs">
+                {t("service.data.manual.contentJson")}
+                <textarea value={manualContentJson} onChange={(event) => setManualContentJson(event.target.value)} rows={5} className="mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] bg-white px-2 py-2 text-xs sm:text-sm" />
+              </label>
+
+              <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={() => void insertManualEntry()} disabled={dataMutationLoading} className="rounded-lg bg-[var(--md-sys-color-primary)] px-3 py-2 text-sm font-semibold text-[var(--md-sys-color-on-primary)] disabled:cursor-not-allowed disabled:opacity-60">
+                  {dataMutationLoading ? t("service.button.updating") : t("service.data.manual.insert")}
+                </button>
+              </div>
+
+              <div className="grid gap-2 md:grid-cols-[1fr_auto]">
+                <label className="text-xs">
+                  {t("service.data.manual.deleteId")}
+                  <input value={deleteEntryId} onChange={(event) => setDeleteEntryId(event.target.value)} className="mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] bg-white px-2 py-1.5 text-sm" placeholder={t("service.data.manual.deletePlaceholder")} />
+                </label>
+                <button type="button" onClick={() => void deleteManualEntry()} disabled={dataMutationLoading} className="self-end rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60">
+                  {t("service.data.manual.delete")}
+                </button>
+              </div>
+
+              {dataMutationError && <p className="rounded-lg bg-red-50 p-2 text-xs text-red-700">{dataMutationError}</p>}
+              {manualCatalogError && <p className="rounded-lg bg-amber-50 p-2 text-xs text-amber-700">{manualCatalogError}</p>}
+              {dataMutationMessage && <p className="rounded-lg bg-emerald-50 p-2 text-xs text-emerald-700">{dataMutationMessage}</p>}
+            </div>
+          )}
 
           {dataError ? (
             <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{dataError}</p>
