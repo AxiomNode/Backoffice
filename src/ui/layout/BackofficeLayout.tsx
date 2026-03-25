@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
 
 import type { BackofficeSession } from "../../auth";
+import { fetchServiceOperationalSummary } from "../../application/services/operationalSummary";
 import { navItemsForRole, roleCanManageUsers, roleCanModify } from "../../application/services/rolePolicies";
 import { SERVICE_NAV_KEYS } from "../../domain/constants/navigation";
 import { ACCENT_OPTIONS, UI_DENSITY_STORAGE_KEY, UI_SERVICE_ROUTE_QUERY_STORAGE_PREFIX } from "../../domain/constants/ui";
@@ -93,6 +94,8 @@ export function BackofficeLayout({
     return navKeyFromRoute(window.location.hash, navItems.map((item) => item.key)) ?? fallback;
   });
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [globalHealth, setGlobalHealth] = useState<"healthy" | "warning" | "critical" | "unknown">("unknown");
+  const [globalHealthText, setGlobalHealthText] = useState<string>("--");
   const [density, setDensity] = useState<UiDensity>(() => {
     if (typeof window === "undefined") {
       return "comfortable";
@@ -103,6 +106,7 @@ export function BackofficeLayout({
   const currentNav = useMemo(() => navItems.find((item) => item.key === current), [current, navItems]);
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
+  const summaryBaselineRef = useRef<Record<string, { requestsTotal: number | null; fetchedAt: number }>>({});
 
   useEffect(() => {
     const currentAllowed = navItems.some((item) => item.key === current);
@@ -151,6 +155,52 @@ export function BackofficeLayout({
     if (typeof window === "undefined") return;
     window.localStorage.setItem(UI_DENSITY_STORAGE_KEY, density);
   }, [density]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const updateGlobalHealth = async () => {
+      try {
+        const summary = await fetchServiceOperationalSummary(context, summaryBaselineRef.current);
+        if (cancelled) {
+          return;
+        }
+
+        const { total, onlineCount, accessIssues, connectionErrors } = summary.totals;
+        const offlineCount = Math.max(0, total - onlineCount);
+
+        if (connectionErrors > 0) {
+          setGlobalHealth("critical");
+          setGlobalHealthText(`${connectionErrors} ${t("layout.header.semaphore.connectionErrors")}`);
+          return;
+        }
+
+        if (accessIssues > 0 || offlineCount > 0) {
+          setGlobalHealth("warning");
+          setGlobalHealthText(`${onlineCount}/${total} ${t("layout.header.semaphore.online")}`);
+          return;
+        }
+
+        setGlobalHealth("healthy");
+        setGlobalHealthText(`${onlineCount}/${total} ${t("layout.header.semaphore.online")}`);
+      } catch {
+        if (!cancelled) {
+          setGlobalHealth("unknown");
+          setGlobalHealthText(t("layout.header.semaphore.unknown"));
+        }
+      }
+    };
+
+    void updateGlobalHealth();
+    const timer = window.setInterval(() => {
+      void updateGlobalHealth();
+    }, 30000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [context, t]);
 
   const toggleDensity = () => setDensity((v) => (v === "comfortable" ? "dense" : "comfortable"));
   const cycleAccent = () => {
@@ -294,6 +344,28 @@ export function BackofficeLayout({
               <p className="mt-1 text-xs sm:text-sm text-[var(--md-sys-color-on-surface-variant)]">
                 {t("layout.header.session")}: {session.displayName} ({session.role})
               </p>
+              <div className="mt-2 flex items-center gap-2">
+                <span
+                  className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                    globalHealth === "healthy"
+                      ? "bg-emerald-100 text-emerald-800"
+                      : globalHealth === "warning"
+                        ? "bg-amber-100 text-amber-800"
+                        : globalHealth === "critical"
+                          ? "bg-red-100 text-red-800"
+                          : "bg-slate-200 text-slate-700"
+                  }`}
+                >
+                  {globalHealth === "healthy"
+                    ? t("layout.header.semaphore.healthy")
+                    : globalHealth === "warning"
+                      ? t("layout.header.semaphore.warning")
+                      : globalHealth === "critical"
+                        ? t("layout.header.semaphore.critical")
+                        : t("layout.header.semaphore.unknown")}
+                </span>
+                <span className="text-xs text-[var(--md-sys-color-on-surface-variant)]">{globalHealthText}</span>
+              </div>
 
               <div className="mt-4 flex flex-wrap items-center gap-2.5">
                 <label className="text-xs text-[var(--md-sys-color-on-surface-variant)]">

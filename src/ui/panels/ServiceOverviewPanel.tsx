@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import type { ServiceCatalogItem, SessionContext, UiDensity } from "../../domain/types/backoffice";
-import { composeAuthHeaders } from "../../infrastructure/backoffice/authHeaders";
-import { EDGE_API_BASE, fetchJson } from "../../infrastructure/http/apiClient";
+import { fetchServiceOperationalSummary, type ServiceOperationalRow } from "../../application/services/operationalSummary";
+import type { SessionContext, UiDensity } from "../../domain/types/backoffice";
 import { useI18n } from "../../i18n/context";
 
 type ServiceOverviewPanelProps = {
@@ -10,72 +9,11 @@ type ServiceOverviewPanelProps = {
   density: UiDensity;
 };
 
-type ServiceHealthRow = {
-  key: string;
-  title: string;
-  domain: string;
-  supportsData: boolean;
-  online: boolean;
-  accessGuaranteed: boolean;
-  connectionError: boolean;
-  requestsTotal: number | null;
-  requestsPerSecond: number | null;
-  latencyMs: number | null;
-  lastUpdatedAt: string | null;
-  errorMessage: string | null;
-};
-
-type TimedResult<T> =
-  | { ok: true; data: T; latencyMs: number }
-  | { ok: false; error: string; latencyMs: number };
-
-function asTimedResult<T>(promiseFactory: () => Promise<T>): Promise<TimedResult<T>> {
-  const start = performance.now();
-  return promiseFactory()
-    .then((data) => ({ ok: true as const, data, latencyMs: Math.round(performance.now() - start) }))
-    .catch((error: unknown) => ({
-      ok: false as const,
-      error: error instanceof Error ? error.message : "Unknown error",
-      latencyMs: Math.round(performance.now() - start),
-    }));
-}
-
-function toRequestsTotal(metrics: unknown): number | null {
-  if (!metrics || typeof metrics !== "object") {
-    return null;
-  }
-
-  const payload = metrics as Record<string, unknown>;
-  const traffic = payload.traffic;
-
-  if (traffic && typeof traffic === "object") {
-    const value = (traffic as Record<string, unknown>).requestsReceivedTotal;
-    if (typeof value === "number" && Number.isFinite(value)) {
-      return value;
-    }
-  }
-
-  const topLevel = payload.requestsReceivedTotal;
-  if (typeof topLevel === "number" && Number.isFinite(topLevel)) {
-    return topLevel;
-  }
-
-  return null;
-}
-
-function isAuthorizationError(message: string): boolean {
-  return /HTTP\s+(401|403)/i.test(message);
-}
-
-function isConnectionError(message: string): boolean {
-  return /Failed to fetch|NetworkError|HTTP\s+(5\d\d|429|408|0)/i.test(message);
-}
-
 export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelProps) {
   const { t } = useI18n();
   const compact = density === "dense";
 
-  const [rows, setRows] = useState<ServiceHealthRow[]>([]);
+  const [rows, setRows] = useState<ServiceOperationalRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshMode, setRefreshMode] = useState<"manual" | "auto">("auto");
   const [refreshIntervalSeconds, setRefreshIntervalSeconds] = useState(10);
@@ -93,86 +31,12 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
     setError(null);
 
     try {
-      const catalogPayload = await fetchJson<{ services: ServiceCatalogItem[] }>(`${EDGE_API_BASE}/v1/backoffice/services`, {
-        headers: composeAuthHeaders(context),
-      });
-
-      const services = catalogPayload.services ?? [];
-      const now = Date.now();
-
-      const metricsResults = await Promise.all(
-        services.map(async (service) => {
-          const result = await asTimedResult(() =>
-            fetchJson<{ metrics: unknown }>(`${EDGE_API_BASE}/v1/backoffice/services/${service.key}/metrics`, {
-              headers: composeAuthHeaders(context),
-            }),
-          );
-          return { service, result };
-        }),
-      );
+      const summary = await fetchServiceOperationalSummary(context, previousByServiceRef.current);
 
       if (requestVersion !== requestVersionRef.current) {
         return;
       }
-
-      const nextRows: ServiceHealthRow[] = metricsResults.map(({ service, result }) => {
-        if (!result.ok) {
-          return {
-            key: service.key,
-            title: service.title,
-            domain: service.domain,
-            supportsData: service.supportsData,
-            online: false,
-            accessGuaranteed: !isAuthorizationError(result.error),
-            connectionError: isConnectionError(result.error),
-            requestsTotal: null,
-            requestsPerSecond: null,
-            latencyMs: result.latencyMs,
-            lastUpdatedAt: new Date(now).toISOString(),
-            errorMessage: result.error,
-          };
-        }
-
-        const requestsTotal = toRequestsTotal(result.data.metrics);
-        const previous = previousByServiceRef.current[service.key];
-        let requestsPerSecond: number | null = null;
-
-        if (
-          previous &&
-          previous.requestsTotal !== null &&
-          requestsTotal !== null &&
-          now > previous.fetchedAt &&
-          requestsTotal >= previous.requestsTotal
-        ) {
-          const deltaRequests = requestsTotal - previous.requestsTotal;
-          const deltaSeconds = (now - previous.fetchedAt) / 1000;
-          if (deltaSeconds > 0) {
-            requestsPerSecond = Number((deltaRequests / deltaSeconds).toFixed(2));
-          }
-        }
-
-        previousByServiceRef.current[service.key] = {
-          requestsTotal,
-          fetchedAt: now,
-        };
-
-        return {
-          key: service.key,
-          title: service.title,
-          domain: service.domain,
-          supportsData: service.supportsData,
-          online: true,
-          accessGuaranteed: true,
-          connectionError: false,
-          requestsTotal,
-          requestsPerSecond,
-          latencyMs: result.latencyMs,
-          lastUpdatedAt: new Date(now).toISOString(),
-          errorMessage: null,
-        };
-      });
-
-      setRows(nextRows);
+      setRows(summary.rows);
     } catch (loadError) {
       if (requestVersion !== requestVersionRef.current) {
         return;
@@ -223,17 +87,12 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
   const progressPercent = Math.min(100, (elapsedMs / currentCycleMs) * 100);
   const remainingSeconds = Math.max(0, (currentCycleMs - elapsedMs) / 1000).toFixed(1);
 
-  const totals = useMemo(() => {
-    const onlineCount = rows.filter((row) => row.online).length;
-    const connectionErrors = rows.filter((row) => row.connectionError).length;
-    const accessIssues = rows.filter((row) => !row.accessGuaranteed).length;
-    return {
-      total: rows.length,
-      onlineCount,
-      connectionErrors,
-      accessIssues,
-    };
-  }, [rows]);
+  const totals = useMemo(() => ({
+    total: rows.length,
+    onlineCount: rows.filter((row) => row.online).length,
+    connectionErrors: rows.filter((row) => row.connectionError).length,
+    accessIssues: rows.filter((row) => !row.accessGuaranteed).length,
+  }), [rows]);
 
   return (
     <section className={`m3-card ui-fade-in ${compact ? "p-3 sm:p-4 xl:p-5 space-y-3" : "p-4 sm:p-5 xl:p-6 space-y-4 xl:space-y-5"}`}>
@@ -364,6 +223,11 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
             </div>
 
             {row.errorMessage && <p className="mt-3 rounded-lg bg-red-50 p-2 text-xs text-red-700">{row.errorMessage}</p>}
+            {!row.errorMessage && row.lastKnownError && (
+              <p className="mt-3 rounded-lg bg-amber-50 p-2 text-xs text-amber-800">
+                {t("overview.lastKnownError")} ({new Date(row.lastKnownError.at).toLocaleString()}): {row.lastKnownError.message}
+              </p>
+            )}
           </article>
         ))}
       </div>

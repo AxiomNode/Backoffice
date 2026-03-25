@@ -6,6 +6,7 @@ export const UI_ACCENT_STORAGE_KEY = "backoffice.uiAccent";
 export const UI_TYPOGRAPHY_STORAGE_KEY = "backoffice.uiTypography";
 export const UI_LANGUAGE_STORAGE_KEY = "backoffice.uiLanguage";
 export const UI_SERVICE_ROUTE_QUERY_STORAGE_PREFIX = "backoffice.serviceRouteQuery";
+export const UI_SERVICE_LAST_ERROR_STORAGE_PREFIX = "backoffice.serviceLastError";
 
 export const ACCENT_OPTIONS: Array<{ value: UiAccent; label: string }> = [
   { value: "ocean", label: "Océano" },

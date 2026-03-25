@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { navConfigByKey } from "../../domain/constants/navigation";
+import { storeServiceLastError } from "../../application/services/operationalSummary";
 import { UI_SERVICE_ROUTE_QUERY_STORAGE_PREFIX } from "../../domain/constants/ui";
 import type { DataDataset, NavKey, ServiceCatalogItem, SessionContext, UiDensity } from "../../domain/types/backoffice";
 import { composeAuthHeaders } from "../../infrastructure/backoffice/authHeaders";
@@ -271,6 +272,7 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
       } else {
         setMetricsRows([]);
         setMetricsError(metricsResult.error);
+        storeServiceLastError(serviceConfig.service, metricsResult.error);
       }
 
       if (logsResult.ok) {
@@ -278,6 +280,7 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
       } else {
         setLogsRows([]);
         setLogsError(logsResult.error);
+        storeServiceLastError(serviceConfig.service, logsResult.error);
       }
 
       if (serviceConfig.datasets && serviceConfig.datasets.length > 0) {
@@ -308,6 +311,7 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
         } else {
           setDataRows([]);
           setDataError(dataResult.error);
+          storeServiceLastError(serviceConfig.service, dataResult.error);
         }
       } else {
         if (requestVersion !== requestVersionRef.current) {
@@ -322,7 +326,9 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
       setMetricsRows([]);
       setLogsRows([]);
       setDataRows([]);
-      setError(err instanceof Error ? err.message : t("roles.errorUnknown"));
+      const message = err instanceof Error ? err.message : t("roles.errorUnknown");
+      setError(message);
+      storeServiceLastError(serviceConfig.service, message);
     } finally {
       if (requestVersion === requestVersionRef.current) {
         setLoading(false);
