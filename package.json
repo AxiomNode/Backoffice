@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "test": "vitest",
     "test:run": "vitest run",
-    "test:watch": "vitest --watch"
+    "test:watch": "vitest --watch",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "firebase": "^11.7.1",
@@ -22,6 +23,7 @@
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^4.3.1",
+    "@vitest/coverage-v8": "^4.1.1",
     "autoprefixer": "^10.4.20",
     "jsdom": "^29.0.1",
     "postcss": "^8.4.47",

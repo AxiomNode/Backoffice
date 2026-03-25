@@ -15,6 +15,7 @@ export function Sidebar({ current, onChange, items, className }: SidebarProps) {
     const active = current === key;
     return (
       <button
+        key={key}
         type="button"
         onClick={() => onChange(key)}
         className={`group w-full rounded-xl border px-4 py-3 text-left transition-all duration-200 ${
