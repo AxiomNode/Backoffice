@@ -46,6 +46,19 @@ const TYPOGRAPHY_LABEL_KEYS: Record<UiTypography, LabelKey> = {
   xxl: "typography.xxl",
 };
 
+function routeFromNavKey(key: NavKey): string {
+  return `#/backoffice/${key}`;
+}
+
+function navKeyFromRoute(hash: string, allowed: NavKey[]): NavKey | null {
+  const match = hash.match(/^#\/backoffice\/([^/?#]+)/);
+  if (!match) {
+    return null;
+  }
+  const candidate = match[1] as NavKey;
+  return allowed.includes(candidate) ? candidate : null;
+}
+
 export function BackofficeLayout({
   session,
   context,
@@ -70,7 +83,13 @@ export function BackofficeLayout({
       }),
     [session.role, t],
   );
-  const [current, setCurrent] = useState<NavKey>(navItems[0]?.key ?? "svc-api-gateway");
+  const [current, setCurrent] = useState<NavKey>(() => {
+    const fallback = navItems[0]?.key ?? "svc-api-gateway";
+    if (typeof window === "undefined") {
+      return fallback;
+    }
+    return navKeyFromRoute(window.location.hash, navItems.map((item) => item.key)) ?? fallback;
+  });
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [density, setDensity] = useState<UiDensity>(() => {
     if (typeof window === "undefined") {
@@ -88,6 +107,28 @@ export function BackofficeLayout({
     if (!currentAllowed) {
       setCurrent(navItems[0]?.key ?? "svc-api-gateway");
     }
+  }, [current, navItems]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const allowed = navItems.map((item) => item.key);
+    const fromHash = navKeyFromRoute(window.location.hash, allowed);
+    if (fromHash && fromHash !== current) {
+      setCurrent(fromHash);
+    }
+
+    const onHashChange = () => {
+      const next = navKeyFromRoute(window.location.hash, allowed);
+      if (next) {
+        setCurrent(next);
+      }
+    };
+
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
   }, [current, navItems]);
 
   useEffect(() => {
@@ -118,6 +159,12 @@ export function BackofficeLayout({
   };
 
   const onNavigate = (key: NavKey) => {
+    if (typeof window !== "undefined") {
+      const nextRoute = routeFromNavKey(key);
+      if (window.location.hash !== nextRoute) {
+        window.location.hash = nextRoute;
+      }
+    }
     setCurrent(key);
     setMobileMenuOpen(false);
   };
@@ -287,7 +334,7 @@ export function BackofficeLayout({
           </div>
         </header>
 
-        {SERVICE_NAV_KEYS.has(current) && <ServiceConsolePanel navKey={current} context={context} density={density} />}
+        {SERVICE_NAV_KEYS.has(current) && <ServiceConsolePanel key={current} navKey={current} context={context} density={density} />}
         {current === "hotfix" && roleCanModify(session.role) && <HotfixPanel session={session} context={context} />}
         {current === "roles" && roleCanManageUsers(session.role) && <RoleManagementPanel context={context} />}
       </main>

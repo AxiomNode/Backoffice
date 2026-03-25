@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { navConfigByKey } from "../../domain/constants/navigation";
 import type { DataDataset, NavKey, ServiceCatalogItem, SessionContext, UiDensity } from "../../domain/types/backoffice";
@@ -44,6 +44,7 @@ type ServiceConsolePanelProps = {
 export function ServiceConsolePanel({ navKey, context, density }: ServiceConsolePanelProps) {
   const { t } = useI18n();
   const serviceConfig = navConfigByKey(navKey);
+  const requestVersionRef = useRef(0);
   const [catalog, setCatalog] = useState<ServiceCatalogItem[]>([]);
 
   const [metricsRows, setMetricsRows] = useState<Array<Record<string, unknown>>>([]);
@@ -67,6 +68,27 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
   const compact = density === "dense";
 
   useEffect(() => {
+    // Force full view isolation when navigating between services.
+    setCatalog([]);
+    setMetricsRows([]);
+    setLogsRows([]);
+    setDataRows([]);
+    setError(null);
+    setLoading(false);
+    setFilter("");
+    setSortBy("");
+    setSortDirection("desc");
+    setPage(1);
+    setPageSize(20);
+    setLimit(200);
+    setMetric("won");
+    setRefreshMode("manual");
+    setRefreshIntervalSeconds(10);
+    setElapsedMs(0);
+    requestVersionRef.current += 1;
+  }, [navKey]);
+
+  useEffect(() => {
     if (serviceConfig?.defaultDataset) {
       setDataset(serviceConfig.defaultDataset);
     }
@@ -80,6 +102,8 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
     if (!serviceConfig) {
       return;
     }
+
+    const requestVersion = ++requestVersionRef.current;
 
     setLoading(true);
     setError(null);
@@ -96,6 +120,10 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
           headers: composeAuthHeaders(context),
         }),
       ]);
+
+      if (requestVersion !== requestVersionRef.current) {
+        return;
+      }
 
       setCatalog(catalogPayload.services ?? []);
       setMetricsRows(rowsFromUnknown(metricsPayload.metrics));
@@ -119,14 +147,28 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
             headers: composeAuthHeaders(context),
           },
         );
+        if (requestVersion !== requestVersionRef.current) {
+          return;
+        }
         setDataRows(dataPayload.rows ?? []);
       } else {
+        if (requestVersion !== requestVersionRef.current) {
+          return;
+        }
         setDataRows([]);
       }
     } catch (err) {
+      if (requestVersion !== requestVersionRef.current) {
+        return;
+      }
+      setMetricsRows([]);
+      setLogsRows([]);
+      setDataRows([]);
       setError(err instanceof Error ? err.message : t("roles.errorUnknown"));
     } finally {
-      setLoading(false);
+      if (requestVersion === requestVersionRef.current) {
+        setLoading(false);
+      }
     }
   }, [context, dataset, filter, limit, metric, page, pageSize, serviceConfig, sortBy, sortDirection, t]);
 

@@ -85,7 +85,7 @@ cd ../platform-infra/environments/dev
 docker compose -f docker-compose.edge-integration.yml up -d --build
 ```
 
-El contenedor de backoffice lee las variables `VITE_*` desde `backoffice/.env.secrets` en runtime mediante `config.js`, para facilitar cambios futuros sin recompilar la app.
+El contenedor de backoffice lee las variables `VITE_*` desde `backoffice/.env.secrets` en runtime mediante `config.js`, para facilitar cambios de configuracion sin recompilar la app.
 
 ## Variables de entorno
 
