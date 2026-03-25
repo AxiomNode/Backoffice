@@ -41,6 +41,19 @@ type ServiceConsolePanelProps = {
   density: UiDensity;
 };
 
+type SectionResult<T> =
+  | { ok: true; data: T }
+  | { ok: false; error: string };
+
+function asSectionResult<T>(promise: Promise<T>): Promise<SectionResult<T>> {
+  return promise
+    .then((data) => ({ ok: true as const, data }))
+    .catch((error: unknown) => ({
+      ok: false as const,
+      error: error instanceof Error ? error.message : "Unknown error",
+    }));
+}
+
 export function ServiceConsolePanel({ navKey, context, density }: ServiceConsolePanelProps) {
   const { t } = useI18n();
   const serviceConfig = navConfigByKey(navKey);
@@ -65,6 +78,9 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [metricsError, setMetricsError] = useState<string | null>(null);
+  const [logsError, setLogsError] = useState<string | null>(null);
+  const [dataError, setDataError] = useState<string | null>(null);
   const compact = density === "dense";
 
   useEffect(() => {
@@ -74,6 +90,9 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
     setLogsRows([]);
     setDataRows([]);
     setError(null);
+    setMetricsError(null);
+    setLogsError(null);
+    setDataError(null);
     setLoading(false);
     setFilter("");
     setSortBy("");
@@ -107,27 +126,52 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
 
     setLoading(true);
     setError(null);
+    setMetricsError(null);
+    setLogsError(null);
+    setDataError(null);
 
     try {
-      const [catalogPayload, metricsPayload, logsPayload] = await Promise.all([
-        fetchJson<{ services: ServiceCatalogItem[] }>(`${EDGE_API_BASE}/v1/backoffice/services`, {
-          headers: composeAuthHeaders(context),
-        }),
-        fetchJson<{ metrics: unknown }>(`${EDGE_API_BASE}/v1/backoffice/services/${serviceConfig.service}/metrics`, {
-          headers: composeAuthHeaders(context),
-        }),
-        fetchJson<{ logs: unknown }>(`${EDGE_API_BASE}/v1/backoffice/services/${serviceConfig.service}/logs?limit=${limit}`, {
-          headers: composeAuthHeaders(context),
-        }),
+      const [catalogResult, metricsResult, logsResult] = await Promise.all([
+        asSectionResult(
+          fetchJson<{ services: ServiceCatalogItem[] }>(`${EDGE_API_BASE}/v1/backoffice/services`, {
+            headers: composeAuthHeaders(context),
+          }),
+        ),
+        asSectionResult(
+          fetchJson<{ metrics: unknown }>(`${EDGE_API_BASE}/v1/backoffice/services/${serviceConfig.service}/metrics`, {
+            headers: composeAuthHeaders(context),
+          }),
+        ),
+        asSectionResult(
+          fetchJson<{ logs: unknown }>(`${EDGE_API_BASE}/v1/backoffice/services/${serviceConfig.service}/logs?limit=${limit}`, {
+            headers: composeAuthHeaders(context),
+          }),
+        ),
       ]);
 
       if (requestVersion !== requestVersionRef.current) {
         return;
       }
 
-      setCatalog(catalogPayload.services ?? []);
-      setMetricsRows(rowsFromUnknown(metricsPayload.metrics));
-      setLogsRows(rowsFromUnknown(logsPayload.logs));
+      if (catalogResult.ok) {
+        setCatalog(catalogResult.data.services ?? []);
+      } else {
+        setCatalog([]);
+      }
+
+      if (metricsResult.ok) {
+        setMetricsRows(rowsFromUnknown(metricsResult.data.metrics));
+      } else {
+        setMetricsRows([]);
+        setMetricsError(metricsResult.error);
+      }
+
+      if (logsResult.ok) {
+        setLogsRows(rowsFromUnknown(logsResult.data.logs));
+      } else {
+        setLogsRows([]);
+        setLogsError(logsResult.error);
+      }
 
       if (serviceConfig.datasets && serviceConfig.datasets.length > 0) {
         const query = new URLSearchParams({
@@ -141,16 +185,23 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
           limit: String(limit),
         });
 
-        const dataPayload = await fetchJson<{ rows: Array<Record<string, unknown>> }>(
-          `${EDGE_API_BASE}/v1/backoffice/services/${serviceConfig.service}/data?${query.toString()}`,
-          {
-            headers: composeAuthHeaders(context),
-          },
+        const dataResult = await asSectionResult(
+          fetchJson<{ rows: Array<Record<string, unknown>> }>(
+            `${EDGE_API_BASE}/v1/backoffice/services/${serviceConfig.service}/data?${query.toString()}`,
+            {
+              headers: composeAuthHeaders(context),
+            },
+          ),
         );
         if (requestVersion !== requestVersionRef.current) {
           return;
         }
-        setDataRows(dataPayload.rows ?? []);
+        if (dataResult.ok) {
+          setDataRows(dataResult.data.rows ?? []);
+        } else {
+          setDataRows([]);
+          setDataError(dataResult.error);
+        }
       } else {
         if (requestVersion !== requestVersionRef.current) {
           return;
@@ -309,12 +360,24 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
 
       <article className="space-y-2">
         <h3 className={`m3-title ${compact ? "text-base" : "text-lg"}`}>{t("service.metrics.title")}</h3>
-        {metricsRows.length ? <PaginatedFilterableTable rows={metricsRows} defaultPageSize={10} density={density} /> : <p className="text-sm">{t("service.metrics.none")}</p>}
+        {metricsError ? (
+          <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{metricsError}</p>
+        ) : metricsRows.length ? (
+          <PaginatedFilterableTable rows={metricsRows} defaultPageSize={10} density={density} />
+        ) : (
+          <p className="text-sm">{t("service.metrics.none")}</p>
+        )}
       </article>
 
       <article className="space-y-2">
         <h3 className={`m3-title ${compact ? "text-base" : "text-lg"}`}>{t("service.logs.title")}</h3>
-        {logsRows.length ? <PaginatedFilterableTable rows={logsRows} defaultPageSize={20} density={density} /> : <p className="text-sm">{t("service.logs.none")}</p>}
+        {logsError ? (
+          <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{logsError}</p>
+        ) : logsRows.length ? (
+          <PaginatedFilterableTable rows={logsRows} defaultPageSize={20} density={density} />
+        ) : (
+          <p className="text-sm">{t("service.logs.none")}</p>
+        )}
       </article>
 
       {serviceConfig.datasets && serviceConfig.datasets.length > 0 && (
@@ -421,7 +484,13 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
             </label>
           </div>
 
-          {dataRows.length ? <PaginatedFilterableTable rows={dataRows} defaultPageSize={10} density={density} /> : <p className="text-sm">{t("service.data.none")}</p>}
+          {dataError ? (
+            <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{dataError}</p>
+          ) : dataRows.length ? (
+            <PaginatedFilterableTable rows={dataRows} defaultPageSize={10} density={density} />
+          ) : (
+            <p className="text-sm">{t("service.data.none")}</p>
+          )}
         </article>
       )}
     </section>
