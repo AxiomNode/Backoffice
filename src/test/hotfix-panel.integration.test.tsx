@@ -30,7 +30,7 @@ const adminSession: BackofficeSession = {
 function renderPanel(session: BackofficeSession = adminSession) {
   return render(
     <I18nProvider language="es" setLanguage={vi.fn()}>
-      <HotfixPanel session={session} context={baseContext} />
+      <HotfixPanel session={session} context={baseContext} density="comfortable" />
     </I18nProvider>,
   );
 }

@@ -608,17 +608,17 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
       </div>
 
       {serviceMeta && (
-        <div className="rounded-xl border border-[var(--md-sys-color-outline-variant)] bg-white/70 px-3 py-2 text-xs sm:text-sm">
+        <div className="ui-surface-soft rounded-xl px-3 py-2 text-xs sm:text-sm">
           <span className="font-semibold">{t("service.meta.service")}:</span> {serviceMeta.title} · <span className="font-semibold">{t("service.domain")}:</span> {serviceMeta.domain} · <span className="font-semibold">{t("service.meta.tabularData")}:</span> {serviceMeta.supportsData ? t("service.meta.yes") : t("service.meta.no")}
         </div>
       )}
 
-      {error && <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+      {error && <p className="ui-feedback ui-feedback--error">{error}</p>}
 
       <article className="space-y-2">
         <h3 className={`m3-title ${compact ? "text-base" : "text-lg"}`}>{t("service.metrics.title")}</h3>
         {metricsError ? (
-          <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{metricsError}</p>
+          <p className="ui-feedback ui-feedback--error">{metricsError}</p>
         ) : metricsRows.length ? (
           <PaginatedFilterableTable rows={metricsRows} defaultPageSize={10} density={density} />
         ) : (
@@ -629,7 +629,7 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
       <article className="space-y-2">
         <h3 className={`m3-title ${compact ? "text-base" : "text-lg"}`}>{t("service.logs.title")}</h3>
         {logsError ? (
-          <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{logsError}</p>
+          <p className="ui-feedback ui-feedback--error">{logsError}</p>
         ) : logsRows.length ? (
           <PaginatedFilterableTable rows={logsRows} defaultPageSize={20} density={density} />
         ) : (
@@ -641,7 +641,7 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
         <article className="space-y-3">
           <h3 className={`m3-title ${compact ? "text-base" : "text-lg"}`}>{t("service.data.title")}</h3>
 
-          <div className={`grid gap-2 rounded-xl border border-[var(--md-sys-color-outline-variant)] bg-white md:grid-cols-2 2xl:grid-cols-4 ${compact ? "p-2" : "p-3"}`}>
+          <div className={`ui-surface-raised grid gap-2 rounded-xl md:grid-cols-2 2xl:grid-cols-4 ${compact ? "p-2" : "p-3"}`}>
             <label className="text-xs">
               {t("service.filter.dataset")}
               <select
@@ -742,13 +742,13 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
           </div>
 
           {isGameHistoryDataset && (
-            <div className={`space-y-3 rounded-xl border border-[var(--md-sys-color-outline-variant)] bg-[color:var(--md-sys-color-surface-container-low)] ${compact ? "p-3" : "p-4"}`}>
+            <div className={`ui-surface-soft space-y-3 rounded-xl ${compact ? "p-3" : "p-4"}`}>
               <h4 className="text-sm font-semibold">{t("service.data.manual.title")}</h4>
               <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
                 <label className="text-xs">
                   {t("service.data.manual.categoryId")}
                   {manualCatalogs.categories.length > 0 ? (
-                    <select value={manualCategoryId} onChange={(event) => setManualCategoryId(event.target.value)} className="mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] bg-white px-2 py-1.5 text-sm">
+                    <select value={manualCategoryId} onChange={(event) => setManualCategoryId(event.target.value)} className="control-input mt-1 w-full px-2 py-1.5 text-sm">
                       {manualCatalogs.categories.map((item) => (
                         <option key={item.id} value={item.id}>
                           {item.name}
@@ -756,13 +756,13 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
                       ))}
                     </select>
                   ) : (
-                    <input value={manualCategoryId} onChange={(event) => setManualCategoryId(event.target.value)} className="mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] bg-white px-2 py-1.5 text-sm" />
+                    <input value={manualCategoryId} onChange={(event) => setManualCategoryId(event.target.value)} className="control-input mt-1 w-full px-2 py-1.5 text-sm" />
                   )}
                 </label>
                 <label className="text-xs">
                   {t("service.data.manual.language")}
                   {manualCatalogs.languages.length > 0 ? (
-                    <select value={manualLanguage} onChange={(event) => setManualLanguage(event.target.value)} className="mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] bg-white px-2 py-1.5 text-sm">
+                    <select value={manualLanguage} onChange={(event) => setManualLanguage(event.target.value)} className="control-input mt-1 w-full px-2 py-1.5 text-sm">
                       {manualCatalogs.languages.map((item) => (
                         <option key={item.code} value={item.code}>
                           {item.name}
@@ -770,18 +770,18 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
                       ))}
                     </select>
                   ) : (
-                    <input value={manualLanguage} onChange={(event) => setManualLanguage(event.target.value)} className="mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] bg-white px-2 py-1.5 text-sm" />
+                    <input value={manualLanguage} onChange={(event) => setManualLanguage(event.target.value)} className="control-input mt-1 w-full px-2 py-1.5 text-sm" />
                   )}
                 </label>
                 <label className="text-xs">
                   {t("service.data.manual.difficulty")}
-                  <input type="number" min={0} max={100} value={manualDifficulty} onChange={(event) => setManualDifficulty(Number(event.target.value || 0))} className="mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] bg-white px-2 py-1.5 text-sm" />
+                  <input type="number" min={0} max={100} value={manualDifficulty} onChange={(event) => setManualDifficulty(Number(event.target.value || 0))} className="control-input mt-1 w-full px-2 py-1.5 text-sm" />
                 </label>
               </div>
 
               <label className="text-xs">
                 {t("service.data.manual.contentJson")}
-                <textarea value={manualContentJson} onChange={(event) => setManualContentJson(event.target.value)} rows={5} className="mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] bg-white px-2 py-2 text-xs sm:text-sm" />
+                <textarea value={manualContentJson} onChange={(event) => setManualContentJson(event.target.value)} rows={5} className="control-input mt-1 w-full px-2 py-2 text-xs sm:text-sm" />
               </label>
 
               <div className="flex flex-wrap gap-2">
@@ -793,21 +793,21 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
               <div className="grid gap-2 md:grid-cols-[1fr_auto]">
                 <label className="text-xs">
                   {t("service.data.manual.deleteId")}
-                  <input value={deleteEntryId} onChange={(event) => setDeleteEntryId(event.target.value)} className="mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] bg-white px-2 py-1.5 text-sm" placeholder={t("service.data.manual.deletePlaceholder")} />
+                  <input value={deleteEntryId} onChange={(event) => setDeleteEntryId(event.target.value)} className="control-input mt-1 w-full px-2 py-1.5 text-sm" placeholder={t("service.data.manual.deletePlaceholder")} />
                 </label>
-                <button type="button" onClick={() => void deleteManualEntry()} disabled={dataMutationLoading} className="self-end rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60">
+                <button type="button" onClick={() => void deleteManualEntry()} disabled={dataMutationLoading} className="self-end rounded-lg bg-[var(--md-sys-color-error)] px-3 py-2 text-sm font-semibold text-[var(--md-sys-color-on-error)] disabled:cursor-not-allowed disabled:opacity-60">
                   {t("service.data.manual.delete")}
                 </button>
               </div>
 
-              {dataMutationError && <p className="rounded-lg bg-red-50 p-2 text-xs text-red-700">{dataMutationError}</p>}
-              {manualCatalogError && <p className="rounded-lg bg-amber-50 p-2 text-xs text-amber-700">{manualCatalogError}</p>}
-              {dataMutationMessage && <p className="rounded-lg bg-emerald-50 p-2 text-xs text-emerald-700">{dataMutationMessage}</p>}
+              {dataMutationError && <p className="ui-feedback ui-feedback--error p-2 text-xs">{dataMutationError}</p>}
+              {manualCatalogError && <p className="ui-feedback ui-feedback--warn p-2 text-xs">{manualCatalogError}</p>}
+              {dataMutationMessage && <p className="ui-feedback ui-feedback--ok p-2 text-xs">{dataMutationMessage}</p>}
             </div>
           )}
 
           {dataError ? (
-            <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{dataError}</p>
+            <p className="ui-feedback ui-feedback--error">{dataError}</p>
           ) : dataRows.length ? (
             <PaginatedFilterableTable rows={dataRows} defaultPageSize={10} density={density} />
           ) : (

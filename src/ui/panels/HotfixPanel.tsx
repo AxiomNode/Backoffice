@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 
 import type { BackofficeSession } from "../../auth";
 import { roleCanModify } from "../../application/services/rolePolicies";
-import type { HotOperationResult, SessionContext } from "../../domain/types/backoffice";
+import type { HotOperationResult, SessionContext, UiDensity } from "../../domain/types/backoffice";
 import { composeAuthHeaders } from "../../infrastructure/backoffice/authHeaders";
 import { EDGE_API_BASE, fetchJson } from "../../infrastructure/http/apiClient";
 import { useI18n } from "../../i18n/context";
@@ -10,6 +10,7 @@ import { useI18n } from "../../i18n/context";
 type HotfixPanelProps = {
   session: BackofficeSession;
   context: SessionContext;
+  density: UiDensity;
 };
 
 type GameCatalogSnapshot = {
@@ -17,8 +18,9 @@ type GameCatalogSnapshot = {
   languages: Array<{ code: string; name: string }>;
 };
 
-export function HotfixPanel({ session, context }: HotfixPanelProps) {
+export function HotfixPanel({ session, context, density }: HotfixPanelProps) {
   const { t } = useI18n();
+  const compact = density === "dense";
   const [categoryId, setCategoryId] = useState("23");
   const [generationLanguage, setGenerationLanguage] = useState("es");
   const [difficultyPercentage, setDifficultyPercentage] = useState(55);
@@ -147,22 +149,22 @@ export function HotfixPanel({ session, context }: HotfixPanelProps) {
   };
 
   return (
-    <section className="m3-card p-5">
-      <h2 className="m3-title text-xl">{t("hotfix.title")}</h2>
-      <p className="mb-4 text-sm text-[var(--md-sys-color-on-surface-variant)]">{t("hotfix.subtitle")}</p>
+    <section className={`m3-card ${compact ? "p-4" : "p-5"}`}>
+      <h2 className={`m3-title ${compact ? "text-lg" : "text-xl"}`}>{t("hotfix.title")}</h2>
+      <p className={`mb-4 text-[var(--md-sys-color-on-surface-variant)] ${compact ? "text-xs" : "text-sm"}`}>{t("hotfix.subtitle")}</p>
 
       {!modifyEnabled && (
-        <p className="mb-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
+        <p className="ui-feedback ui-feedback--warn mb-4">
           {t("hotfix.readOnlyRole", { role: session.role })}
         </p>
       )}
 
       <div className="grid gap-4 md:grid-cols-2">
-        <article className="rounded-xl bg-white p-4 shadow-sm">
+        <article className={`ui-surface-raised rounded-xl ${compact ? "p-3" : "p-4"}`}>
           <h3 className="mb-2 font-semibold">{t("hotfix.genControlTitle")}</h3>
           <label className="mb-2 block text-sm">
             {t("hotfix.catalogSource")}
-            <select value={generationCatalogSource} onChange={(event) => setGenerationCatalogSource(event.target.value as "quiz" | "wordpass")} className="mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] px-2 py-2">
+            <select value={generationCatalogSource} onChange={(event) => setGenerationCatalogSource(event.target.value as "quiz" | "wordpass")} className="control-input mt-1 w-full px-2 py-2">
               <option value="quiz">quiz</option>
               <option value="wordpass">word-pass</option>
             </select>
@@ -170,7 +172,7 @@ export function HotfixPanel({ session, context }: HotfixPanelProps) {
           <label className="mb-2 block text-sm">
             {t("hotfix.categoryId")}
             {selectedCatalog.categories.length > 0 ? (
-              <select value={categoryId} onChange={(event) => setCategoryId(event.target.value)} className="mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] px-2 py-2">
+              <select value={categoryId} onChange={(event) => setCategoryId(event.target.value)} className="control-input mt-1 w-full px-2 py-2">
                 {selectedCatalog.categories.map((item) => (
                   <option key={item.id} value={item.id}>
                     {item.name}
@@ -178,13 +180,13 @@ export function HotfixPanel({ session, context }: HotfixPanelProps) {
                 ))}
               </select>
             ) : (
-              <input value={categoryId} onChange={(event) => setCategoryId(event.target.value)} className="mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] px-2 py-2" />
+              <input value={categoryId} onChange={(event) => setCategoryId(event.target.value)} className="control-input mt-1 w-full px-2 py-2" />
             )}
           </label>
           <label className="mb-2 block text-sm">
             {t("hotfix.language")}
             {selectedCatalog.languages.length > 0 ? (
-              <select value={generationLanguage} onChange={(event) => setGenerationLanguage(event.target.value)} className="mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] px-2 py-2">
+              <select value={generationLanguage} onChange={(event) => setGenerationLanguage(event.target.value)} className="control-input mt-1 w-full px-2 py-2">
                 {selectedCatalog.languages.map((item) => (
                   <option key={item.code} value={item.code}>
                     {item.name}
@@ -192,42 +194,42 @@ export function HotfixPanel({ session, context }: HotfixPanelProps) {
                 ))}
               </select>
             ) : (
-              <input value={generationLanguage} onChange={(event) => setGenerationLanguage(event.target.value)} className="mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] px-2 py-2" />
+              <input value={generationLanguage} onChange={(event) => setGenerationLanguage(event.target.value)} className="control-input mt-1 w-full px-2 py-2" />
             )}
           </label>
           <label className="mb-2 block text-sm">
             {t("hotfix.difficulty")}
-            <input type="number" min={0} max={100} value={difficultyPercentage} onChange={(event) => setDifficultyPercentage(Number(event.target.value || 0))} className="mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] px-2 py-2" />
+            <input type="number" min={0} max={100} value={difficultyPercentage} onChange={(event) => setDifficultyPercentage(Number(event.target.value || 0))} className="control-input mt-1 w-full px-2 py-2" />
           </label>
           <label className="mb-3 block text-sm">
             {t("hotfix.numQuestions")}
-            <input type="number" min={1} max={50} value={numQuestions} onChange={(event) => setNumQuestions(Number(event.target.value || 1))} className="mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] px-2 py-2" />
+            <input type="number" min={1} max={50} value={numQuestions} onChange={(event) => setNumQuestions(Number(event.target.value || 1))} className="control-input mt-1 w-full px-2 py-2" />
           </label>
           <div className="flex gap-2">
             <button type="button" disabled={!modifyEnabled} onClick={() => runGeneration("quiz")} className="flex-1 rounded-lg bg-[var(--md-sys-color-primary)] px-3 py-2 text-sm font-semibold text-[var(--md-sys-color-on-primary)] disabled:cursor-not-allowed disabled:opacity-50">{t("hotfix.generateQuiz")}</button>
             <button type="button" disabled={!modifyEnabled} onClick={() => runGeneration("wordpass")} className="flex-1 rounded-lg bg-[var(--md-sys-color-tertiary)] px-3 py-2 text-sm font-semibold text-[var(--md-sys-color-on-tertiary)] disabled:cursor-not-allowed disabled:opacity-50">{t("hotfix.generateWordpass")}</button>
           </div>
-          {catalogError && <p className="mt-2 rounded-lg bg-amber-50 p-2 text-xs text-amber-800">{catalogError}</p>}
+          {catalogError && <p className="ui-feedback ui-feedback--warn mt-2 p-2 text-xs">{catalogError}</p>}
         </article>
 
-        <article className="rounded-xl bg-white p-4 shadow-sm">
+        <article className={`ui-surface-raised rounded-xl ${compact ? "p-3" : "p-4"}`}>
           <h3 className="mb-2 font-semibold">{t("hotfix.dataAdjustTitle")}</h3>
           <label className="mb-2 block text-sm">
             {t("hotfix.gameType")}
-            <select value={eventType} onChange={(event) => setEventType(event.target.value)} className="mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] px-2 py-2">
+            <select value={eventType} onChange={(event) => setEventType(event.target.value)} className="control-input mt-1 w-full px-2 py-2">
               <option value="quiz">quiz</option>
               <option value="word-pass">word-pass</option>
             </select>
           </label>
           <label className="mb-3 block text-sm">
             {t("hotfix.score")}
-            <input type="number" value={eventScore} onChange={(event) => setEventScore(Number(event.target.value || 0))} className="mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] px-2 py-2" />
+            <input type="number" value={eventScore} onChange={(event) => setEventScore(Number(event.target.value || 0))} className="control-input mt-1 w-full px-2 py-2" />
           </label>
           <button type="button" disabled={!modifyEnabled} onClick={injectUserEvent} className="w-full rounded-lg bg-[var(--md-sys-color-secondary)] px-3 py-2 text-sm font-semibold text-[var(--md-sys-color-on-secondary)] disabled:cursor-not-allowed disabled:opacity-50">{t("hotfix.manualEvent")}</button>
         </article>
       </div>
 
-      <p className={`mt-4 rounded-lg p-3 text-sm ${result.status === "error" ? "bg-red-50 text-red-700" : result.status === "done" ? "bg-emerald-50 text-emerald-700" : "bg-[var(--md-sys-color-surface-container)]"}`}>{result.message}</p>
+      <p className={`mt-4 rounded-lg p-3 text-sm ${result.status === "error" ? "ui-feedback ui-feedback--error" : result.status === "done" ? "ui-feedback ui-feedback--ok" : "ui-surface-soft"}`}>{result.message}</p>
     </section>
   );
 }

@@ -21,7 +21,7 @@ export function Sidebar({ current, onChange, items, className }: SidebarProps) {
         className={`group w-full rounded-xl border px-4 py-3 text-left transition-all duration-200 ${
           active
             ? "border-[var(--md-sys-color-primary)] bg-[var(--md-sys-color-primary-container)] text-[var(--md-sys-color-on-primary-container)] shadow-sm ring-1 ring-[var(--md-sys-color-primary)]/30"
-            : "border-[var(--md-sys-color-outline-variant)] bg-white/70 hover:-translate-y-[1px] hover:bg-[var(--md-sys-color-surface-container)] hover:shadow-sm"
+            : "ui-surface-soft hover:-translate-y-[1px] hover:bg-[var(--md-sys-color-surface-container)] hover:shadow-sm"
         }`}
       >
         <div className="mb-1 flex items-center justify-between gap-2">

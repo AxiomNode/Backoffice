@@ -13,6 +13,9 @@ export type ServiceOperationalRow = {
   connectionError: boolean;
   requestsTotal: number | null;
   requestsPerSecond: number | null;
+  generationRequestedTotal: number | null;
+  generationCreatedTotal: number | null;
+  generationConversionRatio: number | null;
   latencyMs: number | null;
   lastUpdatedAt: string | null;
   errorMessage: string | null;
@@ -65,6 +68,44 @@ function toRequestsTotal(metrics: unknown): number | null {
   }
 
   return null;
+}
+
+function toGenerationConversion(metrics: unknown): {
+  requestedTotal: number | null;
+  createdTotal: number | null;
+  conversionRatio: number | null;
+} {
+  if (!metrics || typeof metrics !== "object") {
+    return { requestedTotal: null, createdTotal: null, conversionRatio: null };
+  }
+
+  const payload = metrics as Record<string, unknown>;
+  const batch = payload.batch;
+
+  if (!batch || typeof batch !== "object") {
+    return { requestedTotal: null, createdTotal: null, conversionRatio: null };
+  }
+
+  const batchPayload = batch as Record<string, unknown>;
+  const requestedValue = batchPayload.requestedTotal;
+  const createdValue = batchPayload.createdTotal;
+
+  const requestedTotal = typeof requestedValue === "number" && Number.isFinite(requestedValue)
+    ? requestedValue
+    : null;
+  const createdTotal = typeof createdValue === "number" && Number.isFinite(createdValue)
+    ? createdValue
+    : null;
+
+  if (requestedTotal === null || createdTotal === null || requestedTotal <= 0) {
+    return { requestedTotal, createdTotal, conversionRatio: null };
+  }
+
+  return {
+    requestedTotal,
+    createdTotal,
+    conversionRatio: Number((createdTotal / requestedTotal).toFixed(4)),
+  };
 }
 
 function isAuthorizationError(message: string): boolean {
@@ -146,6 +187,9 @@ export async function fetchServiceOperationalSummary(
         connectionError: isConnectionError(result.error),
         requestsTotal: null,
         requestsPerSecond: null,
+        generationRequestedTotal: null,
+        generationCreatedTotal: null,
+        generationConversionRatio: null,
         latencyMs: result.latencyMs,
         lastUpdatedAt: new Date(now).toISOString(),
         errorMessage: result.error,
@@ -154,6 +198,7 @@ export async function fetchServiceOperationalSummary(
     }
 
     const requestsTotal = toRequestsTotal(result.data.metrics);
+    const conversion = toGenerationConversion(result.data.metrics);
     const previous = previousByService[service.key];
     let requestsPerSecond: number | null = null;
 
@@ -186,6 +231,9 @@ export async function fetchServiceOperationalSummary(
       connectionError: false,
       requestsTotal,
       requestsPerSecond,
+      generationRequestedTotal: conversion.requestedTotal,
+      generationCreatedTotal: conversion.createdTotal,
+      generationConversionRatio: conversion.conversionRatio,
       latencyMs: result.latencyMs,
       lastUpdatedAt: new Date(now).toISOString(),
       errorMessage: null,

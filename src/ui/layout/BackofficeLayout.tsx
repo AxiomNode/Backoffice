@@ -275,7 +275,7 @@ export function BackofficeLayout({
         <button
           type="button"
           onClick={() => setMobileMenuOpen(true)}
-          className="rounded-lg border border-[var(--md-sys-color-outline)] bg-white px-3 py-2 text-sm font-semibold transition hover:bg-[var(--md-sys-color-surface-container)]"
+          className="rounded-lg border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container-low)] px-3 py-2 text-sm font-semibold transition hover:bg-[var(--md-sys-color-surface-container)]"
         >
           {t("layout.mobile.menu")}
         </button>
@@ -290,14 +290,14 @@ export function BackofficeLayout({
             )}
           </div>
         </div>
-        <button type="button" onClick={toggleDensity} className="rounded-lg border border-[var(--md-sys-color-outline)] bg-white px-3 py-2 text-xs font-semibold transition hover:bg-[var(--md-sys-color-surface-container)]">{density === "dense" ? t("layout.mobile.densityComfortable") : t("layout.mobile.densityDense")}</button>
+        <button type="button" onClick={toggleDensity} className="rounded-lg border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container-low)] px-3 py-2 text-xs font-semibold transition hover:bg-[var(--md-sys-color-surface-container)]">{density === "dense" ? t("layout.mobile.densityComfortable") : t("layout.mobile.densityDense")}</button>
         <button type="button" onClick={onToggleTheme} className="ui-switch" role="switch" aria-checked={theme === "dark"} aria-label={t("layout.mobile.themeSwitch")}>
           <span className={`ui-switch-track ${theme === "dark" ? "is-on" : ""}`}>
             <span className="ui-switch-thumb" />
           </span>
         </button>
-        <button type="button" onClick={cycleAccent} className="rounded-lg border border-[var(--md-sys-color-outline)] bg-white px-3 py-2 text-xs font-semibold transition hover:bg-[var(--md-sys-color-surface-container)]">{t("login.accent")}</button>
-        <select value={typography} onChange={(event) => onTypographyChange(event.target.value as UiTypography)} className="control-input bg-white px-2 py-1 text-xs">
+        <button type="button" onClick={cycleAccent} className="rounded-lg border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container-low)] px-3 py-2 text-xs font-semibold transition hover:bg-[var(--md-sys-color-surface-container)]">{t("login.accent")}</button>
+        <select value={typography} onChange={(event) => onTypographyChange(event.target.value as UiTypography)} className="control-input px-2 py-1 text-xs">
           {TYPOGRAPHY_OPTIONS.map((size) => (
             <option key={size} value={size}>{t(TYPOGRAPHY_LABEL_KEYS[size])}</option>
           ))}
@@ -307,7 +307,7 @@ export function BackofficeLayout({
           <select
             value={language}
             onChange={(event) => setLanguage(event.target.value as typeof language)}
-            className="control-input ml-1 bg-white py-1"
+            className="control-input ml-1 py-1"
           >
             {LANGUAGE_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
@@ -336,7 +336,7 @@ export function BackofficeLayout({
       <Sidebar current={current} onChange={onNavigate} items={navItems} className="hidden h-fit lg:block lg:sticky lg:top-4" />
 
       <main className="min-w-0 space-y-3 sm:space-y-4 xl:space-y-5">
-        <header className="m3-card ui-fade-in bg-gradient-to-r from-[color:var(--md-sys-color-primary-container)]/85 via-white/60 to-[color:var(--md-sys-color-tertiary-container)]/65 p-4 xl:p-6">
+        <header className="m3-card ui-fade-in bg-[linear-gradient(120deg,color-mix(in_srgb,var(--md-sys-color-primary-container)_78%,var(--md-sys-color-surface)_22%)_0%,color-mix(in_srgb,var(--md-sys-color-surface)_88%,transparent_12%)_46%,color-mix(in_srgb,var(--md-sys-color-tertiary-container)_75%,var(--md-sys-color-surface)_25%)_100%)] p-4 xl:p-6">
           <div className="grid gap-4 xl:grid-cols-[1fr_auto] xl:items-start">
             <div className="min-w-0">
               <p className="text-xs uppercase tracking-[0.22em] text-[var(--md-sys-color-on-surface-variant)]">{t("layout.header.adminConsole")}</p>
@@ -346,14 +346,14 @@ export function BackofficeLayout({
               </p>
               <div className="mt-2 flex items-center gap-2">
                 <span
-                  className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                  className={`ui-status-chip ${
                     globalHealth === "healthy"
-                      ? "bg-emerald-100 text-emerald-800"
+                      ? "ui-status-chip--ok"
                       : globalHealth === "warning"
-                        ? "bg-amber-100 text-amber-800"
+                        ? "ui-status-chip--warn"
                         : globalHealth === "critical"
-                          ? "bg-red-100 text-red-800"
-                          : "bg-slate-200 text-slate-700"
+                          ? "ui-status-chip--error"
+                          : "ui-status-chip--neutral"
                   }`}
                 >
                   {globalHealth === "healthy"
@@ -370,7 +370,7 @@ export function BackofficeLayout({
               <div className="mt-4 flex flex-wrap items-center gap-2.5">
                 <label className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
                   {t("login.accent")}
-                  <select value={accent} onChange={(event) => onAccentChange(event.target.value as UiAccent)} className="control-input ml-2 bg-white py-1.5">
+                  <select value={accent} onChange={(event) => onAccentChange(event.target.value as UiAccent)} className="control-input ml-2 py-1.5">
                     {ACCENT_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>
                         {t(ACCENT_LABEL_KEYS[option.value])}
@@ -380,7 +380,7 @@ export function BackofficeLayout({
                 </label>
                 <label className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
                   {t("language.selectorLabel")}
-                  <select value={language} onChange={(event) => setLanguage(event.target.value as typeof language)} className="control-input ml-2 bg-white py-1.5">
+                  <select value={language} onChange={(event) => setLanguage(event.target.value as typeof language)} className="control-input ml-2 py-1.5">
                     {LANGUAGE_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>
                         {option.label}
@@ -390,7 +390,7 @@ export function BackofficeLayout({
                 </label>
                 <label className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
                   {t("layout.header.typography")}
-                  <select value={typography} onChange={(event) => onTypographyChange(event.target.value as UiTypography)} className="control-input ml-2 bg-white py-1.5">
+                  <select value={typography} onChange={(event) => onTypographyChange(event.target.value as UiTypography)} className="control-input ml-2 py-1.5">
                     {TYPOGRAPHY_OPTIONS.map((size) => (
                       <option key={size} value={size}>{t(TYPOGRAPHY_LABEL_KEYS[size])}</option>
                     ))}
@@ -419,8 +419,8 @@ export function BackofficeLayout({
 
         {current === "svc-overview" && <ServiceOverviewPanel context={context} density={density} />}
         {current !== "svc-overview" && SERVICE_NAV_KEYS.has(current) && <ServiceConsolePanel key={current} navKey={current} context={context} density={density} />}
-        {current === "hotfix" && roleCanModify(session.role) && <HotfixPanel session={session} context={context} />}
-        {current === "roles" && roleCanManageUsers(session.role) && <RoleManagementPanel context={context} />}
+        {current === "hotfix" && roleCanModify(session.role) && <HotfixPanel session={session} context={context} density={density} />}
+        {current === "roles" && roleCanManageUsers(session.role) && <RoleManagementPanel context={context} density={density} />}
       </main>
     </div>
   );

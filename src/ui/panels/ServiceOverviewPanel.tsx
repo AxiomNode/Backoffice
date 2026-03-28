@@ -9,6 +9,34 @@ type ServiceOverviewPanelProps = {
   density: UiDensity;
 };
 
+type KpiCardProps = {
+  label: string;
+  value: number;
+  tone?: "neutral" | "ok" | "warn" | "error";
+};
+
+function KpiCard({ label, value, tone = "neutral" }: KpiCardProps) {
+  const toneClass =
+    tone === "ok"
+      ? "ui-status-chip--ok"
+      : tone === "warn"
+        ? "ui-status-chip--warn"
+        : tone === "error"
+          ? "ui-status-chip--error"
+          : "ui-status-chip--neutral";
+
+  return (
+    <div className="ui-surface-soft rounded-xl px-3 py-2">
+      <p className={`ui-status-chip inline-flex ${toneClass}`}>{label}</p>
+      <p className="mt-1 text-xl font-semibold text-[var(--md-sys-color-on-surface)]">{value}</p>
+    </div>
+  );
+}
+
+function formatPercent(value: number): string {
+  return `${(value * 100).toFixed(1)}%`;
+}
+
 export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelProps) {
   const { t } = useI18n();
   const compact = density === "dense";
@@ -94,6 +122,8 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
     accessIssues: rows.filter((row) => !row.accessGuaranteed).length,
   }), [rows]);
 
+  const statusClass = (online: boolean) => (online ? "ui-status-chip ui-status-chip--ok" : "ui-status-chip ui-status-chip--error");
+
   return (
     <section className={`m3-card ui-fade-in ${compact ? "p-3 sm:p-4 xl:p-5 space-y-3" : "p-4 sm:p-5 xl:p-6 space-y-4 xl:space-y-5"}`}>
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -162,40 +192,28 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
       </div>
 
       <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-xl border border-[var(--md-sys-color-outline-variant)] bg-[var(--md-sys-color-surface-container-low)] px-3 py-2">
-          <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">{t("overview.summary.total")}</p>
-          <p className="text-xl font-semibold">{totals.total}</p>
-        </div>
-        <div className="rounded-xl border border-emerald-300 bg-emerald-50 px-3 py-2">
-          <p className="text-xs text-emerald-700">{t("overview.summary.online")}</p>
-          <p className="text-xl font-semibold text-emerald-800">{totals.onlineCount}</p>
-        </div>
-        <div className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2">
-          <p className="text-xs text-amber-700">{t("overview.summary.accessIssues")}</p>
-          <p className="text-xl font-semibold text-amber-800">{totals.accessIssues}</p>
-        </div>
-        <div className="rounded-xl border border-red-300 bg-red-50 px-3 py-2">
-          <p className="text-xs text-red-700">{t("overview.summary.connectionErrors")}</p>
-          <p className="text-xl font-semibold text-red-800">{totals.connectionErrors}</p>
-        </div>
+        <KpiCard label={t("overview.summary.total")} value={totals.total} tone="neutral" />
+        <KpiCard label={t("overview.summary.online")} value={totals.onlineCount} tone="ok" />
+        <KpiCard label={t("overview.summary.accessIssues")} value={totals.accessIssues} tone="warn" />
+        <KpiCard label={t("overview.summary.connectionErrors")} value={totals.connectionErrors} tone="error" />
       </div>
 
-      {error && <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{t("overview.error.load")}: {error}</p>}
+      {error && <p className="ui-feedback ui-feedback--error">{t("overview.error.load")}: {error}</p>}
 
       <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
         {rows.map((row) => (
-          <article key={row.key} className="rounded-2xl border border-[var(--md-sys-color-outline-variant)] bg-white/90 p-4 shadow-sm">
+          <article key={row.key} className="ui-surface-raised rounded-2xl p-4 text-[var(--md-sys-color-on-surface)]">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 className="text-sm font-semibold sm:text-base">{row.title}</h3>
+                <h3 className="text-sm font-semibold sm:text-base text-[var(--md-sys-color-on-surface)]">{row.title}</h3>
                 <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">{row.domain}</p>
               </div>
-              <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${row.online ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-800"}`}>
+              <span className={statusClass(row.online)}>
                 {row.online ? t("overview.status.online") : t("overview.status.offline")}
               </span>
             </div>
 
-            <div className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
+            <div className="mt-3 grid gap-2 text-xs sm:grid-cols-2 text-[var(--md-sys-color-on-surface)]">
               <p>
                 <span className="font-semibold">{t("overview.status.accessLabel")}:</span>{" "}
                 {row.accessGuaranteed ? t("overview.status.accessOk") : t("overview.status.accessDenied")}
@@ -222,12 +240,39 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
               </p>
             </div>
 
-            {row.errorMessage && <p className="mt-3 rounded-lg bg-red-50 p-2 text-xs text-red-700">{row.errorMessage}</p>}
-            {!row.errorMessage && row.lastKnownError && (
-              <p className="mt-3 rounded-lg bg-amber-50 p-2 text-xs text-amber-800">
-                {t("overview.lastKnownError")} ({new Date(row.lastKnownError.at).toLocaleString()}): {row.lastKnownError.message}
-              </p>
+            {(row.generationRequestedTotal !== null || row.generationCreatedTotal !== null) && (
+              <div className="mt-3 rounded-xl border border-[var(--md-sys-color-outline-variant)] bg-[color:var(--md-sys-color-surface-container-low)]/70 p-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--md-sys-color-on-surface-variant)]">
+                  {t("overview.metric.conversion")}
+                </p>
+                <div className="mt-2 grid gap-2 text-xs sm:grid-cols-2 text-[var(--md-sys-color-on-surface)]">
+                  <p>
+                    <span className="font-semibold">{t("overview.metric.requested")}:</span>{" "}
+                    {row.generationRequestedTotal ?? t("overview.metric.na")}
+                  </p>
+                  <p>
+                    <span className="font-semibold">{t("overview.metric.created")}:</span>{" "}
+                    {row.generationCreatedTotal ?? t("overview.metric.na")}
+                  </p>
+                </div>
+
+                {row.generationConversionRatio !== null && (
+                  <div className="mt-2">
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--md-sys-color-surface-container)]">
+                      <div
+                        className="h-full rounded-full bg-[var(--md-sys-color-primary)] transition-[width] duration-200"
+                        style={{ width: `${Math.min(100, Math.max(0, row.generationConversionRatio * 100))}%` }}
+                      />
+                    </div>
+                    <p className="mt-1 text-[11px] text-[var(--md-sys-color-on-surface-variant)]">
+                      {formatPercent(row.generationConversionRatio)}
+                    </p>
+                  </div>
+                )}
+              </div>
             )}
+
+            {row.errorMessage && <p className="ui-feedback ui-feedback--error mt-3 p-2 text-xs">{row.errorMessage}</p>}
           </article>
         ))}
       </div>

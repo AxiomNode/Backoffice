@@ -33,6 +33,18 @@
   --md-sys-color-surface-container-low: #f2f7ff;
   --md-sys-color-surface-container: #eaf1fb;
   --md-sys-color-surface-container-high: #e0e9f5;
+  --ui-state-ok-bg: #e6f6ef;
+  --ui-state-ok-border: #9fd7b8;
+  --ui-state-ok-fg: #0f5f44;
+  --ui-state-warn-bg: #fff3dd;
+  --ui-state-warn-border: #efc27f;
+  --ui-state-warn-fg: #7a4a04;
+  --ui-state-error-bg: #fde9ea;
+  --ui-state-error-border: #f1a2a7;
+  --ui-state-error-fg: #8a1f2b;
+  --ui-state-neutral-bg: #edf2fb;
+  --ui-state-neutral-border: #c8d5ea;
+  --ui-state-neutral-fg: #394f71;
 }
 
 :root[data-typography="sm"] {
@@ -103,6 +115,18 @@
   --md-sys-color-surface-container-low: #182337;
   --md-sys-color-surface-container: #1d2b42;
   --md-sys-color-surface-container-high: #253753;
+  --ui-state-ok-bg: #173a2f;
+  --ui-state-ok-border: #2b6d56;
+  --ui-state-ok-fg: #b9f4d7;
+  --ui-state-warn-bg: #3f3017;
+  --ui-state-warn-border: #7a5d28;
+  --ui-state-warn-fg: #ffe3ad;
+  --ui-state-error-bg: #46202a;
+  --ui-state-error-border: #8d3e4c;
+  --ui-state-error-fg: #ffc6cf;
+  --ui-state-neutral-bg: #27354c;
+  --ui-state-neutral-border: #3a4f70;
+  --ui-state-neutral-fg: #c8d7ee;
 }
 
 :root[data-theme="dark"][data-accent="sunset"] {
@@ -223,6 +247,71 @@ body {
   .control-input {
     @apply rounded-lg border px-2 py-2 text-sm;
     border-color: var(--md-sys-color-outline-variant);
+  }
+
+  .ui-surface-soft {
+    border: 1px solid var(--md-sys-color-outline-variant);
+    background: var(--md-sys-color-surface-container-low);
+    color: var(--md-sys-color-on-surface);
+  }
+
+  .ui-surface-raised {
+    border: 1px solid var(--md-sys-color-outline-variant);
+    background: var(--md-sys-color-surface);
+    color: var(--md-sys-color-on-surface);
+    box-shadow: 0 6px 18px color-mix(in srgb, var(--md-sys-color-primary) 12%, transparent 88%);
+  }
+
+  .ui-status-chip {
+    @apply rounded-full px-2.5 py-1 text-[11px] font-semibold;
+    border: 1px solid transparent;
+  }
+
+  .ui-status-chip--ok {
+    background: var(--ui-state-ok-bg);
+    border-color: var(--ui-state-ok-border);
+    color: var(--ui-state-ok-fg);
+  }
+
+  .ui-status-chip--warn {
+    background: var(--ui-state-warn-bg);
+    border-color: var(--ui-state-warn-border);
+    color: var(--ui-state-warn-fg);
+  }
+
+  .ui-status-chip--error {
+    background: var(--ui-state-error-bg);
+    border-color: var(--ui-state-error-border);
+    color: var(--ui-state-error-fg);
+  }
+
+  .ui-status-chip--neutral {
+    background: var(--ui-state-neutral-bg);
+    border-color: var(--ui-state-neutral-border);
+    color: var(--ui-state-neutral-fg);
+  }
+
+  .ui-feedback {
+    @apply rounded-lg p-3 text-sm;
+    border: 1px solid transparent;
+  }
+
+  .ui-feedback--error {
+    background: var(--ui-state-error-bg);
+    border-color: var(--ui-state-error-border);
+    color: var(--ui-state-error-fg);
+  }
+
+  .ui-feedback--warn {
+    background: var(--ui-state-warn-bg);
+    border-color: var(--ui-state-warn-border);
+    color: var(--ui-state-warn-fg);
+  }
+
+  .ui-feedback--ok {
+    background: var(--ui-state-ok-bg);
+    border-color: var(--ui-state-ok-border);
+    color: var(--ui-state-ok-fg);
   }
 
   .ui-switch {
@@ -358,6 +447,18 @@ textarea.control-input {
 
 :root[data-theme="dark"] .bg-white {
   background-color: var(--md-sys-color-surface-container-low) !important;
+}
+
+:root[data-theme="dark"] .bg-white\/90 {
+  background-color: color-mix(in srgb, var(--md-sys-color-surface-container-low) 90%, transparent 10%) !important;
+}
+
+:root[data-theme="dark"] .ui-surface-soft {
+  background: var(--md-sys-color-surface-container) !important;
+}
+
+:root[data-theme="dark"] .ui-surface-raised {
+  background: var(--md-sys-color-surface-container-high) !important;
 }
 
 :root[data-theme="dark"] .bg-white\/70 {

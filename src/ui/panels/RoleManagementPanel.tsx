@@ -1,16 +1,18 @@
 import { useCallback, useEffect, useState } from "react";
 
-import type { BackofficeRole, RoleItem, SessionContext } from "../../domain/types/backoffice";
+import type { BackofficeRole, RoleItem, SessionContext, UiDensity } from "../../domain/types/backoffice";
 import { composeAuthHeaders } from "../../infrastructure/backoffice/authHeaders";
 import { EDGE_API_BASE, fetchJson } from "../../infrastructure/http/apiClient";
 import { useI18n } from "../../i18n/context";
 
 type RoleManagementPanelProps = {
   context: SessionContext;
+  density: UiDensity;
 };
 
-export function RoleManagementPanel({ context }: RoleManagementPanelProps) {
+export function RoleManagementPanel({ context, density }: RoleManagementPanelProps) {
   const { t } = useI18n();
+  const compact = density === "dense";
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<RoleItem[]>([]);
@@ -49,20 +51,20 @@ export function RoleManagementPanel({ context }: RoleManagementPanelProps) {
   };
 
   return (
-    <section className="m3-card p-5">
+    <section className={`m3-card ${compact ? "p-4" : "p-5"}`}>
       <div className="mb-4 flex items-center justify-between gap-3">
         <div>
-          <h2 className="m3-title text-xl">{t("roles.title")}</h2>
-          <p className="text-sm text-[var(--md-sys-color-on-surface-variant)]">{t("roles.subtitle")}</p>
+          <h2 className={`m3-title ${compact ? "text-lg" : "text-xl"}`}>{t("roles.title")}</h2>
+          <p className={`${compact ? "text-xs" : "text-sm"} text-[var(--md-sys-color-on-surface-variant)]`}>{t("roles.subtitle")}</p>
         </div>
         <button type="button" onClick={() => void load()} className="rounded-lg border border-[var(--md-sys-color-outline)] px-3 py-2 text-sm">{t("roles.refresh")}</button>
       </div>
 
       {loading && <p className="text-sm">{t("roles.loading")}</p>}
-      {error && <p className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+      {error && <p className="ui-feedback ui-feedback--error mb-3">{error}</p>}
 
-      <div className="overflow-x-auto rounded-xl border border-[var(--md-sys-color-outline-variant)] bg-white">
-        <table className="min-w-full text-sm">
+      <div className="ui-surface-raised overflow-x-auto rounded-xl">
+        <table className={`min-w-full ${compact ? "text-xs" : "text-sm"}`}>
           <thead className="bg-[var(--md-sys-color-surface-container)] text-left">
             <tr>
               <th className="px-3 py-2">{t("roles.col.name")}</th>

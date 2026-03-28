@@ -173,7 +173,7 @@ export function PaginatedFilterableTable({ rows, defaultPageSize = 10, density =
 
   return (
     <div className="space-y-3">
-      <div className={`grid gap-2 rounded-xl border border-[var(--md-sys-color-outline-variant)] bg-white md:grid-cols-2 xl:grid-cols-4 ${controlsPadding}`}>
+      <div className={`ui-surface-raised grid gap-2 rounded-xl md:grid-cols-2 xl:grid-cols-4 ${controlsPadding}`}>
         <label className="text-xs">
           {t("table.filter")}
           <input
@@ -226,7 +226,7 @@ export function PaginatedFilterableTable({ rows, defaultPageSize = 10, density =
         </label>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-[var(--md-sys-color-outline-variant)] bg-white">
+      <div className="ui-surface-raised overflow-x-auto rounded-xl">
         <table className={`min-w-full ${tableTextSize}`}>
           <thead className="bg-[var(--md-sys-color-surface-container)] text-left">
             <tr>
@@ -270,7 +270,7 @@ export function PaginatedFilterableTable({ rows, defaultPageSize = 10, density =
         </table>
       </div>
 
-      <div className={`flex flex-wrap items-center justify-between gap-2 rounded-xl bg-white ${footerPadding} ${footerText}`}>
+      <div className={`ui-surface-soft flex flex-wrap items-center justify-between gap-2 rounded-xl ${footerPadding} ${footerText}`}>
         <p>
           {t("table.showing", {
             from: pageRows.length ? start + 1 : 0,
@@ -331,7 +331,7 @@ export function PaginatedFilterableTable({ rows, defaultPageSize = 10, density =
                   <a href={dialogResolved.content} target="_blank" rel="noreferrer" className="text-sm font-semibold text-[var(--md-sys-color-primary)] underline">
                     {t("table.openUrl")}
                   </a>
-                  <iframe src={dialogResolved.content} title={t("table.urlPreviewTitle")} className="h-[45vh] w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] bg-white" />
+                  <iframe src={dialogResolved.content} title={t("table.urlPreviewTitle")} className="h-[45vh] w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] bg-[var(--md-sys-color-surface)]" />
                 </div>
               ) : (
                 <pre className="whitespace-pre-wrap break-words rounded-lg border border-[var(--md-sys-color-outline-variant)] bg-[var(--md-sys-color-surface-container-low)] p-3 text-xs sm:text-sm">{dialogResolved.content || "-"}</pre>

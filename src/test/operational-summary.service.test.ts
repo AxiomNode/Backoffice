@@ -35,7 +35,12 @@ describe("fetchServiceOperationalSummary", () => {
       }
 
       if (url.includes("svc-ok/metrics")) {
-        return Promise.resolve({ metrics: { traffic: { requestsReceivedTotal: 100 } } });
+        return Promise.resolve({
+          metrics: {
+            traffic: { requestsReceivedTotal: 100 },
+            batch: { requestedTotal: 50, createdTotal: 40 },
+          },
+        });
       }
 
       if (url.includes("svc-down/metrics")) {
@@ -63,6 +68,9 @@ describe("fetchServiceOperationalSummary", () => {
 
     expect(okRow?.online).toBe(true);
     expect(okRow?.requestsTotal).toBe(100);
+    expect(okRow?.generationRequestedTotal).toBe(50);
+    expect(okRow?.generationCreatedTotal).toBe(40);
+    expect(okRow?.generationConversionRatio).toBe(0.8);
 
     expect(downRow?.online).toBe(false);
     expect(downRow?.connectionError).toBe(true);
@@ -89,7 +97,12 @@ describe("fetchServiceOperationalSummary", () => {
       }
 
       if (url.includes("svc-fast/metrics")) {
-        return Promise.resolve({ metrics: { requestsReceivedTotal: 140 } });
+        return Promise.resolve({
+          metrics: {
+            requestsReceivedTotal: 140,
+            batch: { requestedTotal: 0, createdTotal: 0 },
+          },
+        });
       }
 
       if (url.includes("svc-unknown/metrics")) {
@@ -128,6 +141,7 @@ describe("fetchServiceOperationalSummary", () => {
     const badShapeRow = summary.rows.find((row) => row.key === "svc-bad-shape");
 
     expect(fastRow?.requestsPerSecond).toBe(8);
+    expect(fastRow?.generationConversionRatio).toBeNull();
     expect(fastRow?.lastKnownError).toBeNull();
 
     expect(unknownRow?.online).toBe(false);

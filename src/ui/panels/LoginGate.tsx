@@ -146,7 +146,7 @@ export function LoginGate({
           <button
             type="button"
             onClick={onToggleTheme}
-            className="rounded-lg border border-[var(--md-sys-color-outline)] bg-white px-3 py-2 text-sm font-semibold transition hover:bg-[var(--md-sys-color-surface-container-low)]"
+            className="rounded-lg border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container-low)] px-3 py-2 text-sm font-semibold transition hover:bg-[var(--md-sys-color-surface-container)]"
           >
             {theme === "dark" ? t("login.themeToLight") : t("login.themeToDark")}
           </button>
@@ -156,7 +156,7 @@ export function LoginGate({
             <select
               value={typography}
               onChange={(event) => onTypographyChange(event.target.value as UiTypography)}
-              className="control-input mt-1 w-full bg-white"
+              className="control-input mt-1 w-full"
             >
               {TYPOGRAPHY_OPTIONS.map((size) => (
                 <option key={size} value={size}>{t(TYPOGRAPHY_LABEL_KEYS[size])}</option>
@@ -169,7 +169,7 @@ export function LoginGate({
             <select
               value={accent}
               onChange={(event) => onAccentChange(event.target.value as UiAccent)}
-              className="control-input mt-1 w-full bg-white"
+              className="control-input mt-1 w-full"
             >
               {ACCENT_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -184,7 +184,7 @@ export function LoginGate({
             <select
               value={language}
               onChange={(event) => setLanguage(event.target.value as typeof language)}
-              className="control-input mt-1 w-full bg-white"
+              className="control-input mt-1 w-full"
             >
               {LANGUAGE_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -222,7 +222,7 @@ export function LoginGate({
           )}
         </div>
 
-        {error && <p className="relative mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+        {error && <p className="ui-feedback ui-feedback--error relative mt-3">{error}</p>}
       </section>
     </div>
   );
