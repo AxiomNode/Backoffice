@@ -6,6 +6,10 @@ MVP web para administracion del ecosistema AxiomNode con foco en:
 2. Observacion
 3. Modificacion en caliente
 
+## Responsabilidad principal
+
+- Consola operacional para supervision, accion y mantenimiento seguro del ecosistema.
+
 Tecnologias:
 
 - React
