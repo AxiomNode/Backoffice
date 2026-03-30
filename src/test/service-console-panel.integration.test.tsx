@@ -245,4 +245,58 @@ describe("ServiceConsolePanel integration", () => {
       expect(screen.getByText("El contenido debe ser un objeto JSON.")).toBeInTheDocument();
     });
   });
+
+  it("follows a specific generation task in processes dataset", async () => {
+    window.location.hash = "#/backoffice/svc-quiz?dataset=processes&followTaskId=11111111-1111-1111-1111-111111111111";
+
+    fetchJsonMock.mockImplementation((url: string) => {
+      if (url.endsWith("/v1/backoffice/services")) {
+        return Promise.resolve({
+          services: [{ key: "microservice-quiz", title: "Quiz", domain: "games", supportsData: true }],
+        });
+      }
+      if (url.includes("/metrics")) {
+        return Promise.resolve({ metrics: { traffic: { requestsReceivedTotal: 10 } } });
+      }
+      if (url.includes("/logs")) {
+        return Promise.resolve({ logs: [] });
+      }
+      if (url.includes("/catalogs")) {
+        return Promise.resolve({
+          catalogs: {
+            categories: [{ id: "22", name: "Science" }],
+            languages: [{ code: "en", name: "English" }],
+          },
+        });
+      }
+      if (url.includes("/data?")) {
+        return Promise.resolve({ rows: [{ taskId: "other", status: "running" }] });
+      }
+      if (url.includes("/generation/process/11111111-1111-1111-1111-111111111111")) {
+        return Promise.resolve({
+          task: {
+            taskId: "11111111-1111-1111-1111-111111111111",
+            status: "running",
+            requested: 10,
+            processed: 3,
+            created: 2,
+            duplicates: 1,
+            failed: 0,
+            progress: { current: 3, total: 10, ratio: 0.3 },
+          },
+        });
+      }
+      return Promise.reject(new Error(`Unhandled URL: ${url}`));
+    });
+
+    renderPanel("svc-quiz");
+
+    await waitFor(() => {
+      expect(screen.getByText(/Siguiendo task 11111111-1111-1111-1111-111111111111/i)).toBeInTheDocument();
+      expect(fetchJsonMock).toHaveBeenCalledWith(
+        expect.stringContaining("/v1/backoffice/services/microservice-quiz/generation/process/11111111-1111-1111-1111-111111111111"),
+        expect.anything(),
+      );
+    });
+  });
 });

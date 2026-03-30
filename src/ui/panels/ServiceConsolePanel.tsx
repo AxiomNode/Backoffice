@@ -1,15 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useMemo } from "react";
 
-import { navConfigByKey } from "../../domain/constants/navigation";
-import { storeServiceLastError } from "../../application/services/operationalSummary";
-import { UI_SERVICE_ROUTE_QUERY_STORAGE_PREFIX } from "../../domain/constants/ui";
-import type { DataDataset, NavKey, ServiceCatalogItem, SessionContext, UiDensity } from "../../domain/types/backoffice";
-import { composeAuthHeaders } from "../../infrastructure/backoffice/authHeaders";
-import { EDGE_API_BASE, fetchJson } from "../../infrastructure/http/apiClient";
+import type { DataDataset, NavKey, SessionContext, UiDensity } from "../../domain/types/backoffice";
 import { useI18n } from "../../i18n/context";
 import type { LabelKey } from "../../i18n/labels";
-import { rowsFromUnknown } from "../utils/table";
 import { PaginatedFilterableTable } from "../components/PaginatedFilterableTable";
+import { useServiceConsoleState, type ServiceConsoleMessages } from "../hooks/useServiceConsoleState";
 
 const NAV_TITLE_KEYS: Record<NavKey, LabelKey> = {
   "svc-overview": "nav.svc-overview.title",
@@ -45,395 +40,17 @@ type ServiceConsolePanelProps = {
   density: UiDensity;
 };
 
-type SectionResult<T> =
-  | { ok: true; data: T }
-  | { ok: false; error: string };
-
-type ServiceCatalogSnapshot = {
-  categories: Array<{ id: string; name: string }>;
-  languages: Array<{ code: string; name: string }>;
-};
-
-function parseIntParam(value: string | null, fallback: number, min: number, max: number): number {
-  if (!value) {
-    return fallback;
-  }
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) {
-    return fallback;
-  }
-  const rounded = Math.trunc(parsed);
-  if (rounded < min || rounded > max) {
-    return fallback;
-  }
-  return rounded;
-}
-
-function asSectionResult<T>(promise: Promise<T>): Promise<SectionResult<T>> {
-  return promise
-    .then((data) => ({ ok: true as const, data }))
-    .catch((error: unknown) => ({
-      ok: false as const,
-      error: error instanceof Error ? error.message : "Unknown error",
-    }));
-}
-
 export function ServiceConsolePanel({ navKey, context, density }: ServiceConsolePanelProps) {
   const { t } = useI18n();
-  const serviceConfig = navConfigByKey(navKey);
-  const requestVersionRef = useRef(0);
-  const [catalog, setCatalog] = useState<ServiceCatalogItem[]>([]);
-
-  const [metricsRows, setMetricsRows] = useState<Array<Record<string, unknown>>>([]);
-  const [logsRows, setLogsRows] = useState<Array<Record<string, unknown>>>([]);
-  const [dataRows, setDataRows] = useState<Array<Record<string, unknown>>>([]);
-
-  const [dataset, setDataset] = useState<DataDataset>(serviceConfig?.defaultDataset ?? "history");
-  const [metric, setMetric] = useState<"won" | "score" | "played">("won");
-  const [filter, setFilter] = useState("");
-  const [sortBy, setSortBy] = useState("");
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
-  const [limit, setLimit] = useState(200);
-  const [refreshMode, setRefreshMode] = useState<"manual" | "auto">("manual");
-  const [refreshIntervalSeconds, setRefreshIntervalSeconds] = useState(10);
-  const [elapsedMs, setElapsedMs] = useState(0);
-
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [metricsError, setMetricsError] = useState<string | null>(null);
-  const [logsError, setLogsError] = useState<string | null>(null);
-  const [dataError, setDataError] = useState<string | null>(null);
-  const [manualCategoryId, setManualCategoryId] = useState("23");
-  const [manualLanguage, setManualLanguage] = useState("es");
-  const [manualDifficulty, setManualDifficulty] = useState(55);
-  const [manualContentJson, setManualContentJson] = useState('{"title":"", "content":""}');
-  const [deleteEntryId, setDeleteEntryId] = useState("");
-  const [manualCatalogs, setManualCatalogs] = useState<ServiceCatalogSnapshot>({ categories: [], languages: [] });
-  const [manualCatalogError, setManualCatalogError] = useState<string | null>(null);
-  const [dataMutationMessage, setDataMutationMessage] = useState<string | null>(null);
-  const [dataMutationError, setDataMutationError] = useState<string | null>(null);
-  const [dataMutationLoading, setDataMutationLoading] = useState(false);
+  const messages: ServiceConsoleMessages = useMemo(() => ({
+    insertOk: t("service.data.manual.insertOk"),
+    deleteOk: t("service.data.manual.deleteOk"),
+    contentObjectOnly: t("service.data.manual.contentObjectOnly"),
+    contentNonNull: t("service.data.manual.contentNonNull"),
+  }), [t]);
+  const state = useServiceConsoleState(navKey, context, t("roles.errorUnknown"), messages);
+  const { serviceConfig } = state;
   const compact = density === "dense";
-
-  useEffect(() => {
-    // Force full view isolation when navigating between services.
-    setCatalog([]);
-    setMetricsRows([]);
-    setLogsRows([]);
-    setDataRows([]);
-    setError(null);
-    setMetricsError(null);
-    setLogsError(null);
-    setDataError(null);
-    setLoading(false);
-    setFilter("");
-    setSortBy("");
-    setSortDirection("desc");
-    setPage(1);
-    setPageSize(20);
-    setLimit(200);
-    setMetric("won");
-    setRefreshMode("manual");
-    setRefreshIntervalSeconds(10);
-    setElapsedMs(0);
-    setManualCategoryId("23");
-    setManualLanguage("es");
-    setManualDifficulty(55);
-    setManualContentJson('{"title":"", "content":""}');
-    setDeleteEntryId("");
-    setManualCatalogs({ categories: [], languages: [] });
-    setManualCatalogError(null);
-    setDataMutationMessage(null);
-    setDataMutationError(null);
-    setDataMutationLoading(false);
-    requestVersionRef.current += 1;
-
-    if (typeof window === "undefined") {
-      if (serviceConfig?.defaultDataset) {
-        setDataset(serviceConfig.defaultDataset);
-      }
-      return;
-    }
-
-    const currentHash = window.location.hash;
-    const queryIndex = currentHash.indexOf("?");
-    const query = queryIndex >= 0 ? currentHash.slice(queryIndex + 1) : "";
-    const params = new URLSearchParams(query);
-
-    const datasetParam = params.get("dataset") as DataDataset | null;
-    const datasetIsSupported =
-      datasetParam !== null &&
-      !!serviceConfig?.datasets?.some((option) => option.value === datasetParam);
-
-    if (datasetIsSupported) {
-      setDataset(datasetParam as DataDataset);
-    } else if (serviceConfig?.defaultDataset) {
-      setDataset(serviceConfig.defaultDataset);
-    }
-
-    setFilter(params.get("filter") ?? "");
-    setSortBy(params.get("sortBy") ?? "");
-
-    const sortDirectionParam = params.get("sortDirection");
-    setSortDirection(sortDirectionParam === "asc" ? "asc" : "desc");
-
-    setPage(parseIntParam(params.get("page"), 1, 1, 100000));
-    setPageSize(parseIntParam(params.get("pageSize"), 20, 1, 200));
-    setLimit(parseIntParam(params.get("limit"), 200, 1, 1000));
-
-    const metricParam = params.get("metric");
-    if (metricParam === "won" || metricParam === "score" || metricParam === "played") {
-      setMetric(metricParam);
-    }
-
-    const refreshModeParam = params.get("refreshMode");
-    setRefreshMode(refreshModeParam === "auto" ? "auto" : "manual");
-
-    const interval = parseIntParam(params.get("refreshInterval"), 10, 5, 300);
-    setRefreshIntervalSeconds(interval);
-  }, [navKey]);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || !serviceConfig) {
-      return;
-    }
-
-    const routePrefix = `#/backoffice/${navKey}`;
-    if (!window.location.hash.startsWith(routePrefix)) {
-      return;
-    }
-
-    const params = new URLSearchParams();
-
-    if (serviceConfig.datasets && serviceConfig.datasets.length > 0) {
-      params.set("dataset", dataset);
-      params.set("page", String(page));
-      params.set("pageSize", String(pageSize));
-      params.set("limit", String(limit));
-      params.set("sortDirection", sortDirection);
-      if (filter) {
-        params.set("filter", filter);
-      }
-      if (sortBy) {
-        params.set("sortBy", sortBy);
-      }
-      if (serviceConfig.service === "microservice-users" && dataset === "leaderboard") {
-        params.set("metric", metric);
-      }
-    }
-
-    params.set("refreshMode", refreshMode);
-    params.set("refreshInterval", String(refreshIntervalSeconds));
-
-    const query = params.toString();
-    const nextHash = query ? `${routePrefix}?${query}` : routePrefix;
-
-    try {
-      const storageKey = `${UI_SERVICE_ROUTE_QUERY_STORAGE_PREFIX}.${navKey}`;
-      if (query) {
-        window.localStorage.setItem(storageKey, query);
-      } else {
-        window.localStorage.removeItem(storageKey);
-      }
-    } catch {
-      // Ignore storage errors to keep route-state sync resilient.
-    }
-
-    if (window.location.hash !== nextHash) {
-      window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${nextHash}`);
-    }
-  }, [dataset, filter, limit, metric, navKey, page, pageSize, refreshIntervalSeconds, refreshMode, serviceConfig, sortBy, sortDirection]);
-
-  useEffect(() => {
-    setElapsedMs(0);
-  }, [refreshMode, refreshIntervalSeconds]);
-
-  useEffect(() => {
-    if (!serviceConfig || (serviceConfig.service !== "microservice-quiz" && serviceConfig.service !== "microservice-wordpass")) {
-      return;
-    }
-
-    let cancelled = false;
-    const loadCatalogs = async () => {
-      try {
-        setManualCatalogError(null);
-        const payload = await fetchJson<{ catalogs?: { categories?: Array<{ id: string; name: string }>; languages?: Array<{ code: string; name: string }> } }>(
-          `${EDGE_API_BASE}/v1/backoffice/services/${serviceConfig.service}/catalogs`,
-          {
-            headers: composeAuthHeaders(context),
-          },
-        );
-
-        if (cancelled) {
-          return;
-        }
-
-        const categories = payload.catalogs?.categories ?? [];
-        const languages = payload.catalogs?.languages ?? [];
-        setManualCatalogs({ categories, languages });
-
-        if (categories.length > 0 && !categories.some((item) => item.id === manualCategoryId)) {
-          setManualCategoryId(categories[0].id);
-        }
-        if (languages.length > 0 && !languages.some((item) => item.code === manualLanguage)) {
-          setManualLanguage(languages[0].code);
-        }
-      } catch (catalogError) {
-        if (cancelled) {
-          return;
-        }
-        setManualCatalogError(catalogError instanceof Error ? catalogError.message : t("roles.errorUnknown"));
-      }
-    };
-
-    void loadCatalogs();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [context, serviceConfig, t]);
-
-  const loadAll = useCallback(async () => {
-    if (!serviceConfig) {
-      return;
-    }
-
-    const requestVersion = ++requestVersionRef.current;
-
-    setLoading(true);
-    setError(null);
-    setMetricsError(null);
-    setLogsError(null);
-    setDataError(null);
-
-    try {
-      const [catalogResult, metricsResult, logsResult] = await Promise.all([
-        asSectionResult(
-          fetchJson<{ services: ServiceCatalogItem[] }>(`${EDGE_API_BASE}/v1/backoffice/services`, {
-            headers: composeAuthHeaders(context),
-          }),
-        ),
-        asSectionResult(
-          fetchJson<{ metrics: unknown }>(`${EDGE_API_BASE}/v1/backoffice/services/${serviceConfig.service}/metrics`, {
-            headers: composeAuthHeaders(context),
-          }),
-        ),
-        asSectionResult(
-          fetchJson<{ logs: unknown }>(`${EDGE_API_BASE}/v1/backoffice/services/${serviceConfig.service}/logs?limit=${limit}`, {
-            headers: composeAuthHeaders(context),
-          }),
-        ),
-      ]);
-
-      if (requestVersion !== requestVersionRef.current) {
-        return;
-      }
-
-      if (catalogResult.ok) {
-        setCatalog(catalogResult.data.services ?? []);
-      } else {
-        setCatalog([]);
-      }
-
-      if (metricsResult.ok) {
-        setMetricsRows(rowsFromUnknown(metricsResult.data.metrics));
-      } else {
-        setMetricsRows([]);
-        setMetricsError(metricsResult.error);
-        storeServiceLastError(serviceConfig.service, metricsResult.error);
-      }
-
-      if (logsResult.ok) {
-        setLogsRows(rowsFromUnknown(logsResult.data.logs));
-      } else {
-        setLogsRows([]);
-        setLogsError(logsResult.error);
-        storeServiceLastError(serviceConfig.service, logsResult.error);
-      }
-
-      if (serviceConfig.datasets && serviceConfig.datasets.length > 0) {
-        const query = new URLSearchParams({
-          dataset,
-          page: String(page),
-          pageSize: String(pageSize),
-          sortBy,
-          sortDirection,
-          filter,
-          metric,
-          limit: String(limit),
-        });
-
-        const dataResult = await asSectionResult(
-          fetchJson<{ rows: Array<Record<string, unknown>> }>(
-            `${EDGE_API_BASE}/v1/backoffice/services/${serviceConfig.service}/data?${query.toString()}`,
-            {
-              headers: composeAuthHeaders(context),
-            },
-          ),
-        );
-        if (requestVersion !== requestVersionRef.current) {
-          return;
-        }
-        if (dataResult.ok) {
-          setDataRows(dataResult.data.rows ?? []);
-        } else {
-          setDataRows([]);
-          setDataError(dataResult.error);
-          storeServiceLastError(serviceConfig.service, dataResult.error);
-        }
-      } else {
-        if (requestVersion !== requestVersionRef.current) {
-          return;
-        }
-        setDataRows([]);
-      }
-    } catch (err) {
-      if (requestVersion !== requestVersionRef.current) {
-        return;
-      }
-      setMetricsRows([]);
-      setLogsRows([]);
-      setDataRows([]);
-      const message = err instanceof Error ? err.message : t("roles.errorUnknown");
-      setError(message);
-      storeServiceLastError(serviceConfig.service, message);
-    } finally {
-      if (requestVersion === requestVersionRef.current) {
-        setLoading(false);
-      }
-    }
-  }, [context, dataset, filter, limit, metric, page, pageSize, serviceConfig, sortBy, sortDirection, t]);
-
-  useEffect(() => {
-    void loadAll();
-  }, [loadAll]);
-
-  useEffect(() => {
-    if (refreshMode !== "auto") {
-      return;
-    }
-
-    const stepMs = 200;
-    const timer = window.setInterval(() => {
-      setElapsedMs((current) => {
-        if (loading) {
-          return current;
-        }
-
-        const nextValue = current + stepMs;
-        const threshold = refreshIntervalSeconds * 1000;
-        if (nextValue >= threshold) {
-          void loadAll();
-          return 0;
-        }
-        return nextValue;
-      });
-    }, stepMs);
-
-    return () => window.clearInterval(timer);
-  }, [loadAll, loading, refreshIntervalSeconds, refreshMode]);
 
   if (!serviceConfig) {
     return <section className="m3-card p-5">{t("service.notFound")}</section>;
@@ -441,77 +58,7 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
 
   const isGameHistoryDataset =
     (serviceConfig.service === "microservice-quiz" || serviceConfig.service === "microservice-wordpass") &&
-    dataset === "history";
-
-  const parseManualContent = (): Record<string, unknown> => {
-    const parsed = JSON.parse(manualContentJson) as unknown;
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      throw new Error(t("service.data.manual.contentObjectOnly"));
-    }
-    const entries = Object.entries(parsed as Record<string, unknown>).filter(([, value]) => value !== null && value !== undefined);
-    if (entries.length === 0) {
-      throw new Error(t("service.data.manual.contentRequired"));
-    }
-    return Object.fromEntries(entries);
-  };
-
-  const insertManualEntry = async () => {
-    try {
-      setDataMutationLoading(true);
-      setDataMutationError(null);
-      setDataMutationMessage(null);
-
-      const content = parseManualContent();
-      await fetchJson<{ item: Record<string, unknown> }>(`${EDGE_API_BASE}/v1/backoffice/services/${serviceConfig.service}/data`, {
-        method: "POST",
-        headers: composeAuthHeaders(context),
-        body: JSON.stringify({
-          dataset: "history",
-          categoryId: manualCategoryId,
-          language: manualLanguage,
-          difficultyPercentage: manualDifficulty,
-          content,
-          status: "manual",
-        }),
-      });
-
-      setDataMutationMessage(t("service.data.manual.insertOk"));
-      await loadAll();
-    } catch (mutationError) {
-      setDataMutationError(mutationError instanceof Error ? mutationError.message : t("roles.errorUnknown"));
-    } finally {
-      setDataMutationLoading(false);
-    }
-  };
-
-  const deleteManualEntry = async () => {
-    if (!deleteEntryId.trim()) {
-      setDataMutationError(t("service.data.manual.deleteIdRequired"));
-      return;
-    }
-
-    try {
-      setDataMutationLoading(true);
-      setDataMutationError(null);
-      setDataMutationMessage(null);
-
-      await fetchJson<{ deleted: boolean }>(
-        `${EDGE_API_BASE}/v1/backoffice/services/${serviceConfig.service}/data/${encodeURIComponent(deleteEntryId.trim())}?dataset=history`,
-        {
-          method: "DELETE",
-          headers: composeAuthHeaders(context),
-        },
-      );
-
-      setDataMutationMessage(t("service.data.manual.deleteOk"));
-      setDeleteEntryId("");
-      await loadAll();
-    } catch (mutationError) {
-      setDataMutationError(mutationError instanceof Error ? mutationError.message : t("roles.errorUnknown"));
-    } finally {
-      setDataMutationLoading(false);
-    }
-  };
+    state.dataset === "history";
 
   const localizedDatasetLabel = (value: DataDataset, fallback: string) => {
     const keyMap: Record<DataDataset, "dataset.roles" | "dataset.leaderboard" | "dataset.history" | "dataset.processes"> = {
@@ -525,10 +72,22 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
 
   const serviceTitle = t(NAV_TITLE_KEYS[navKey]);
   const serviceSubtitle = t(NAV_SUBTITLE_KEYS[navKey]);
+  const technicalDialogColumns = useMemo(() => {
+    if (state.dataset === "history" && (serviceConfig.service === "microservice-quiz" || serviceConfig.service === "microservice-wordpass")) {
+      return ["detail", "request", "response"];
+    }
+
+    if (state.dataset === "processes") {
+      return ["generatedItems", "errors"];
+    }
+
+    return [];
+  }, [state.dataset, serviceConfig.service]);
+
   const intervalOptions = [5, 10, 15, 30, 60];
-  const currentCycleMs = Math.max(1, refreshIntervalSeconds * 1000);
-  const progressPercent = Math.min(100, (elapsedMs / currentCycleMs) * 100);
-  const remainingSeconds = Math.max(0, (currentCycleMs - elapsedMs) / 1000).toFixed(1);
+  const currentCycleMs = Math.max(1, state.refreshIntervalSeconds * 1000);
+  const progressPercent = Math.min(100, (state.elapsedMs / currentCycleMs) * 100);
+  const remainingSeconds = Math.max(0, (currentCycleMs - state.elapsedMs) / 1000).toFixed(1);
   const refreshCardPadding = compact ? "p-2.5" : "p-3";
   const refreshLabelText = compact ? "text-[11px]" : "text-xs";
   const refreshInputPadding = compact ? "px-2 py-1" : "px-2 py-1.5";
@@ -536,7 +95,7 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
   const refreshButtonText = compact ? "text-xs" : "text-sm";
   const refreshProgressHeight = compact ? "h-1.5" : "h-2";
 
-  const serviceMeta = catalog.find((item) => item.key === serviceConfig.service);
+  const serviceMeta = state.catalog.find((item) => item.key === serviceConfig.service);
 
   return (
     <section className={`m3-card ui-fade-in ${compact ? "p-3 sm:p-4 xl:p-5 space-y-3" : "p-4 sm:p-5 xl:p-6 space-y-4 xl:space-y-5"}`}>
@@ -553,8 +112,8 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
             <label className={refreshLabelText}>
               {t("service.refresh.modeLabel")}
               <select
-                value={refreshMode}
-                onChange={(event) => setRefreshMode(event.target.value as "manual" | "auto")}
+                value={state.refreshMode}
+                onChange={(event) => state.setRefreshMode(event.target.value as "manual" | "auto")}
                 className={`control-input mt-1 w-full ${refreshInputPadding} ${compact ? "text-xs" : "text-sm"}`}
               >
                 <option value="manual">{t("service.refresh.manual")}</option>
@@ -565,9 +124,9 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
             <label className={refreshLabelText}>
               {t("service.refresh.intervalLabel")}
               <select
-                value={refreshIntervalSeconds}
-                onChange={(event) => setRefreshIntervalSeconds(Number(event.target.value))}
-                disabled={refreshMode !== "auto"}
+                value={state.refreshIntervalSeconds}
+                onChange={(event) => state.setRefreshIntervalSeconds(Number(event.target.value))}
+                disabled={state.refreshMode !== "auto"}
                 className={`control-input mt-1 w-full ${refreshInputPadding} ${compact ? "text-xs" : "text-sm"} disabled:cursor-not-allowed disabled:opacity-60`}
               >
                 {intervalOptions.map((seconds) => (
@@ -579,13 +138,13 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
             </label>
           </div>
 
-          {refreshMode === "manual" ? (
+          {state.refreshMode === "manual" ? (
             <button
               type="button"
-              onClick={() => void loadAll()}
+              onClick={() => void state.loadAll()}
               className={`mt-3 w-full rounded-xl bg-[var(--md-sys-color-primary)] ${refreshButtonPadding} ${refreshButtonText} font-semibold text-[var(--md-sys-color-on-primary)] transition-all duration-200 hover:-translate-y-[1px] hover:brightness-105`}
             >
-              {loading ? t("service.button.updating") : t("service.button.update")}
+              {state.loading ? t("service.button.updating") : t("service.button.update")}
             </button>
           ) : (
             <div className="mt-3 space-y-2">
@@ -600,7 +159,7 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
                 />
               </div>
               <p className={`${refreshLabelText} text-[var(--md-sys-color-on-surface-variant)]`}>
-                {loading ? t("service.button.updating") : t("service.refresh.nextSync", { seconds: remainingSeconds })}
+                {state.loading ? t("service.button.updating") : t("service.refresh.nextSync", { seconds: remainingSeconds })}
               </p>
             </div>
           )}
@@ -613,27 +172,33 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
         </div>
       )}
 
-      {error && <p className="ui-feedback ui-feedback--error">{error}</p>}
+      {state.error && <p className="ui-feedback ui-feedback--error">{state.error}</p>}
 
       <article className="space-y-2">
         <h3 className={`m3-title ${compact ? "text-base" : "text-lg"}`}>{t("service.metrics.title")}</h3>
-        {metricsError ? (
-          <p className="ui-feedback ui-feedback--error">{metricsError}</p>
-        ) : metricsRows.length ? (
-          <PaginatedFilterableTable rows={metricsRows} defaultPageSize={10} density={density} />
+        {state.metricsError ? (
+          <p className="ui-feedback ui-feedback--error">{state.metricsError}</p>
+        ) : state.metricsRows.length ? (
+          <PaginatedFilterableTable rows={state.metricsRows} defaultPageSize={10} density={density} />
         ) : (
-          <p className="text-sm">{t("service.metrics.none")}</p>
+          <div className="rounded-xl border border-dashed border-[var(--md-sys-color-outline)] px-4 py-3 text-sm">
+            <p className="font-medium">{t("service.metrics.none")}</p>
+            <p className="mt-1 text-xs text-[var(--md-sys-color-on-surface-variant)]">{t("service.metrics.emptyHint")}</p>
+          </div>
         )}
       </article>
 
       <article className="space-y-2">
         <h3 className={`m3-title ${compact ? "text-base" : "text-lg"}`}>{t("service.logs.title")}</h3>
-        {logsError ? (
-          <p className="ui-feedback ui-feedback--error">{logsError}</p>
-        ) : logsRows.length ? (
-          <PaginatedFilterableTable rows={logsRows} defaultPageSize={20} density={density} />
+        {state.logsError ? (
+          <p className="ui-feedback ui-feedback--error">{state.logsError}</p>
+        ) : state.logsRows.length ? (
+          <PaginatedFilterableTable rows={state.logsRows} defaultPageSize={20} density={density} />
         ) : (
-          <p className="text-sm">{t("service.logs.none")}</p>
+          <div className="rounded-xl border border-dashed border-[var(--md-sys-color-outline)] px-4 py-3 text-sm">
+            <p className="font-medium">{t("service.logs.none")}</p>
+            <p className="mt-1 text-xs text-[var(--md-sys-color-on-surface-variant)]">{t("service.logs.emptyHint")}</p>
+          </div>
         )}
       </article>
 
@@ -641,14 +206,31 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
         <article className="space-y-3">
           <h3 className={`m3-title ${compact ? "text-base" : "text-lg"}`}>{t("service.data.title")}</h3>
 
+          {state.dataset === "processes" && state.followTaskId.trim() && (
+            <div className="ui-surface-soft rounded-xl p-3 text-xs sm:text-sm">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p>
+                  {t("service.process.following", { taskId: state.followTaskId.trim() })}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => state.setFollowTaskId("")}
+                  className="rounded-lg border border-[var(--md-sys-color-outline-variant)] px-2 py-1 text-xs"
+                >
+                  {t("service.process.following.clear")}
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className={`ui-surface-raised grid gap-2 rounded-xl md:grid-cols-2 2xl:grid-cols-4 ${compact ? "p-2" : "p-3"}`}>
             <label className="text-xs">
               {t("service.filter.dataset")}
               <select
-                value={dataset}
+                value={state.dataset}
                 onChange={(event) => {
-                  setDataset(event.target.value as DataDataset);
-                  setPage(1);
+                  state.setDataset(event.target.value as DataDataset);
+                  state.setPage(1);
                 }}
                 className={`mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] text-sm ${compact ? "px-2 py-1.5" : "px-2 py-2"}`}
               >
@@ -663,8 +245,8 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
             <label className="text-xs">
               {t("service.filter.filter")}
               <input
-                value={filter}
-                onChange={(event) => setFilter(event.target.value)}
+                value={state.filter}
+                onChange={(event) => state.setFilter(event.target.value)}
                 className={`mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] text-sm ${compact ? "px-2 py-1.5" : "px-2 py-2"}`}
               />
             </label>
@@ -672,8 +254,8 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
             <label className="text-xs">
               {t("service.filter.sortBy")}
               <input
-                value={sortBy}
-                onChange={(event) => setSortBy(event.target.value)}
+                value={state.sortBy}
+                onChange={(event) => state.setSortBy(event.target.value)}
                 className={`mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] text-sm ${compact ? "px-2 py-1.5" : "px-2 py-2"}`}
                 placeholder={t("service.filter.sortPlaceholder")}
               />
@@ -682,8 +264,8 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
             <label className="text-xs">
               {t("service.filter.direction")}
               <select
-                value={sortDirection}
-                onChange={(event) => setSortDirection(event.target.value as "asc" | "desc")}
+                value={state.sortDirection}
+                onChange={(event) => state.setSortDirection(event.target.value as "asc" | "desc")}
                 className={`mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] text-sm ${compact ? "px-2 py-1.5" : "px-2 py-2"}`}
               >
                 <option value="asc">{t("service.filter.sortAscShort")}</option>
@@ -696,8 +278,8 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
               <input
                 type="number"
                 min={1}
-                value={page}
-                onChange={(event) => setPage(Number(event.target.value || 1))}
+                value={state.page}
+                onChange={(event) => state.setPage(Number(event.target.value || 1))}
                 className={`mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] text-sm ${compact ? "px-2 py-1.5" : "px-2 py-2"}`}
               />
             </label>
@@ -708,8 +290,8 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
                 type="number"
                 min={1}
                 max={200}
-                value={pageSize}
-                onChange={(event) => setPageSize(Number(event.target.value || 20))}
+                value={state.pageSize}
+                onChange={(event) => state.setPageSize(Number(event.target.value || 20))}
                 className={`mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] text-sm ${compact ? "px-2 py-1.5" : "px-2 py-2"}`}
               />
             </label>
@@ -720,8 +302,8 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
                 type="number"
                 min={1}
                 max={1000}
-                value={limit}
-                onChange={(event) => setLimit(Number(event.target.value || 200))}
+                value={state.limit}
+                onChange={(event) => state.setLimit(Number(event.target.value || 200))}
                 className={`mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] text-sm ${compact ? "px-2 py-1.5" : "px-2 py-2"}`}
               />
             </label>
@@ -729,10 +311,10 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
             <label className="text-xs">
               {t("service.filter.userMetric")}
               <select
-                value={metric}
-                onChange={(event) => setMetric(event.target.value as "won" | "score" | "played")}
+                value={state.metric}
+                onChange={(event) => state.setMetric(event.target.value as "won" | "score" | "played")}
                 className={`mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] text-sm ${compact ? "px-2 py-1.5" : "px-2 py-2"}`}
-                disabled={serviceConfig.service !== "microservice-users" || dataset !== "leaderboard"}
+                disabled={serviceConfig.service !== "microservice-users" || state.dataset !== "leaderboard"}
               >
                 <option value="won">won</option>
                 <option value="score">score</option>
@@ -747,71 +329,74 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
               <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
                 <label className="text-xs">
                   {t("service.data.manual.categoryId")}
-                  {manualCatalogs.categories.length > 0 ? (
-                    <select value={manualCategoryId} onChange={(event) => setManualCategoryId(event.target.value)} className="control-input mt-1 w-full px-2 py-1.5 text-sm">
-                      {manualCatalogs.categories.map((item) => (
+                  {state.manualCatalogs.categories.length > 0 ? (
+                    <select value={state.manualCategoryId} onChange={(event) => state.setManualCategoryId(event.target.value)} className="control-input mt-1 w-full px-2 py-1.5 text-sm">
+                      {state.manualCatalogs.categories.map((item) => (
                         <option key={item.id} value={item.id}>
                           {item.name}
                         </option>
                       ))}
                     </select>
                   ) : (
-                    <input value={manualCategoryId} onChange={(event) => setManualCategoryId(event.target.value)} className="control-input mt-1 w-full px-2 py-1.5 text-sm" />
+                    <input value={state.manualCategoryId} onChange={(event) => state.setManualCategoryId(event.target.value)} className="control-input mt-1 w-full px-2 py-1.5 text-sm" />
                   )}
                 </label>
                 <label className="text-xs">
                   {t("service.data.manual.language")}
-                  {manualCatalogs.languages.length > 0 ? (
-                    <select value={manualLanguage} onChange={(event) => setManualLanguage(event.target.value)} className="control-input mt-1 w-full px-2 py-1.5 text-sm">
-                      {manualCatalogs.languages.map((item) => (
+                  {state.manualCatalogs.languages.length > 0 ? (
+                    <select value={state.manualLanguage} onChange={(event) => state.setManualLanguage(event.target.value)} className="control-input mt-1 w-full px-2 py-1.5 text-sm">
+                      {state.manualCatalogs.languages.map((item) => (
                         <option key={item.code} value={item.code}>
                           {item.name}
                         </option>
                       ))}
                     </select>
                   ) : (
-                    <input value={manualLanguage} onChange={(event) => setManualLanguage(event.target.value)} className="control-input mt-1 w-full px-2 py-1.5 text-sm" />
+                    <input value={state.manualLanguage} onChange={(event) => state.setManualLanguage(event.target.value)} className="control-input mt-1 w-full px-2 py-1.5 text-sm" />
                   )}
                 </label>
                 <label className="text-xs">
                   {t("service.data.manual.difficulty")}
-                  <input type="number" min={0} max={100} value={manualDifficulty} onChange={(event) => setManualDifficulty(Number(event.target.value || 0))} className="control-input mt-1 w-full px-2 py-1.5 text-sm" />
+                  <input type="number" min={0} max={100} value={state.manualDifficulty} onChange={(event) => state.setManualDifficulty(Number(event.target.value || 0))} className="control-input mt-1 w-full px-2 py-1.5 text-sm" />
                 </label>
               </div>
 
               <label className="text-xs">
                 {t("service.data.manual.contentJson")}
-                <textarea value={manualContentJson} onChange={(event) => setManualContentJson(event.target.value)} rows={5} className="control-input mt-1 w-full px-2 py-2 text-xs sm:text-sm" />
+                <textarea value={state.manualContentJson} onChange={(event) => state.setManualContentJson(event.target.value)} rows={5} className="control-input mt-1 w-full px-2 py-2 text-xs sm:text-sm" />
               </label>
 
               <div className="flex flex-wrap gap-2">
-                <button type="button" onClick={() => void insertManualEntry()} disabled={dataMutationLoading} className="rounded-lg bg-[var(--md-sys-color-primary)] px-3 py-2 text-sm font-semibold text-[var(--md-sys-color-on-primary)] disabled:cursor-not-allowed disabled:opacity-60">
-                  {dataMutationLoading ? t("service.button.updating") : t("service.data.manual.insert")}
+                <button type="button" onClick={() => void state.insertManualEntry(state.manualContentJson, state.manualCategoryId, state.manualLanguage, state.manualDifficulty)} disabled={state.dataMutationLoading} className="rounded-lg bg-[var(--md-sys-color-primary)] px-3 py-2 text-sm font-semibold text-[var(--md-sys-color-on-primary)] disabled:cursor-not-allowed disabled:opacity-60">
+                  {state.dataMutationLoading ? t("service.button.updating") : t("service.data.manual.insert")}
                 </button>
               </div>
 
               <div className="grid gap-2 md:grid-cols-[1fr_auto]">
                 <label className="text-xs">
                   {t("service.data.manual.deleteId")}
-                  <input value={deleteEntryId} onChange={(event) => setDeleteEntryId(event.target.value)} className="control-input mt-1 w-full px-2 py-1.5 text-sm" placeholder={t("service.data.manual.deletePlaceholder")} />
+                  <input value={state.deleteEntryId} onChange={(event) => state.setDeleteEntryId(event.target.value)} className="control-input mt-1 w-full px-2 py-1.5 text-sm" placeholder={t("service.data.manual.deletePlaceholder")} />
                 </label>
-                <button type="button" onClick={() => void deleteManualEntry()} disabled={dataMutationLoading} className="self-end rounded-lg bg-[var(--md-sys-color-error)] px-3 py-2 text-sm font-semibold text-[var(--md-sys-color-on-error)] disabled:cursor-not-allowed disabled:opacity-60">
+                <button type="button" onClick={() => void state.deleteManualEntry(state.deleteEntryId)} disabled={state.dataMutationLoading} className="self-end rounded-lg bg-[var(--md-sys-color-error)] px-3 py-2 text-sm font-semibold text-[var(--md-sys-color-on-error)] disabled:cursor-not-allowed disabled:opacity-60">
                   {t("service.data.manual.delete")}
                 </button>
               </div>
 
-              {dataMutationError && <p className="ui-feedback ui-feedback--error p-2 text-xs">{dataMutationError}</p>}
-              {manualCatalogError && <p className="ui-feedback ui-feedback--warn p-2 text-xs">{manualCatalogError}</p>}
-              {dataMutationMessage && <p className="ui-feedback ui-feedback--ok p-2 text-xs">{dataMutationMessage}</p>}
+              {state.dataMutationError && <p className="ui-feedback ui-feedback--error p-2 text-xs">{state.dataMutationError}</p>}
+              {state.manualCatalogError && <p className="ui-feedback ui-feedback--warn p-2 text-xs">{state.manualCatalogError}</p>}
+              {state.dataMutationMessage && <p className="ui-feedback ui-feedback--ok p-2 text-xs">{state.dataMutationMessage}</p>}
             </div>
           )}
 
-          {dataError ? (
-            <p className="ui-feedback ui-feedback--error">{dataError}</p>
-          ) : dataRows.length ? (
-            <PaginatedFilterableTable rows={dataRows} defaultPageSize={10} density={density} />
+          {state.dataError ? (
+            <p className="ui-feedback ui-feedback--error">{state.dataError}</p>
+          ) : state.dataRows.length ? (
+            <PaginatedFilterableTable rows={state.dataRows} defaultPageSize={10} density={density} iconOnlyColumns={technicalDialogColumns} />
           ) : (
-            <p className="text-sm">{t("service.data.none")}</p>
+            <div className="rounded-xl border border-dashed border-[var(--md-sys-color-outline)] px-4 py-3 text-sm">
+              <p className="font-medium">{t("service.data.none")}</p>
+              <p className="mt-1 text-xs text-[var(--md-sys-color-on-surface-variant)]">{t("service.data.emptyHint")}</p>
+            </div>
           )}
         </article>
       )}

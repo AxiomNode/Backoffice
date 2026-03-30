@@ -12,6 +12,7 @@ export type NavKey =
   | "svc-wordpass"
   | "svc-ai-stats"
   | "svc-ai-api"
+  | "ai-diagnostics"
   | "hotfix"
   | "roles";
 

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 
 import type { UiDensity } from "../../domain/types/backoffice";
 import { useI18n } from "../../i18n/context";
@@ -8,9 +9,10 @@ type PaginatedFilterableTableProps = {
   rows: Array<Record<string, unknown>>;
   defaultPageSize?: number;
   density?: UiDensity;
+  iconOnlyColumns?: string[];
 };
 
-export function PaginatedFilterableTable({ rows, defaultPageSize = 10, density = "comfortable" }: PaginatedFilterableTableProps) {
+export const PaginatedFilterableTable = memo(function PaginatedFilterableTable({ rows, defaultPageSize = 10, density = "comfortable", iconOnlyColumns = [] }: PaginatedFilterableTableProps) {
   const { t } = useI18n();
   const columns = useMemo(() => {
     const keys = new Set<string>();
@@ -29,6 +31,9 @@ export function PaginatedFilterableTable({ rows, defaultPageSize = 10, density =
   const [dialogValue, setDialogValue] = useState("");
   const [dialogColumn, setDialogColumn] = useState("");
   const [dialogFormat, setDialogFormat] = useState<"auto" | "json" | "xml" | "plain" | "url">("auto");
+  const [dialogCompact, setDialogCompact] = useState(false);
+
+  const iconOnlyColumnSet = useMemo(() => new Set(iconOnlyColumns.map((column) => column.trim().toLowerCase())), [iconOnlyColumns]);
 
   useEffect(() => {
     setSortBy((current) => {
@@ -151,10 +156,11 @@ export function PaginatedFilterableTable({ rows, defaultPageSize = 10, density =
     return { format: "plain" as const, content: dialogValue };
   };
 
-  const openDialog = (column: string, rawValue: unknown) => {
+  const openDialog = (column: string, rawValue: unknown, compact = false) => {
     setDialogColumn(column);
     setDialogValue(stringifyCell(rawValue));
     setDialogFormat("auto");
+    setDialogCompact(compact);
     setDialogOpen(true);
   };
 
@@ -163,9 +169,35 @@ export function PaginatedFilterableTable({ rows, defaultPageSize = 10, density =
     setDialogValue("");
     setDialogColumn("");
     setDialogFormat("auto");
+    setDialogCompact(false);
   };
 
   const dialogResolved = resolveDialogContent();
+
+  const shouldUseDialogCell = (value: unknown) => {
+    if (value === null || value === undefined) {
+      return false;
+    }
+    if (typeof value === "object") {
+      return true;
+    }
+    const normalized = stringifyCell(value);
+    if (normalized.length > 110) {
+      return true;
+    }
+    if (normalized.includes("\n") || normalized.includes("\t")) {
+      return true;
+    }
+    return false;
+  };
+
+  const shouldUseIconOnlyButton = (column: string, value: unknown) => {
+    if (value === null || value === undefined) {
+      return false;
+    }
+    const normalized = column.trim().toLowerCase();
+    return iconOnlyColumnSet.has(normalized);
+  };
 
   if (!columns.length) {
     return <p className="rounded-lg border border-dashed border-[var(--md-sys-color-outline)] p-4 text-sm">{t("table.noColumns")}</p>;
@@ -242,19 +274,31 @@ export function PaginatedFilterableTable({ rows, defaultPageSize = 10, density =
               <tr key={`${start + rowIndex}-${stringifyCell(row[columns[0]])}`} className="border-t border-[var(--md-sys-color-outline-variant)]">
                 {columns.map((column) => (
                   <td key={column} className={`${tableCellPadding} align-top`}>
-                    <div className="flex items-start gap-1">
+                    {shouldUseIconOnlyButton(column, row[column]) ? (
+                      <button
+                        type="button"
+                        onClick={() => openDialog(column, row[column], true)}
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-[var(--md-sys-color-outline-variant)]"
+                        aria-label={t("table.expandCell")}
+                        title={t("table.expandCell")}
+                      >
+                        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                          <circle cx="11" cy="11" r="7" />
+                          <line x1="16.65" y1="16.65" x2="21" y2="21" />
+                        </svg>
+                      </button>
+                    ) : shouldUseDialogCell(row[column]) ? (
+                      <button
+                        type="button"
+                        onClick={() => openDialog(column, row[column])}
+                        className="rounded-lg border border-[var(--md-sys-color-outline-variant)] px-2 py-1 text-[11px] font-semibold"
+                        aria-label={t("table.expandCell")}
+                      >
+                        {t("table.viewContent")}
+                      </button>
+                    ) : (
                       <span className="break-words">{renderCellValue(row[column]) || "-"}</span>
-                      {stringifyCell(row[column]).length > 120 && (
-                        <button
-                          type="button"
-                          onClick={() => openDialog(column, row[column])}
-                          className="inline-flex h-5 min-w-5 items-center justify-center rounded-full border border-[var(--md-sys-color-outline-variant)] px-1 text-[10px] font-semibold leading-none"
-                          aria-label={t("table.expandCell")}
-                        >
-                          +
-                        </button>
-                      )}
-                    </div>
+                    )}
                   </td>
                 ))}
               </tr>
@@ -301,9 +345,9 @@ export function PaginatedFilterableTable({ rows, defaultPageSize = 10, density =
         </div>
       </div>
 
-      {dialogOpen && (
+      {dialogOpen && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-3" role="dialog" aria-modal="true">
-          <div className="m3-card max-h-[85vh] w-full max-w-3xl overflow-hidden p-0">
+          <div className={`m3-card max-h-[85vh] w-full overflow-hidden p-0 ${dialogCompact ? "max-w-md" : "max-w-3xl"}`}>
             <div className="flex items-center justify-between border-b border-[var(--md-sys-color-outline-variant)] px-4 py-3">
               <div>
                 <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">{t("table.column")}</p>
@@ -338,8 +382,9 @@ export function PaginatedFilterableTable({ rows, defaultPageSize = 10, density =
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
-}
+});

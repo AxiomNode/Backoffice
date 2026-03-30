@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { BackofficeSession } from "../../auth";
 import { roleCanModify } from "../../application/services/rolePolicies";
@@ -6,6 +6,7 @@ import type { HotOperationResult, SessionContext, UiDensity } from "../../domain
 import { composeAuthHeaders } from "../../infrastructure/backoffice/authHeaders";
 import { EDGE_API_BASE, fetchJson } from "../../infrastructure/http/apiClient";
 import { useI18n } from "../../i18n/context";
+import { useVisibilityPolling } from "../hooks/useVisibilityPolling";
 
 type HotfixPanelProps = {
   session: BackofficeSession;
@@ -18,6 +19,41 @@ type GameCatalogSnapshot = {
   languages: Array<{ code: string; name: string }>;
 };
 
+type GenerationMode = "wait" | "progress";
+
+type GenerationTaskSnapshot = {
+  taskId: string;
+  status: "running" | "completed" | "failed";
+  startedAt?: string;
+  updatedAt?: string;
+  requested: number;
+  processed: number;
+  created: number;
+  duplicates: number;
+  failed: number;
+  progress?: {
+    current: number;
+    total: number;
+    ratio: number;
+  };
+};
+
+type GenerationTaskResponse = {
+  gameType: string;
+  task: GenerationTaskSnapshot;
+};
+
+type PendingProcessRow = {
+  service: "microservice-quiz" | "microservice-wordpass";
+  gameType: "quiz" | "wordpass";
+  task: GenerationTaskSnapshot;
+};
+
+type GenerationProcessesListResponse = {
+  total?: number;
+  tasks?: GenerationTaskSnapshot[];
+};
+
 export function HotfixPanel({ session, context, density }: HotfixPanelProps) {
   const { t } = useI18n();
   const compact = density === "dense";
@@ -25,6 +61,8 @@ export function HotfixPanel({ session, context, density }: HotfixPanelProps) {
   const [generationLanguage, setGenerationLanguage] = useState("es");
   const [difficultyPercentage, setDifficultyPercentage] = useState(55);
   const [numQuestions, setNumQuestions] = useState(3);
+  const [generationCount, setGenerationCount] = useState(10);
+  const [generationMode, setGenerationMode] = useState<GenerationMode>("progress");
   const [generationCatalogSource, setGenerationCatalogSource] = useState<"quiz" | "wordpass">("quiz");
   const [catalogsByGame, setCatalogsByGame] = useState<Record<"quiz" | "wordpass", GameCatalogSnapshot>>({
     quiz: { categories: [], languages: [] },
@@ -32,6 +70,10 @@ export function HotfixPanel({ session, context, density }: HotfixPanelProps) {
   });
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [result, setResult] = useState<HotOperationResult>({ status: "idle", message: t("hotfix.result.idle") });
+  const [generationTask, setGenerationTask] = useState<GenerationTaskSnapshot | null>(null);
+  const [pendingProcesses, setPendingProcesses] = useState<PendingProcessRow[]>([]);
+  const [pendingError, setPendingError] = useState<string | null>(null);
+  const pollTokenRef = useRef(0);
 
   const [eventScore, setEventScore] = useState(80);
   const [eventType, setEventType] = useState("quiz");
@@ -83,6 +125,12 @@ export function HotfixPanel({ session, context, density }: HotfixPanelProps) {
   const selectedCatalog = catalogsByGame[generationCatalogSource];
 
   useEffect(() => {
+    return () => {
+      pollTokenRef.current += 1;
+    };
+  }, []);
+
+  useEffect(() => {
     if (selectedCatalog.categories.length > 0 && !selectedCatalog.categories.some((item) => item.id === categoryId)) {
       setCategoryId(selectedCatalog.categories[0].id);
     }
@@ -98,24 +146,115 @@ export function HotfixPanel({ session, context, density }: HotfixPanelProps) {
     }
 
     setResult({ status: "loading", message: t("hotfix.result.launching", { gameType }) });
+    setGenerationTask(null);
+    pollTokenRef.current += 1;
     try {
-      const endpoint = gameType === "quiz" ? `${EDGE_API_BASE}/v1/mobile/games/quiz/generate` : `${EDGE_API_BASE}/v1/mobile/games/wordpass/generate`;
+      const service = gameType === "quiz" ? "microservice-quiz" : "microservice-wordpass";
       const payload = {
         language: generationLanguage,
         categoryId,
         difficultyPercentage,
         numQuestions,
+        count: generationCount,
       };
-      const response = await fetchJson<{ gameType: string }>(endpoint, {
-        method: "POST",
-        headers: composeAuthHeaders(context),
-        body: JSON.stringify(payload),
+
+      if (generationMode === "wait") {
+        const response = await fetchJson<GenerationTaskResponse>(
+          `${EDGE_API_BASE}/v1/backoffice/services/${service}/generation/wait`,
+          {
+            method: "POST",
+            headers: composeAuthHeaders(context),
+            body: JSON.stringify(payload),
+          },
+        );
+        setGenerationTask(response.task);
+        setResult({
+          status: "done",
+          message: t("hotfix.result.generationWaitOk", {
+            gameType: response.gameType,
+            created: response.task.created,
+            requested: response.task.requested,
+          }),
+        });
+        return;
+      }
+
+      const started = await fetchJson<GenerationTaskResponse>(
+        `${EDGE_API_BASE}/v1/backoffice/services/${service}/generation/process`,
+        {
+          method: "POST",
+          headers: composeAuthHeaders(context),
+          body: JSON.stringify(payload),
+        },
+      );
+      setGenerationTask(started.task);
+      setResult({
+        status: "loading",
+        message: t("hotfix.result.processStarted", {
+          taskId: started.task.taskId,
+          requested: started.task.requested,
+        }),
       });
-      setResult({ status: "done", message: t("hotfix.result.generationOk", { gameType: response.gameType }) });
+
+      setPendingProcesses((current) => {
+        const row: PendingProcessRow = {
+          service,
+          gameType,
+          task: started.task,
+        };
+        return [row, ...current.filter((item) => item.task.taskId !== row.task.taskId)];
+      });
+      return;
     } catch (error) {
       setResult({ status: "error", message: error instanceof Error ? error.message : t("hotfix.result.errorUnknown") });
     }
   };
+
+  const progressRatio = generationTask?.progress?.ratio ?? 0;
+  const progressPercent = Math.max(0, Math.min(100, Math.round(progressRatio * 100)));
+
+  const loadPending = useCallback(async () => {
+    try {
+      const [quiz, wordpass] = await Promise.all([
+        fetchJson<GenerationProcessesListResponse>(
+          `${EDGE_API_BASE}/v1/backoffice/services/microservice-quiz/generation/processes?status=running&requestedBy=backoffice&limit=200`,
+          { headers: composeAuthHeaders(context) },
+        ),
+        fetchJson<GenerationProcessesListResponse>(
+          `${EDGE_API_BASE}/v1/backoffice/services/microservice-wordpass/generation/processes?status=running&requestedBy=backoffice&limit=200`,
+          { headers: composeAuthHeaders(context) },
+        ),
+      ]);
+
+      const merged: PendingProcessRow[] = [
+        ...(quiz.tasks ?? []).map((task) => ({
+          service: "microservice-quiz" as const,
+          gameType: "quiz" as const,
+          task,
+        })),
+        ...(wordpass.tasks ?? []).map((task) => ({
+          service: "microservice-wordpass" as const,
+          gameType: "wordpass" as const,
+          task,
+        })),
+      ].sort((left, right) => {
+        const rightTime = Date.parse(right.task.updatedAt ?? right.task.startedAt ?? "");
+        const leftTime = Date.parse(left.task.updatedAt ?? left.task.startedAt ?? "");
+        return (Number.isNaN(rightTime) ? 0 : rightTime) - (Number.isNaN(leftTime) ? 0 : leftTime);
+      });
+
+      setPendingError(null);
+      setPendingProcesses(merged);
+    } catch (error) {
+      setPendingError(error instanceof Error ? error.message : t("hotfix.result.errorUnknown"));
+    }
+  }, [context, t]);
+
+  useEffect(() => {
+    void loadPending();
+  }, [loadPending]);
+
+  useVisibilityPolling(loadPending, 2000);
 
   const injectUserEvent = async () => {
     if (!modifyEnabled) {
@@ -205,10 +344,52 @@ export function HotfixPanel({ session, context, density }: HotfixPanelProps) {
             {t("hotfix.numQuestions")}
             <input type="number" min={1} max={50} value={numQuestions} onChange={(event) => setNumQuestions(Number(event.target.value || 1))} className="control-input mt-1 w-full px-2 py-2" />
           </label>
+          <label className="mb-2 block text-sm">
+            {t("hotfix.generationCount")}
+            <input type="number" min={1} max={100} value={generationCount} onChange={(event) => setGenerationCount(Number(event.target.value || 1))} className="control-input mt-1 w-full px-2 py-2" />
+          </label>
+          <label className="mb-3 block text-sm">
+            {t("hotfix.generationMode")}
+            <select value={generationMode} onChange={(event) => setGenerationMode(event.target.value as GenerationMode)} className="control-input mt-1 w-full px-2 py-2">
+              <option value="progress">{t("hotfix.generationMode.progress")}</option>
+              <option value="wait">{t("hotfix.generationMode.wait")}</option>
+            </select>
+          </label>
           <div className="flex gap-2">
             <button type="button" disabled={!modifyEnabled} onClick={() => runGeneration("quiz")} className="flex-1 rounded-lg bg-[var(--md-sys-color-primary)] px-3 py-2 text-sm font-semibold text-[var(--md-sys-color-on-primary)] disabled:cursor-not-allowed disabled:opacity-50">{t("hotfix.generateQuiz")}</button>
             <button type="button" disabled={!modifyEnabled} onClick={() => runGeneration("wordpass")} className="flex-1 rounded-lg bg-[var(--md-sys-color-tertiary)] px-3 py-2 text-sm font-semibold text-[var(--md-sys-color-on-tertiary)] disabled:cursor-not-allowed disabled:opacity-50">{t("hotfix.generateWordpass")}</button>
           </div>
+          {generationTask && (
+            <div className="mt-3 rounded-lg border border-[var(--md-sys-color-outline-variant)] p-3">
+              <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
+                {t("hotfix.progress.task", {
+                  taskId: generationTask.taskId,
+                  status: generationTask.status,
+                })}
+              </p>
+              <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-[var(--md-sys-color-surface-container)]">
+                <div
+                  className="h-full rounded-full bg-[var(--md-sys-color-primary)] transition-all duration-300"
+                  style={{ width: `${progressPercent}%` }}
+                  role="progressbar"
+                  aria-label="generation-progress"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={progressPercent}
+                />
+              </div>
+              <p className="mt-2 text-xs text-[var(--md-sys-color-on-surface-variant)]">
+                {t("hotfix.progress.detail", {
+                  processed: generationTask.processed,
+                  requested: generationTask.requested,
+                  percent: progressPercent,
+                  created: generationTask.created,
+                  duplicates: generationTask.duplicates,
+                  failed: generationTask.failed,
+                })}
+              </p>
+            </div>
+          )}
           {catalogError && <p className="ui-feedback ui-feedback--warn mt-2 p-2 text-xs">{catalogError}</p>}
         </article>
 
@@ -230,6 +411,44 @@ export function HotfixPanel({ session, context, density }: HotfixPanelProps) {
       </div>
 
       <p className={`mt-4 rounded-lg p-3 text-sm ${result.status === "error" ? "ui-feedback ui-feedback--error" : result.status === "done" ? "ui-feedback ui-feedback--ok" : "ui-surface-soft"}`}>{result.message}</p>
+
+      <article className="mt-4 rounded-xl border border-[var(--md-sys-color-outline-variant)] p-3">
+        <h3 className="mb-2 font-semibold">{t("hotfix.pending.title")}</h3>
+        {pendingError ? <p className="ui-feedback ui-feedback--warn p-2 text-xs">{pendingError}</p> : null}
+        {!pendingError && pendingProcesses.length === 0 ? (
+          <p className="text-sm text-[var(--md-sys-color-on-surface-variant)]">{t("hotfix.pending.empty")}</p>
+        ) : (
+          <div className="space-y-2">
+            {pendingProcesses.map((item) => {
+              const ratio = item.task.progress?.ratio ?? (item.task.requested > 0 ? item.task.processed / item.task.requested : 0);
+              const percent = Math.max(0, Math.min(100, Math.round(ratio * 100)));
+              return (
+                <div key={`${item.service}-${item.task.taskId}`} className="rounded-lg border border-[var(--md-sys-color-outline-variant)] p-2">
+                  <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
+                    {t("hotfix.pending.item", {
+                      gameType: item.gameType,
+                      taskId: item.task.taskId,
+                    })}
+                  </p>
+                  <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-[var(--md-sys-color-surface-container)]">
+                    <div className="h-full rounded-full bg-[var(--md-sys-color-primary)] transition-all duration-300" style={{ width: `${percent}%` }} />
+                  </div>
+                  <p className="mt-1 text-xs text-[var(--md-sys-color-on-surface-variant)]">
+                    {t("hotfix.pending.progress", {
+                      processed: item.task.processed,
+                      requested: item.task.requested,
+                      percent,
+                      created: item.task.created,
+                      duplicates: item.task.duplicates,
+                      failed: item.task.failed,
+                    })}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </article>
     </section>
   );
 }

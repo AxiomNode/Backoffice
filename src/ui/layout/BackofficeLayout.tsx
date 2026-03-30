@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
 
 import type { BackofficeSession } from "../../auth";
 import { fetchServiceOperationalSummary } from "../../application/services/operationalSummary";
@@ -8,11 +8,15 @@ import { ACCENT_OPTIONS, UI_DENSITY_STORAGE_KEY, UI_SERVICE_ROUTE_QUERY_STORAGE_
 import type { NavKey, SessionContext, UiAccent, UiDensity, UiTheme, UiTypography } from "../../domain/types/backoffice";
 import { useI18n } from "../../i18n/context";
 import { ACCENT_LABEL_KEYS, LANGUAGE_OPTIONS, type LabelKey } from "../../i18n/labels";
-import { HotfixPanel } from "../panels/HotfixPanel";
-import { RoleManagementPanel } from "../panels/RoleManagementPanel";
-import { ServiceConsolePanel } from "../panels/ServiceConsolePanel";
-import { ServiceOverviewPanel } from "../panels/ServiceOverviewPanel";
+import { useHashRoute, routeFromNavKey } from "../hooks/useHashRoute";
+import { useVisibilityPolling } from "../hooks/useVisibilityPolling";
 import { Sidebar } from "../components/Sidebar";
+
+const AIDiagnosticsPanel = lazy(() => import("../panels/AIDiagnosticsPanel").then((m) => ({ default: m.AIDiagnosticsPanel })));
+const HotfixPanel = lazy(() => import("../panels/HotfixPanel").then((m) => ({ default: m.HotfixPanel })));
+const RoleManagementPanel = lazy(() => import("../panels/RoleManagementPanel").then((m) => ({ default: m.RoleManagementPanel })));
+const ServiceConsolePanel = lazy(() => import("../panels/ServiceConsolePanel").then((m) => ({ default: m.ServiceConsolePanel })));
+const ServiceOverviewPanel = lazy(() => import("../panels/ServiceOverviewPanel").then((m) => ({ default: m.ServiceOverviewPanel })));
 
 const NAV_LABELS: Record<NavKey, { title: LabelKey; subtitle: LabelKey }> = {
   "svc-overview": { title: "nav.svc-overview.title", subtitle: "nav.svc-overview.subtitle" },
@@ -24,6 +28,7 @@ const NAV_LABELS: Record<NavKey, { title: LabelKey; subtitle: LabelKey }> = {
   "svc-wordpass": { title: "nav.svc-wordpass.title", subtitle: "nav.svc-wordpass.subtitle" },
   "svc-ai-stats": { title: "nav.svc-ai-stats.title", subtitle: "nav.svc-ai-stats.subtitle" },
   "svc-ai-api": { title: "nav.svc-ai-api.title", subtitle: "nav.svc-ai-api.subtitle" },
+  "ai-diagnostics": { title: "nav.ai-diagnostics.title", subtitle: "nav.ai-diagnostics.subtitle" },
   hotfix: { title: "nav.hotfix.title", subtitle: "nav.hotfix.subtitle" },
   roles: { title: "nav.roles.title", subtitle: "nav.roles.subtitle" },
 };
@@ -49,19 +54,6 @@ const TYPOGRAPHY_LABEL_KEYS: Record<UiTypography, LabelKey> = {
   xxl: "typography.xxl",
 };
 
-function routeFromNavKey(key: NavKey): string {
-  return `#/backoffice/${key}`;
-}
-
-function navKeyFromRoute(hash: string, allowed: NavKey[]): NavKey | null {
-  const match = hash.match(/^#\/backoffice\/([^/?#]+)/);
-  if (!match) {
-    return null;
-  }
-  const candidate = match[1] as NavKey;
-  return allowed.includes(candidate) ? candidate : null;
-}
-
 export function BackofficeLayout({
   session,
   context,
@@ -86,13 +78,8 @@ export function BackofficeLayout({
       }),
     [session.role, t],
   );
-  const [current, setCurrent] = useState<NavKey>(() => {
-    const fallback = navItems[0]?.key ?? "svc-api-gateway";
-    if (typeof window === "undefined") {
-      return fallback;
-    }
-    return navKeyFromRoute(window.location.hash, navItems.map((item) => item.key)) ?? fallback;
-  });
+  const allowedKeys = useMemo(() => navItems.map((item) => item.key), [navItems]);
+  const [current, navigate] = useHashRoute(allowedKeys, navItems[0]?.key ?? "svc-api-gateway");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [globalHealth, setGlobalHealth] = useState<"healthy" | "warning" | "critical" | "unknown">("unknown");
   const [globalHealthText, setGlobalHealthText] = useState<string>("--");
@@ -107,35 +94,6 @@ export function BackofficeLayout({
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
   const summaryBaselineRef = useRef<Record<string, { requestsTotal: number | null; fetchedAt: number }>>({});
-
-  useEffect(() => {
-    const currentAllowed = navItems.some((item) => item.key === current);
-    if (!currentAllowed) {
-      setCurrent(navItems[0]?.key ?? "svc-api-gateway");
-    }
-  }, [current, navItems]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    const allowed = navItems.map((item) => item.key);
-    const fromHash = navKeyFromRoute(window.location.hash, allowed);
-    if (fromHash && fromHash !== current) {
-      setCurrent(fromHash);
-    }
-
-    const onHashChange = () => {
-      const next = navKeyFromRoute(window.location.hash, allowed);
-      if (next) {
-        setCurrent(next);
-      }
-    };
-
-    window.addEventListener("hashchange", onHashChange);
-    return () => window.removeEventListener("hashchange", onHashChange);
-  }, [current, navItems]);
 
   useEffect(() => {
     if (!mobileMenuOpen) {
@@ -156,15 +114,10 @@ export function BackofficeLayout({
     window.localStorage.setItem(UI_DENSITY_STORAGE_KEY, density);
   }, [density]);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    const updateGlobalHealth = async () => {
+  const updateGlobalHealth = useMemo(() => {
+    return async () => {
       try {
         const summary = await fetchServiceOperationalSummary(context, summaryBaselineRef.current);
-        if (cancelled) {
-          return;
-        }
 
         const { total, onlineCount, accessIssues, connectionErrors } = summary.totals;
         const offlineCount = Math.max(0, total - onlineCount);
@@ -184,23 +137,17 @@ export function BackofficeLayout({
         setGlobalHealth("healthy");
         setGlobalHealthText(`${onlineCount}/${total} ${t("layout.header.semaphore.online")}`);
       } catch {
-        if (!cancelled) {
-          setGlobalHealth("unknown");
-          setGlobalHealthText(t("layout.header.semaphore.unknown"));
-        }
+        setGlobalHealth("unknown");
+        setGlobalHealthText(t("layout.header.semaphore.unknown"));
       }
     };
-
-    void updateGlobalHealth();
-    const timer = window.setInterval(() => {
-      void updateGlobalHealth();
-    }, 30000);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
   }, [context, t]);
+
+  useEffect(() => {
+    void updateGlobalHealth();
+  }, [updateGlobalHealth]);
+
+  useVisibilityPolling(updateGlobalHealth, 30000);
 
   const toggleDensity = () => setDensity((v) => (v === "comfortable" ? "dense" : "comfortable"));
   const cycleAccent = () => {
@@ -224,9 +171,12 @@ export function BackofficeLayout({
 
       if (window.location.hash !== nextRoute) {
         window.location.hash = nextRoute;
+      } else {
+        navigate(key);
       }
+    } else {
+      navigate(key);
     }
-    setCurrent(key);
     setMobileMenuOpen(false);
   };
 
@@ -417,10 +367,13 @@ export function BackofficeLayout({
           </div>
         </header>
 
-        {current === "svc-overview" && <ServiceOverviewPanel context={context} density={density} />}
-        {current !== "svc-overview" && SERVICE_NAV_KEYS.has(current) && <ServiceConsolePanel key={current} navKey={current} context={context} density={density} />}
-        {current === "hotfix" && roleCanModify(session.role) && <HotfixPanel session={session} context={context} density={density} />}
-        {current === "roles" && roleCanManageUsers(session.role) && <RoleManagementPanel context={context} density={density} />}
+        <Suspense fallback={<div className="m3-card animate-pulse p-6 text-center text-sm text-[var(--md-sys-color-on-surface-variant)]">…</div>}>
+          {current === "svc-overview" && <ServiceOverviewPanel context={context} density={density} />}
+          {current !== "svc-overview" && SERVICE_NAV_KEYS.has(current) && <ServiceConsolePanel key={current} navKey={current} context={context} density={density} />}
+          {current === "hotfix" && roleCanModify(session.role) && <HotfixPanel session={session} context={context} density={density} />}
+          {current === "ai-diagnostics" && roleCanModify(session.role) && <AIDiagnosticsPanel context={context} density={density} />}
+          {current === "roles" && roleCanManageUsers(session.role) && <RoleManagementPanel context={context} density={density} />}
+        </Suspense>
       </main>
     </div>
   );

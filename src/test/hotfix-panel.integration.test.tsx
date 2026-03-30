@@ -73,8 +73,20 @@ describe("HotfixPanel integration", () => {
           },
         });
       }
-      if (url.endsWith("/v1/mobile/games/quiz/generate")) {
-        return Promise.resolve({ gameType: "quiz" });
+      if (url.endsWith("/v1/backoffice/services/microservice-quiz/generation/wait")) {
+        return Promise.resolve({
+          gameType: "quiz",
+          task: {
+            taskId: "task-1",
+            status: "completed",
+            requested: 10,
+            processed: 10,
+            created: 8,
+            duplicates: 2,
+            failed: 0,
+            progress: { current: 10, total: 10, ratio: 1 },
+          },
+        });
       }
       return Promise.resolve({});
     });
@@ -93,13 +105,16 @@ describe("HotfixPanel integration", () => {
     fireEvent.change(screen.getByLabelText("Cantidad de preguntas"), {
       target: { value: "5" },
     });
+    fireEvent.change(screen.getByLabelText("Modo de ejecucion"), {
+      target: { value: "wait" },
+    });
 
     fireEvent.click(screen.getByRole("button", { name: "Generar quiz" }));
 
     await waitFor(() => {
       expect(screen.getByLabelText("Catalogo de")).toBeInTheDocument();
       expect(fetchJsonMock).toHaveBeenCalledWith(
-        "http://localhost:7005/v1/mobile/games/quiz/generate",
+        "http://localhost:7005/v1/backoffice/services/microservice-quiz/generation/wait",
         expect.objectContaining({
           method: "POST",
           body: JSON.stringify({
@@ -107,10 +122,11 @@ describe("HotfixPanel integration", () => {
             categoryId: "15",
             difficultyPercentage: 70,
             numQuestions: 5,
+            count: 10,
           }),
         }),
       );
-      expect(screen.getByText(/Generacion OK para quiz/i)).toBeInTheDocument();
+      expect(screen.getByText(/Generacion completada para quiz/i)).toBeInTheDocument();
     });
   });
 
@@ -127,7 +143,7 @@ describe("HotfixPanel integration", () => {
     await waitFor(() => {
       expect(screen.getByText(/solo observacion/i)).toBeInTheDocument();
       expect(fetchJsonMock).not.toHaveBeenCalledWith(
-        "http://localhost:7005/v1/mobile/games/quiz/generate",
+        "http://localhost:7005/v1/backoffice/services/microservice-quiz/generation/wait",
         expect.anything(),
       );
     });
@@ -181,7 +197,7 @@ describe("HotfixPanel integration", () => {
           },
         });
       }
-      if (url.endsWith("/v1/mobile/games/wordpass/generate")) {
+      if (url.endsWith("/v1/backoffice/services/microservice-wordpass/generation/process")) {
         return Promise.reject(new Error("ai-engine timeout"));
       }
       return Promise.resolve({});
@@ -193,6 +209,49 @@ describe("HotfixPanel integration", () => {
 
     await waitFor(() => {
       expect(screen.getByText("ai-engine timeout")).toBeInTheDocument();
+    });
+  });
+
+  it("keeps user in hotfix and shows pending process when progress mode starts", async () => {
+    fetchJsonMock.mockImplementation((url: string) => {
+      if (url.includes("/catalogs")) {
+        return Promise.resolve({
+          catalogs: {
+            categories: [{ id: "9", name: "General" }],
+            languages: [{ code: "es", name: "Español" }],
+          },
+        });
+      }
+      if (url.endsWith("/v1/backoffice/services/microservice-quiz/generation/process")) {
+        return Promise.resolve({
+          gameType: "quiz",
+          task: {
+            taskId: "11111111-1111-1111-1111-111111111111",
+            status: "running",
+            requested: 10,
+            processed: 0,
+            created: 0,
+            duplicates: 0,
+            failed: 0,
+            progress: { current: 0, total: 10, ratio: 0 },
+          },
+        });
+      }
+      return Promise.resolve({});
+    });
+
+    window.location.hash = "#/backoffice/hotfix";
+    renderPanel();
+
+    fireEvent.change(screen.getByLabelText("Modo de ejecucion"), {
+      target: { value: "progress" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Generar quiz" }));
+
+    await waitFor(() => {
+      expect(window.location.hash).toBe("#/backoffice/hotfix");
+      expect(screen.getAllByText(/11111111-1111-1111-1111-111111111111/i).length).toBeGreaterThan(0);
     });
   });
 });

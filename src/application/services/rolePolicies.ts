@@ -28,6 +28,7 @@ export function navItemsForRole(role: BackofficeRole): NavItem[] {
   ];
 
   if (roleCanModify(role)) {
+    items.push({ key: "ai-diagnostics", title: "AI Diagnostics", subtitle: "Tests de alucinacion y medidor RAG" });
     items.push({ key: "hotfix", title: "Modificacion en caliente", subtitle: "Acciones de administracion runtime" });
   }
 
