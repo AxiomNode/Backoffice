@@ -18,6 +18,7 @@ const NAV_TITLE_KEYS: Record<NavKey, LabelKey> = {
   "svc-ai-api": "nav.svc-ai-api.title",
   hotfix: "nav.hotfix.title",
   roles: "nav.roles.title",
+  "ai-diagnostics": "nav.ai-diagnostics.title",
 };
 
 const NAV_SUBTITLE_KEYS: Record<NavKey, LabelKey> = {
@@ -32,6 +33,7 @@ const NAV_SUBTITLE_KEYS: Record<NavKey, LabelKey> = {
   "svc-ai-api": "nav.svc-ai-api.subtitle",
   hotfix: "nav.hotfix.subtitle",
   roles: "nav.roles.subtitle",
+  "ai-diagnostics": "nav.ai-diagnostics.subtitle",
 };
 
 type ServiceConsolePanelProps = {
