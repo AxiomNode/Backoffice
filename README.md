@@ -1,71 +1,71 @@
 # Backoffice AxiomNode
 
-MVP web para administracion del ecosistema AxiomNode con foco en:
+Web MVP for managing the AxiomNode ecosystem, focused on:
 
 1. Control
-2. Observacion
-3. Modificacion en caliente
+2. Observation
+3. Hot modification
 
-## Responsabilidad principal
+## Main responsibility
 
-- Consola operacional para supervision, accion y mantenimiento seguro del ecosistema.
+- Operational console for supervision, action, and safe ecosystem maintenance.
 
-Tecnologias:
+Technologies:
 
 - React
 - TypeScript
 - Tailwind CSS
 - Vite
 
-La interfaz aplica tokens de color Material 3 derivados de [docs/design/theme/Global theme.json](../docs/design/theme/Global%20theme.json).
+The interface applies Material 3 color tokens derived from [docs/design/theme/Global theme.json](../docs/design/theme/Global%20theme.json).
 
-## Modulos MVP
+## MVP modules
 
-1. Observacion:
-- consumo de `GET /v1/backoffice/monitor/stats`
-- tarjetas de salud y trafico
+1. Observation:
+- Consumption of `GET /v1/backoffice/monitor/stats`
+- Health and traffic cards
 
 2. Control:
-- consumo de `GET /v1/backoffice/users/leaderboard`
-- filtros de metrica y limite
+- Consumption of `GET /v1/backoffice/users/leaderboard`
+- Metric and limit filters
 
-3. Modificacion en caliente:
-- disparo de generacion IA (`quiz` y `word-pass`) via edge
-- registro manual de eventos en users via edge + bff-backoffice
+3. Hot modification:
+- AI generation trigger (`quiz` and `word-pass`) via edge
+- Manual event recording in users via edge + bff-backoffice
 
-4. Acceso de administradores:
-- gate de autenticacion por rol (`SuperAdmin`, `Admin`, `Viewer`, `Gamer`)
-- modo `dev` para trabajo local
-- modo `firebase` para autenticacion real de operadores con Google
+4. Admin access:
+- Role-based authentication gate (`SuperAdmin`, `Admin`, `Viewer`, `Gamer`)
+- `dev` mode for local work
+- `firebase` mode for real operator authentication with Google
 
-## Modelo de roles
+## Role model
 
-- `SuperAdmin`: unico usuario con permisos totales y gestion de roles.
-- `Admin`: puede observar y modificar datos operativos, pero no gestionar usuarios.
-- `Viewer`: solo observacion; no puede modificar datos.
-- `Gamer`: rol por defecto al crear usuario por primera vez; no tiene acceso al backoffice.
+- `SuperAdmin`: sole user with full permissions and role management.
+- `Admin`: can observe and modify operational data, but cannot manage users.
+- `Viewer`: observation only; cannot modify data.
+- `Gamer`: default role when creating a user for the first time; no backoffice access.
 
-## Desarrollo local
+## Local development
 
-1. Instalar dependencias:
+1. Install dependencies:
 
 ```bash
 npm install
 ```
 
-2. Crear entorno local:
+2. Create local environment:
 
 ```bash
 cp .env.example .env
 ```
 
-3. Ejecutar en modo desarrollo:
+3. Run in development mode:
 
 ```bash
 npm run dev
 ```
 
-4. Build de produccion:
+4. Production build:
 
 ```bash
 npm run build
@@ -73,44 +73,44 @@ npm run build
 
 ## Docker (dev / single VPS)
 
-El backoffice se puede levantar como contenedor web en `http://localhost:7080`.
+The backoffice can be started as a web container at `http://localhost:7080`.
 
-1. Inyectar secretos centralizados (dev):
+1. Inject centralized secrets (dev):
 
 ```bash
 cd ../secrets
 node scripts/prepare-runtime-secrets.mjs dev
 ```
 
-2. Levantar stack edge + backoffice:
+2. Start edge + backoffice stack:
 
 ```bash
 cd ../platform-infra/environments/dev
 docker compose -f docker-compose.edge-integration.yml up -d --build
 ```
 
-El contenedor de backoffice lee las variables `VITE_*` desde `backoffice/.env.secrets` en runtime mediante `config.js`, para facilitar cambios de configuracion sin recompilar la app.
+The backoffice container reads `VITE_*` variables from `backoffice/.env.secrets` at runtime via `config.js`, to allow configuration changes without re-building the app.
 
-## Variables de entorno
+## Environment variables
 
-- `VITE_API_BASE_URL`: base del gateway edge (default `http://localhost:7005`)
-- `VITE_EDGE_API_TOKEN`: token edge para llamadas autenticadas desde backoffice
-- `VITE_AUTH_MODE`: `dev` o `firebase`
-- `VITE_FIREBASE_API_KEY`: config cliente Firebase
-- `VITE_FIREBASE_AUTH_DOMAIN`: config cliente Firebase
-- `VITE_FIREBASE_PROJECT_ID`: config cliente Firebase
-- `VITE_FIREBASE_STORAGE_BUCKET`: config cliente Firebase
-- `VITE_FIREBASE_MESSAGING_SENDER_ID`: config cliente Firebase
-- `VITE_FIREBASE_APP_ID`: config cliente Firebase
-- `VITE_FIREBASE_MEASUREMENT_ID`: config cliente Firebase
-- `VITE_ADMIN_DEV_UID`: UID dev usado en el header `x-dev-firebase-uid` para operacion local
+- `VITE_API_BASE_URL`: edge gateway base (default `http://localhost:7005`)
+- `VITE_EDGE_API_TOKEN`: edge token for authenticated calls from backoffice
+- `VITE_AUTH_MODE`: `dev` or `firebase`
+- `VITE_FIREBASE_API_KEY`: Firebase client config
+- `VITE_FIREBASE_AUTH_DOMAIN`: Firebase client config
+- `VITE_FIREBASE_PROJECT_ID`: Firebase client config
+- `VITE_FIREBASE_STORAGE_BUCKET`: Firebase client config
+- `VITE_FIREBASE_MESSAGING_SENDER_ID`: Firebase client config
+- `VITE_FIREBASE_APP_ID`: Firebase client config
+- `VITE_FIREBASE_MEASUREMENT_ID`: Firebase client config
+- `VITE_ADMIN_DEV_UID`: dev UID used in the `x-dev-firebase-uid` header for local development
 
-## Nota de seguridad
+## Security note
 
-`VITE_*` se inyecta en cliente. No colocar secretos de infraestructura reales en produccion dentro de variables publicas del frontend.
+`VITE_*` variables are injected into the client. Do not place real infrastructure secrets in public frontend variables in production.
 
-## Login Firebase (Google)
+## Firebase login (Google)
 
-- En Firebase Console, habilitar Authentication > Sign-in method > Google.
-- El login del backoffice en modo `firebase` usa popup de Google (`signInWithPopup`).
-- No se usa login por email/password en esta version.
+- In Firebase Console, enable Authentication > Sign-in method > Google.
+- The backoffice login in `firebase` mode uses a Google popup (`signInWithPopup`).
+- Email/password login is not used in this version.
