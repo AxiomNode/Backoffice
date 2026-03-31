@@ -1,3 +1,6 @@
+/** @module table - Cell serialization, comparison, and row-extraction helpers for data tables. */
+
+/** Converts an unknown cell value to its string representation. */
 export function stringifyCell(value: unknown): string {
   if (value === null || value === undefined) {
     return "";
@@ -15,6 +18,7 @@ export function stringifyCell(value: unknown): string {
   }
 }
 
+/** Compares two cell values for sorting (numeric-aware, locale-sensitive). */
 export function compareCells(a: unknown, b: unknown): number {
   const aNumber = Number(a);
   const bNumber = Number(b);
@@ -28,6 +32,7 @@ export function compareCells(a: unknown, b: unknown): number {
   return stringifyCell(a).localeCompare(stringifyCell(b), "es", { sensitivity: "base" });
 }
 
+/** Renders a cell value as a display string, truncating at 120 characters. */
 export function renderCellValue(value: unknown): string {
   const serialized = stringifyCell(value);
   if (serialized.length <= 120) {
@@ -36,6 +41,7 @@ export function renderCellValue(value: unknown): string {
   return `${serialized.slice(0, 117)}...`;
 }
 
+/** Normalizes an unknown API payload into an array of key-value row objects. */
 export function rowsFromUnknown(payload: unknown): Array<Record<string, unknown>> {
   if (Array.isArray(payload)) {
     return payload.map((item) => (typeof item === "object" && item !== null ? (item as Record<string, unknown>) : { value: item }));

@@ -1,5 +1,8 @@
 import type { NavKey, ServiceNavConfig } from "../types/backoffice";
 
+/** @module navigation - Service navigation registry for the backoffice sidebar. */
+
+/** Ordered list of service navigation entries displayed in the sidebar. */
 export const SERVICE_NAV_CONFIGS: ServiceNavConfig[] = [
   {
     navKey: "svc-api-gateway",
@@ -66,8 +69,10 @@ export const SERVICE_NAV_CONFIGS: ServiceNavConfig[] = [
   },
 ];
 
+/** Set of all registered service navigation keys for quick lookup. */
 export const SERVICE_NAV_KEYS = new Set<NavKey>(SERVICE_NAV_CONFIGS.map((item) => item.navKey));
 
+/** Finds the service navigation config for a given nav key. */
 export function navConfigByKey(key: NavKey): ServiceNavConfig | undefined {
   return SERVICE_NAV_CONFIGS.find((item) => item.navKey === key);
 }

@@ -10,6 +10,8 @@ import { EDGE_API_BASE, fetchJson } from "../../infrastructure/http/apiClient";
 import { useI18n } from "../../i18n/context";
 import { ACCENT_LABEL_KEYS, LANGUAGE_OPTIONS, type LabelKey } from "../../i18n/labels";
 
+/** @module LoginGate - Authentication gate that blocks access until the user signs in. */
+
 type LoginGateProps = {
   onAuthenticated: (session: BackofficeSession, context: SessionContext) => void;
   theme: UiTheme;
@@ -29,6 +31,7 @@ const TYPOGRAPHY_LABEL_KEYS: Record<UiTypography, LabelKey> = {
   xxl: "typography.xxl",
 };
 
+/** Login screen handling Firebase and dev-mode authentication with theme/accent pickers. */
 export function LoginGate({
   onAuthenticated,
   theme,

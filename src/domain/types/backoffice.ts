@@ -1,7 +1,11 @@
 import type { RuntimeAuthMode } from "../../auth";
 
+/** @module backoffice - Core domain types for the backoffice application. */
+
+/** User role within the backoffice RBAC system. */
 export type BackofficeRole = "SuperAdmin" | "Admin" | "Viewer" | "Gamer";
 
+/** Navigation key identifying a sidebar destination. */
 export type NavKey =
   | "svc-overview"
   | "svc-api-gateway"
@@ -16,6 +20,7 @@ export type NavKey =
   | "hotfix"
   | "roles";
 
+/** Backend service identifier used in API calls. */
 export type ServiceKey =
   | "api-gateway"
   | "bff-backoffice"
@@ -26,8 +31,10 @@ export type ServiceKey =
   | "ai-engine-stats"
   | "ai-engine-api";
 
+/** Available dataset tabs for services that expose data endpoints. */
 export type DataDataset = "roles" | "leaderboard" | "history" | "processes";
 
+/** Aggregated stats payload returned by a service health endpoint. */
 export type StatsPayload = {
   service: string;
   uptimeSeconds?: number;
@@ -49,6 +56,7 @@ export type StatsPayload = {
   };
 };
 
+/** Leaderboard response shape from the users microservice. */
 export type LeaderboardResponse = {
   metric: "won" | "score" | "played";
   total: number;
@@ -59,6 +67,7 @@ export type LeaderboardResponse = {
   }>;
 };
 
+/** A single user-role record from the admin endpoint. */
 export type RoleItem = {
   firebaseUid: string;
   displayName: string | null;
@@ -68,6 +77,7 @@ export type RoleItem = {
   updatedAt: string;
 };
 
+/** Catalog entry representing a registered microservice. */
 export type ServiceCatalogItem = {
   key: ServiceKey;
   title: string;
@@ -75,6 +85,7 @@ export type ServiceCatalogItem = {
   supportsData: boolean;
 };
 
+/** Navigation config that maps a nav key to its service and optional datasets. */
 export type ServiceNavConfig = {
   navKey: NavKey;
   service: ServiceKey;
@@ -84,23 +95,31 @@ export type ServiceNavConfig = {
   datasets?: Array<{ value: DataDataset; label: string }>;
 };
 
+/** Result state for hotfix / runtime operations. */
 export type HotOperationResult = {
   status: "idle" | "loading" | "done" | "error";
   message: string;
 };
 
+/** Active session context passed to API calls. */
 export type SessionContext = {
   mode: RuntimeAuthMode;
   idToken?: string;
   devUid?: string;
 };
 
+/** Layout density preference. */
 export type UiDensity = "comfortable" | "dense";
+/** Color theme preference. */
 export type UiTheme = "light" | "dark";
+/** Color accent variant. */
 export type UiAccent = "ocean" | "sunset" | "emerald";
+/** Typography scale preference. */
 export type UiTypography = "sm" | "normal" | "lg" | "xl" | "xxl";
+/** Supported UI languages. */
 export type UiLanguage = "es" | "en" | "fr" | "de" | "it";
 
+/** Sidebar navigation item displayed to the user. */
 export type NavItem = {
   key: NavKey;
   title: string;

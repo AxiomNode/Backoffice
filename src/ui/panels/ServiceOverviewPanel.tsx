@@ -4,6 +4,8 @@ import { fetchServiceOperationalSummary, type ServiceOperationalRow } from "../.
 import type { SessionContext, UiDensity } from "../../domain/types/backoffice";
 import { useI18n } from "../../i18n/context";
 
+/** @module ServiceOverviewPanel - Dashboard showing real-time operational status of all services. */
+
 type ServiceOverviewPanelProps = {
   context: SessionContext;
   density: UiDensity;
@@ -37,6 +39,7 @@ function formatPercent(value: number): string {
   return `${(value * 100).toFixed(1)}%`;
 }
 
+/** Dashboard panel displaying service health KPIs and an auto-refreshing status table. */
 export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelProps) {
   const { t } = useI18n();
   const compact = density === "dense";

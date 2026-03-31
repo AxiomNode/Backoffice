@@ -3,6 +3,9 @@ import { UI_SERVICE_LAST_ERROR_STORAGE_PREFIX } from "../../domain/constants/ui"
 import { composeAuthHeaders } from "../../infrastructure/backoffice/authHeaders";
 import { EDGE_API_BASE, fetchJson } from "../../infrastructure/http/apiClient";
 
+/** @module operationalSummary - Fetches and aggregates operational status across all services. */
+
+/** Row representing a single service's real-time operational status. */
 export type ServiceOperationalRow = {
   key: string;
   title: string;
@@ -22,6 +25,7 @@ export type ServiceOperationalRow = {
   lastKnownError: { message: string; at: string } | null;
 };
 
+/** Aggregated operational summary with per-service rows and totals. */
 export type ServiceOperationalSummary = {
   rows: ServiceOperationalRow[];
   totals: {
@@ -116,6 +120,7 @@ function isConnectionError(message: string): boolean {
   return /Failed to fetch|NetworkError|HTTP\s+(5\d\d|429|408|0)/i.test(message);
 }
 
+/** Persists the last error for a service key in localStorage. */
 export function storeServiceLastError(serviceKey: string, message: string): void {
   if (typeof window === "undefined") {
     return;
@@ -152,6 +157,7 @@ function readServiceLastError(serviceKey: string): { message: string; at: string
   }
 }
 
+/** Fetches health and metrics for all services, computing request rates and conversion ratios. */
 export async function fetchServiceOperationalSummary(
   context: SessionContext,
   previousByService: Record<string, { requestsTotal: number | null; fetchedAt: number }>,

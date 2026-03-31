@@ -1,5 +1,7 @@
 import { useEffect, useRef } from "react";
 
+/** @module useVisibilityPolling - Polling hook that pauses when the browser tab is hidden. */
+
 /**
  * Runs a callback on a fixed interval, automatically pausing when
  * the browser tab is hidden (Page Visibility API) and resuming on return.

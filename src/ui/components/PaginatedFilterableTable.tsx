@@ -5,6 +5,8 @@ import type { UiDensity } from "../../domain/types/backoffice";
 import { useI18n } from "../../i18n/context";
 import { compareCells, renderCellValue, stringifyCell } from "../utils/table";
 
+/** @module PaginatedFilterableTable - Generic data table with filtering, sorting, and pagination. */
+
 type PaginatedFilterableTableProps = {
   rows: Array<Record<string, unknown>>;
   defaultPageSize?: number;
@@ -12,6 +14,7 @@ type PaginatedFilterableTableProps = {
   iconOnlyColumns?: string[];
 };
 
+/** Memoized data table with client-side filtering, sorting, pagination, and cell detail dialog. */
 export const PaginatedFilterableTable = memo(function PaginatedFilterableTable({ rows, defaultPageSize = 10, density = "comfortable", iconOnlyColumns = [] }: PaginatedFilterableTableProps) {
   const { t } = useI18n();
   const columns = useMemo(() => {

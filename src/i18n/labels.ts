@@ -1,5 +1,7 @@
 import type { UiLanguage } from "../domain/types/backoffice";
 
+/** @module labels - Multilingual label dictionaries and accent/language option lists for the backoffice UI. */
+
 export const LANGUAGE_OPTIONS: Array<{ value: UiLanguage; label: string }> = [
   { value: "es", label: "Espanol" },
   { value: "en", label: "English" },

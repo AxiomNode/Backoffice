@@ -8,6 +8,8 @@ import { EDGE_API_BASE, fetchJson } from "../../infrastructure/http/apiClient";
 import { useI18n } from "../../i18n/context";
 import { useVisibilityPolling } from "../hooks/useVisibilityPolling";
 
+/** @module HotfixPanel - Runtime hotfix panel for batch generation, cache wipe, and event simulation. */
+
 type HotfixPanelProps = {
   session: BackofficeSession;
   context: SessionContext;
@@ -54,6 +56,7 @@ type GenerationProcessesListResponse = {
   tasks?: GenerationTaskSnapshot[];
 };
 
+/** Panel for executing runtime hotfix operations like batch generation and cache management. */
 export function HotfixPanel({ session, context, density }: HotfixPanelProps) {
   const { t } = useI18n();
   const compact = density === "dense";

@@ -5,11 +5,14 @@ import { composeAuthHeaders } from "../../infrastructure/backoffice/authHeaders"
 import { EDGE_API_BASE, fetchJson } from "../../infrastructure/http/apiClient";
 import { useI18n } from "../../i18n/context";
 
+/** @module RoleManagementPanel - Admin panel for viewing and editing user roles. */
+
 type RoleManagementPanelProps = {
   context: SessionContext;
   density: UiDensity;
 };
 
+/** Panel for SuperAdmins to list users and change their backoffice roles. */
 export function RoleManagementPanel({ context, density }: RoleManagementPanelProps) {
   const { t } = useI18n();
   const compact = density === "dense";

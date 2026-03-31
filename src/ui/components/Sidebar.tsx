@@ -1,6 +1,8 @@
 import type { NavItem, NavKey } from "../../domain/types/backoffice";
 import { useI18n } from "../../i18n/context";
 
+/** @module Sidebar - Navigational sidebar listing all available backoffice sections. */
+
 type SidebarProps = {
   current: NavKey;
   onChange: (key: NavKey) => void;
@@ -8,6 +10,7 @@ type SidebarProps = {
   className?: string;
 };
 
+/** Sidebar navigation component rendering a list of nav items with active state. */
 export function Sidebar({ current, onChange, items, className }: SidebarProps) {
   const { t } = useI18n();
 

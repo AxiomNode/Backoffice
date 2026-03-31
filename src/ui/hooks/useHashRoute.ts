@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 
 import type { NavKey } from "../../domain/types/backoffice";
 
+/** @module useHashRoute - Hash-based routing for the backoffice single-page shell. */
+
 function navKeyFromHash(hash: string, allowed: NavKey[]): NavKey | null {
   const match = hash.match(/^#\/backoffice\/([^/?#]+)/);
   if (!match) return null;
@@ -9,6 +11,7 @@ function navKeyFromHash(hash: string, allowed: NavKey[]): NavKey | null {
   return allowed.includes(candidate) ? candidate : null;
 }
 
+/** Builds the hash route string for a given navigation key. */
 export function routeFromNavKey(key: NavKey): string {
   return `#/backoffice/${key}`;
 }

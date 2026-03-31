@@ -1,5 +1,8 @@
 import type { SessionContext } from "../../domain/types/backoffice";
 
+/** @module authHeaders - Builds authorization headers from the current session context. */
+
+/** Composes auth headers (Bearer token, dev UID) from a session context. */
 export function composeAuthHeaders(context?: SessionContext): Record<string, string> {
   const headers: Record<string, string> = {};
   if (!context) {

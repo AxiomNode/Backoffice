@@ -5,6 +5,8 @@ import { composeAuthHeaders } from "../../infrastructure/backoffice/authHeaders"
 import { EDGE_API_BASE, fetchJson } from "../../infrastructure/http/apiClient";
 import { useI18n } from "../../i18n/context";
 
+/** @module AIDiagnosticsPanel - AI diagnostics with RAG coverage stats and hallucination test runner. */
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -93,6 +95,7 @@ function formatDuration(startMs: number, endMs: number): string {
 // Component
 // ---------------------------------------------------------------------------
 
+/** Panel displaying RAG knowledge-base coverage and an AI hallucination test runner. */
 export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps) {
   const { t } = useI18n();
   const compact = density === "dense";

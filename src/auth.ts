@@ -9,8 +9,12 @@ import {
 } from "firebase/auth";
 import { getConfigValue } from "./runtimeConfig";
 
+/** @module auth - Firebase and dev-mode authentication for the backoffice shell. */
+
+/** Authentication provider mode: Firebase or local dev bypass. */
 export type RuntimeAuthMode = "firebase" | "dev";
 
+/** Authenticated session state exposed to the rest of the app. */
 export type BackofficeSession = {
   isAuthenticated: boolean;
   displayName: string;
@@ -20,6 +24,7 @@ export type BackofficeSession = {
   provider: RuntimeAuthMode;
 };
 
+/** Lightweight session payload obtained from the auth provider. */
 export type RuntimeSession = {
   idToken?: string;
   email?: string;
@@ -42,6 +47,7 @@ function isFirebaseConfigured(): boolean {
   return Boolean(firebaseConfig.apiKey && firebaseConfig.authDomain && firebaseConfig.projectId);
 }
 
+/** Wraps Firebase Auth (or dev-mode stub) for Google sign-in and session tracking. */
 export class BackofficeAuth {
   private app: FirebaseApp | null = null;
   private auth: Auth | null = null;
@@ -98,4 +104,5 @@ export class BackofficeAuth {
   }
 }
 
+/** Singleton auth instance shared across the backoffice app. */
 export const backofficeAuth = new BackofficeAuth();

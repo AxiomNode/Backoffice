@@ -1,3 +1,5 @@
+/** @module runtimeConfig - Resolves configuration values from window globals or Vite env. */
+
 type RuntimeConfig = {
   VITE_API_BASE_URL?: string;
   VITE_EDGE_API_TOKEN?: string;
@@ -29,6 +31,7 @@ function fromVite(key: keyof RuntimeConfig): string | undefined {
   return import.meta.env[key];
 }
 
+/** Retrieves a configuration value from runtime globals, Vite env, or a fallback. */
 export function getConfigValue(key: keyof RuntimeConfig, fallback?: string): string | undefined {
   return fromRuntime(key) ?? fromVite(key) ?? fallback;
 }

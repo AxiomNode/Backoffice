@@ -8,6 +8,8 @@ import { composeAuthHeaders } from "../../infrastructure/backoffice/authHeaders"
 import { EDGE_API_BASE, fetchJson } from "../../infrastructure/http/apiClient";
 import { rowsFromUnknown } from "../utils/table";
 
+/** @module useServiceConsoleState - State management hook for individual service console panels. */
+
 type SectionResult<T> =
   | { ok: true; data: T }
   | { ok: false; error: string };
@@ -103,6 +105,7 @@ function simplifyGameHistoryRows(
   });
 }
 
+/** I18n message keys consumed by the service console hook. */
 export type ServiceConsoleMessages = {
   insertOk: string;
   deleteOk: string;
@@ -110,6 +113,7 @@ export type ServiceConsoleMessages = {
   contentNonNull: string;
 };
 
+/** Manages data fetching, pagination, filters, and CRUD state for a service console panel. */
 export function useServiceConsoleState(navKey: NavKey, context: SessionContext, errorLabel: string, messages: ServiceConsoleMessages) {
   const serviceConfig = navConfigByKey(navKey);
   const requestVersionRef = useRef(0);

@@ -6,6 +6,8 @@ import type { LabelKey } from "../../i18n/labels";
 import { PaginatedFilterableTable } from "../components/PaginatedFilterableTable";
 import { useServiceConsoleState, type ServiceConsoleMessages } from "../hooks/useServiceConsoleState";
 
+/** @module ServiceConsolePanel - Per-service console with metrics, logs, data, and CRUD controls. */
+
 const NAV_TITLE_KEYS: Record<NavKey, LabelKey> = {
   "svc-overview": "nav.svc-overview.title",
   "svc-api-gateway": "nav.svc-api-gateway.title",
@@ -42,6 +44,7 @@ type ServiceConsolePanelProps = {
   density: UiDensity;
 };
 
+/** Console panel for an individual service showing metrics, logs, data tables, and manual CRUD. */
 export function ServiceConsolePanel({ navKey, context, density }: ServiceConsolePanelProps) {
   const { t } = useI18n();
   const messages: ServiceConsoleMessages = useMemo(() => ({

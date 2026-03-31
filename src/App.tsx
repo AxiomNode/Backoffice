@@ -16,6 +16,9 @@ import { I18nProvider } from "./i18n/context";
 import { BackofficeLayout } from "./ui/layout/BackofficeLayout";
 import { LoginGate } from "./ui/panels/LoginGate";
 
+/** @module App - Root component that manages auth state, theming, and top-level routing. */
+
+/** Root application component that gates login and renders the backoffice layout. */
 export function App() {
   const [session, setSession] = useState<BackofficeSession | null>(null);
   const [context, setContext] = useState<SessionContext | null>(null);

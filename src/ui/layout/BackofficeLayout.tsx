@@ -12,6 +12,8 @@ import { useHashRoute, routeFromNavKey } from "../hooks/useHashRoute";
 import { useVisibilityPolling } from "../hooks/useVisibilityPolling";
 import { Sidebar } from "../components/Sidebar";
 
+/** @module BackofficeLayout - Main authenticated layout with sidebar, header, and lazy-loaded panels. */
+
 const AIDiagnosticsPanel = lazy(() => import("../panels/AIDiagnosticsPanel").then((m) => ({ default: m.AIDiagnosticsPanel })));
 const HotfixPanel = lazy(() => import("../panels/HotfixPanel").then((m) => ({ default: m.HotfixPanel })));
 const RoleManagementPanel = lazy(() => import("../panels/RoleManagementPanel").then((m) => ({ default: m.RoleManagementPanel })));
@@ -54,6 +56,7 @@ const TYPOGRAPHY_LABEL_KEYS: Record<UiTypography, LabelKey> = {
   xxl: "typography.xxl",
 };
 
+/** Main backoffice layout with sidebar navigation, preferences, and routed panel content. */
 export function BackofficeLayout({
   session,
   context,
