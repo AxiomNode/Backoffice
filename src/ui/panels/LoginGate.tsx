@@ -31,6 +31,33 @@ const TYPOGRAPHY_LABEL_KEYS: Record<UiTypography, LabelKey> = {
   xxl: "typography.xxl",
 };
 
+function resolveFirebaseLoginError(err: unknown, t: (key: LabelKey) => string): string {
+  const code =
+    typeof err === "object" && err !== null && "code" in err && typeof (err as { code?: unknown }).code === "string"
+      ? ((err as { code: string }).code || "").toLowerCase()
+      : "";
+
+  switch (code) {
+    case "auth/unauthorized-domain":
+      return t("login.errorUnauthorizedDomain");
+    case "auth/popup-blocked":
+      return t("login.errorPopupBlocked");
+    case "auth/popup-closed-by-user":
+      return t("login.errorPopupClosed");
+    case "auth/operation-not-allowed":
+      return t("login.errorOperationNotAllowed");
+    case "auth/network-request-failed":
+      return t("login.errorNetwork");
+    case "auth/too-many-requests":
+      return t("login.errorTooManyRequests");
+    default:
+      if (err instanceof Error && err.message.trim().length > 0) {
+        return err.message;
+      }
+      return t("login.errorAuth");
+  }
+}
+
 /** Login screen handling Firebase and dev-mode authentication with theme/accent pickers. */
 export function LoginGate({
   onAuthenticated,
@@ -107,7 +134,7 @@ export function LoginGate({
     try {
       await backofficeAuth.signInWithGoogle();
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("login.errorAuth"));
+      setError(resolveFirebaseLoginError(err, t));
     } finally {
       setLoading(false);
     }
