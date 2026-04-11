@@ -1,21 +1,19 @@
+node_modules/
+dist/
+coverage/
+*.log
+*.tsbuildinfo
 
 # Secrets policy (centralized in secrets repo)
 .env
 .env.*
 **/.env
 **/.env.*
-( ai-engine api-gateway bff-backoffice bff-mobile microservice-quizz microservice-users microservice-wordpass shared-sdk-client backoffice contracts-and-schemas docs observability-platform platform-infra )*/.env.example
+!**/.env.example
+!**/.env.sample
+!**/.env.template
 **/.env.secrets
 *.secrets.env
 runtime/**/*.env
-
-# Frontend build artifacts
-node_modules/
-dist/
-.vite/
-coverage/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-*.tsbuildinfo
+*firebase*service-account*.json
+*service-account*.json

@@ -8,11 +8,23 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Enforce tracked artifact policy
+        run: |
+          set -euo pipefail
+          bad_paths=$(git ls-files | grep -E '(^|/)(node_modules|dist|coverage)(/|$)' || true)
+          if [[ -n "${bad_paths}" ]]; then
+            echo "Tracked build/dependency artifacts are not allowed:"
+            echo "${bad_paths}"
+            exit 1
+          fi
       - uses: actions/setup-node@v4
         with:
           node-version: 20
