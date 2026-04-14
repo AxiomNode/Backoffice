@@ -19,7 +19,7 @@ jobs:
       - name: Enforce tracked artifact policy
         run: |
           set -euo pipefail
-          bad_paths=$(git ls-files | grep -E '(^|/)(node_modules|dist|coverage)(/|$)' || true)
+          bad_paths=$(git ls-files | grep -E '(^|/)(node_modules|dist|coverage)(/|$)|(^|/).*\.tsbuildinfo$' || true)
           if [[ -n "${bad_paths}" ]]; then
             echo "Tracked build/dependency artifacts are not allowed:"
             echo "${bad_paths}"
@@ -34,6 +34,7 @@ jobs:
       - run: npm run test:run
       - run: npm run typecheck
       - run: npm run build
+      - run: npm audit --omit=dev --audit-level=high
 
   trigger-platform-infra-build:
     name: Trigger Platform Infra Build

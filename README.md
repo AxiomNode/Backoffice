@@ -50,7 +50,7 @@ docker compose -f docker-compose.edge-integration.yml up -d --build
 
 - `.github/workflows/ci.yml`
 	- Trigger: push (`main`, `develop`), pull request, manual dispatch.
-	- Job `validate`: installs dependencies, runs tests, typechecks, and builds the app.
+	- Job `validate`: installs dependencies, blocks tracked build artifacts, runs tests, typechecks, builds the app, and audits production dependencies.
 	- Job `trigger-platform-infra-build`:
 		- Runs on push to `main`.
 		- Dispatches `platform-infra/.github/workflows/build-push.yaml` with `service=backoffice`.
