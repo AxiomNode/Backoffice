@@ -50,7 +50,7 @@ docker compose -f docker-compose.edge-integration.yml up -d --build
 
 - `.github/workflows/ci.yml`
 	- Trigger: push (`main`, `develop`), pull request, manual dispatch.
-	- Job `build`: installs dependencies and builds the app.
+	- Job `validate`: installs dependencies, runs tests, typechecks, and builds the app.
 	- Job `trigger-platform-infra-build`:
 		- Runs on push to `main`.
 		- Dispatches `platform-infra/.github/workflows/build-push.yaml` with `service=backoffice`.
@@ -58,7 +58,7 @@ docker compose -f docker-compose.edge-integration.yml up -d --build
 
 ## Deployment automation chain
 
-Push to `main` triggers image rebuild in `platform-infra`, followed by automatic deployment to `dev`.
+Push to `main` triggers image rebuild in `platform-infra`. Environment deployment is controlled by the current platform promotion policy and should be verified in `platform-infra` before assuming an automatic target.
 
 ## Environment variables
 

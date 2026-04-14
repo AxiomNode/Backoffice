@@ -10,7 +10,8 @@
     "test": "vitest",
     "test:run": "vitest run",
     "test:watch": "vitest --watch",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc -b --pretty false"
   },
   "dependencies": {
     "firebase": "^11.7.1",
