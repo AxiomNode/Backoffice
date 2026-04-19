@@ -70,10 +70,9 @@ type AiEngineTarget = {
   label: string | null;
   host: string | null;
   protocol: "http" | "https" | null;
-  apiPort: number | null;
-  statsPort: number | null;
-  apiBaseUrl: string;
-  statsBaseUrl: string;
+  port: number | null;
+  llamaBaseUrl: string | null;
+  envLlamaBaseUrl: string | null;
   updatedAt: string | null;
 };
 
@@ -163,8 +162,7 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
   const [targetError, setTargetError] = useState<string | null>(null);
   const [targetHost, setTargetHost] = useState("");
   const [targetProtocol, setTargetProtocol] = useState<"http" | "https">("http");
-  const [targetApiPort, setTargetApiPort] = useState("7001");
-  const [targetStatsPort, setTargetStatsPort] = useState("7000");
+  const [targetPort, setTargetPort] = useState("7002");
   const [targetLabel, setTargetLabel] = useState("");
 
   const [edgeApiBaseInput, setEdgeApiBaseInput] = useState(EDGE_API_BASE);
@@ -192,8 +190,7 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
   const syncTargetForm = useCallback((nextTarget: AiEngineTarget) => {
     setTargetHost(nextTarget.host ?? "");
     setTargetProtocol(nextTarget.protocol ?? "http");
-    setTargetApiPort(String(nextTarget.apiPort ?? 7001));
-    setTargetStatsPort(String(nextTarget.statsPort ?? 7000));
+    setTargetPort(String(nextTarget.port ?? 7002));
     setTargetLabel(nextTarget.label ?? "");
   }, []);
 
@@ -282,8 +279,7 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
           body: JSON.stringify({
             host: targetHost,
             protocol: targetProtocol,
-            apiPort: Number(targetApiPort),
-            statsPort: Number(targetStatsPort),
+            port: Number(targetPort),
             label: targetLabel,
           }),
         },
@@ -296,7 +292,7 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
     } finally {
       setTargetSaving(false);
     }
-  }, [headers, loadRagStats, syncTargetForm, targetApiPort, targetHost, targetLabel, targetProtocol, targetStatsPort]);
+  }, [headers, loadRagStats, syncTargetForm, targetHost, targetLabel, targetPort, targetProtocol]);
 
   const resetTarget = useCallback(async () => {
     setTargetSaving(true);
@@ -675,8 +671,8 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
                 value={target.source === "override" ? t("diag.target.source.override") : t("diag.target.source.env")}
               />
               <StatCard label={t("diag.target.host")} value={target.host ?? "--"} />
-              <StatCard label={t("diag.target.apiPort")} value={target.apiPort ?? "--"} />
-              <StatCard label={t("diag.target.statsPort")} value={target.statsPort ?? "--"} />
+              <StatCard label={t("diag.target.apiPort")} value={target.port ?? "--"} />
+              <StatCard label={t("diag.target.statsPort")} value={target.label ?? "--"} />
             </div>
 
             <div className="grid gap-3 md:grid-cols-2">
@@ -685,7 +681,7 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
                   {t("diag.target.currentApiUrl")}
                 </div>
                 <div className="mt-1 break-all font-mono text-xs text-[var(--md-sys-color-on-surface)]">
-                  {target.apiBaseUrl}
+                  {target.llamaBaseUrl ?? "--"}
                 </div>
               </div>
               <div className="rounded border border-[var(--md-sys-color-outline-variant)] p-3">
@@ -693,12 +689,12 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
                   {t("diag.target.currentStatsUrl")}
                 </div>
                 <div className="mt-1 break-all font-mono text-xs text-[var(--md-sys-color-on-surface)]">
-                  {target.statsBaseUrl}
+                  {target.envLlamaBaseUrl ?? "--"}
                 </div>
               </div>
             </div>
 
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               <label className="text-xs">
                 {t("diag.target.host")}
                 <input
@@ -724,18 +720,8 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
               <label className="text-xs">
                 {t("diag.target.apiPort")}
                 <input
-                  value={targetApiPort}
-                  onChange={(event) => setTargetApiPort(event.target.value)}
-                  inputMode="numeric"
-                  className="mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] px-2 py-2 text-sm"
-                />
-              </label>
-
-              <label className="text-xs">
-                {t("diag.target.statsPort")}
-                <input
-                  value={targetStatsPort}
-                  onChange={(event) => setTargetStatsPort(event.target.value)}
+                  value={targetPort}
+                  onChange={(event) => setTargetPort(event.target.value)}
                   inputMode="numeric"
                   className="mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] px-2 py-2 text-sm"
                 />

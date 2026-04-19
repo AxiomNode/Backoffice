@@ -37,11 +37,9 @@ type AiEngineProbeEndpointStatus = {
 type AiEngineProbeResult = {
   host: string;
   protocol: "http" | "https";
-  apiPort: number;
-  statsPort: number;
+  port: number;
   reachable: boolean;
-  api: AiEngineProbeEndpointStatus;
-  stats: AiEngineProbeEndpointStatus;
+  llama: AiEngineProbeEndpointStatus;
 };
 
 function KpiCard({ label, value, tone = "neutral" }: KpiCardProps) {
@@ -88,8 +86,7 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
   const [presetName, setPresetName] = useState("");
   const [presetHost, setPresetHost] = useState("");
   const [presetProtocol, setPresetProtocol] = useState<"http" | "https">("http");
-  const [presetApiPort, setPresetApiPort] = useState("7001");
-  const [presetStatsPort, setPresetStatsPort] = useState("7000");
+  const [presetPort, setPresetPort] = useState("7002");
   const [aiProbeLoading, setAiProbeLoading] = useState(false);
   const [aiProbeResult, setAiProbeResult] = useState<AiEngineProbeResult | null>(null);
 
@@ -103,8 +100,7 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
     setPresetName(preset?.name ?? "");
     setPresetHost(preset?.host ?? "");
     setPresetProtocol(preset?.protocol ?? "http");
-    setPresetApiPort(String(preset?.apiPort ?? 7001));
-    setPresetStatsPort(String(preset?.statsPort ?? 7000));
+    setPresetPort(String(preset?.port ?? 7002));
   }, []);
 
   const findPresetMatch = useCallback((entries: AiEngineTargetPreset[], target: AiEngineTarget | null) => {
@@ -116,8 +112,7 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
       (entry) =>
         entry.host === (target.host ?? "") &&
         entry.protocol === (target.protocol ?? "http") &&
-        entry.apiPort === target.apiPort &&
-        entry.statsPort === target.statsPort,
+        entry.port === target.port,
     ) ?? null;
   }, []);
 
@@ -129,9 +124,8 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
   const buildDraftTarget = useCallback(() => ({
     host: presetHost.trim(),
     protocol: presetProtocol,
-    apiPort: parsePort(presetApiPort, 7001),
-    statsPort: parsePort(presetStatsPort, 7000),
-  }), [parsePort, presetApiPort, presetHost, presetProtocol, presetStatsPort]);
+    port: parsePort(presetPort, 7002),
+  }), [parsePort, presetHost, presetPort, presetProtocol]);
 
   const describeProbeStatus = useCallback((status: AiEngineProbeEndpointStatus) => {
     if (status.ok) {
@@ -232,7 +226,7 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
 
   useEffect(() => {
     setAiProbeResult(null);
-  }, [isCreatingPreset, presetApiPort, presetHost, presetName, presetProtocol, presetStatsPort, selectedPresetId]);
+  }, [isCreatingPreset, presetHost, presetName, presetPort, presetProtocol, selectedPresetId]);
 
   useAutoRefreshScheduler(
     () => loadSummary(),
@@ -251,7 +245,7 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
   const statusClass = (online: boolean) => (online ? "ui-status-chip ui-status-chip--ok" : "ui-status-chip ui-status-chip--error");
   const activePreset = isCreatingPreset ? null : presets.find((entry) => entry.id === selectedPresetId) ?? null;
 
-  const probeAiTarget = useCallback(async (targetOverride?: { host: string; protocol: "http" | "https"; apiPort: number; statsPort: number }) => {
+  const probeAiTarget = useCallback(async (targetOverride?: { host: string; protocol: "http" | "https"; port: number }) => {
     const payload = targetOverride ?? buildDraftTarget();
 
     if (!payload.host) {
@@ -288,8 +282,7 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
       const probe = await probeAiTarget({
         host: activePreset.host,
         protocol: activePreset.protocol,
-        apiPort: activePreset.apiPort,
-        statsPort: activePreset.statsPort,
+        port: activePreset.port,
       });
 
       if (!probe.reachable) {
@@ -302,8 +295,7 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
         body: JSON.stringify({
           host: activePreset.host,
           protocol: activePreset.protocol,
-          apiPort: activePreset.apiPort,
-          statsPort: activePreset.statsPort,
+          port: activePreset.port,
           label: activePreset.name,
         }),
       });
@@ -323,8 +315,7 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
         name: presetName.trim(),
         host: presetHost.trim(),
         protocol: presetProtocol,
-        apiPort: Number(presetApiPort),
-        statsPort: Number(presetStatsPort),
+        port: Number(presetPort),
       };
       const nextPreset = activePreset && !isCreatingPreset
         ? await fetchJson<AiEngineTargetPreset>(`${EDGE_API_BASE}/v1/backoffice/ai-engine/presets/${encodeURIComponent(activePreset.id)}`, {
@@ -346,7 +337,7 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
     } finally {
       setAiTargetSaving(false);
     }
-  }, [activePreset, authHeaders, isCreatingPreset, loadPresets, presetApiPort, presetHost, presetName, presetProtocol, presetStatsPort, t]);
+  }, [activePreset, authHeaders, isCreatingPreset, loadPresets, presetHost, presetName, presetPort, presetProtocol, t]);
 
   const removePreset = useCallback(async () => {
     if (!activePreset) {
@@ -476,8 +467,8 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
 
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <KpiCard label={t("overview.aiTarget.currentHost")} value={Number(aiTarget?.host ? 1 : 0)} tone={aiTarget?.host ? "ok" : "warn"} />
-          <KpiCard label={t("overview.aiTarget.apiPort")} value={aiTarget?.apiPort ?? 0} tone="neutral" />
-          <KpiCard label={t("overview.aiTarget.statsPort")} value={aiTarget?.statsPort ?? 0} tone="neutral" />
+          <KpiCard label={t("overview.aiTarget.apiPort")} value={aiTarget?.port ?? 0} tone="neutral" />
+          <KpiCard label={t("overview.aiTarget.statsPort")} value={aiTarget?.label ?? "--"} tone="neutral" />
           <KpiCard label={t("overview.aiTarget.optionsCount")} value={presets.length} tone="neutral" />
         </div>
 
@@ -485,8 +476,8 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 text-xs text-[var(--md-sys-color-on-surface)]">
             <p><span className="font-semibold">{t("overview.aiTarget.currentLabel")}:</span> {aiTarget.label ?? "--"}</p>
             <p><span className="font-semibold">{t("overview.aiTarget.currentHostText")}:</span> {aiTarget.host ?? "--"}</p>
-            <p><span className="font-semibold">{t("overview.aiTarget.currentApiUrl")}:</span> {aiTarget.apiBaseUrl}</p>
-            <p><span className="font-semibold">{t("overview.aiTarget.currentStatsUrl")}:</span> {aiTarget.statsBaseUrl}</p>
+            <p><span className="font-semibold">{t("overview.aiTarget.currentApiUrl")}:</span> {aiTarget.llamaBaseUrl ?? "--"}</p>
+            <p><span className="font-semibold">{t("overview.aiTarget.currentStatsUrl")}:</span> {aiTarget.envLlamaBaseUrl ?? "--"}</p>
           </div>
         )}
 
@@ -508,7 +499,7 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
             </select>
           </label>
 
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <label className="text-xs text-[var(--md-sys-color-on-surface)]">
               {t("overview.aiTarget.optionName")}
               <input value={presetName} onChange={(event) => setPresetName(event.target.value)} className="mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] px-2 py-2 text-sm" />
@@ -526,11 +517,7 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
             </label>
             <label className="text-xs text-[var(--md-sys-color-on-surface)]">
               {t("overview.aiTarget.optionApiPort")}
-              <input value={presetApiPort} onChange={(event) => setPresetApiPort(event.target.value)} inputMode="numeric" className="mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] px-2 py-2 text-sm" />
-            </label>
-            <label className="text-xs text-[var(--md-sys-color-on-surface)]">
-              {t("overview.aiTarget.optionStatsPort")}
-              <input value={presetStatsPort} onChange={(event) => setPresetStatsPort(event.target.value)} inputMode="numeric" className="mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] px-2 py-2 text-sm" />
+              <input value={presetPort} onChange={(event) => setPresetPort(event.target.value)} inputMode="numeric" className="mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] px-2 py-2 text-sm" />
             </label>
           </div>
         </div>
@@ -583,8 +570,7 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
             <p className="font-semibold">
               {aiProbeResult.reachable ? t("overview.aiTarget.probeOk") : t("overview.aiTarget.probeFail")}
             </p>
-            <p className="mt-1">{describeProbeStatus(aiProbeResult.api)}</p>
-            <p className="mt-1">{describeProbeStatus(aiProbeResult.stats)}</p>
+            <p className="mt-1">{describeProbeStatus(aiProbeResult.llama)}</p>
           </div>
         )}
       </div>

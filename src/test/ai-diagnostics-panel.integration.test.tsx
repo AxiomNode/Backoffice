@@ -67,10 +67,9 @@ describe("AIDiagnosticsPanel integration", () => {
           label: null,
           host: "localhost",
           protocol: "http",
-          apiPort: 7001,
-          statsPort: 7000,
-          apiBaseUrl: "http://localhost:7001",
-          statsBaseUrl: "http://localhost:7000",
+          port: 7002,
+          llamaBaseUrl: "http://localhost:7002/v1/completions",
+          envLlamaBaseUrl: "http://localhost:7002/v1/completions",
           updatedAt: null,
         });
       }
@@ -81,10 +80,9 @@ describe("AIDiagnosticsPanel integration", () => {
           label: "workstation gpu",
           host: "192.168.1.80",
           protocol: "http",
-          apiPort: 17001,
-          statsPort: 17000,
-          apiBaseUrl: "http://192.168.1.80:17001",
-          statsBaseUrl: "http://192.168.1.80:17000",
+          port: 17002,
+          llamaBaseUrl: "http://192.168.1.80:17002/v1/completions",
+          envLlamaBaseUrl: "http://localhost:7002/v1/completions",
           updatedAt: "2026-04-18T17:00:00.000Z",
         });
       }
@@ -95,10 +93,9 @@ describe("AIDiagnosticsPanel integration", () => {
           label: null,
           host: "localhost",
           protocol: "http",
-          apiPort: 7001,
-          statsPort: 7000,
-          apiBaseUrl: "http://localhost:7001",
-          statsBaseUrl: "http://localhost:7000",
+          port: 7002,
+          llamaBaseUrl: "http://localhost:7002/v1/completions",
+          envLlamaBaseUrl: "http://localhost:7002/v1/completions",
           updatedAt: null,
         });
       }
@@ -209,7 +206,7 @@ describe("AIDiagnosticsPanel integration", () => {
     renderPanel();
 
     await waitFor(() => {
-      expect(screen.getAllByText("http://localhost:7001").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("http://localhost:7002/v1/completions").length).toBeGreaterThan(0);
       expect(screen.getByDisplayValue("localhost")).toBeInTheDocument();
       expect(screen.getAllByText("http://localhost:7102").length).toBeGreaterThan(0);
     });
@@ -217,11 +214,8 @@ describe("AIDiagnosticsPanel integration", () => {
     fireEvent.change(screen.getByLabelText("Host / IP"), {
       target: { value: "192.168.1.80" },
     });
-    fireEvent.change(screen.getByLabelText("Puerto API"), {
-      target: { value: "17001" },
-    });
-    fireEvent.change(screen.getByLabelText("Puerto Stats"), {
-      target: { value: "17000" },
+    fireEvent.change(screen.getByLabelText("Puerto llama"), {
+      target: { value: "17002" },
     });
     fireEvent.change(screen.getByPlaceholderText("workstation gpu"), {
       target: { value: "workstation gpu" },
@@ -237,14 +231,12 @@ describe("AIDiagnosticsPanel integration", () => {
           body: JSON.stringify({
             host: "192.168.1.80",
             protocol: "http",
-            apiPort: 17001,
-            statsPort: 17000,
+            port: 17002,
             label: "workstation gpu",
           }),
         }),
       );
-      expect(screen.getByText("http://192.168.1.80:17001")).toBeInTheDocument();
-      expect(screen.getByText("http://192.168.1.80:17000")).toBeInTheDocument();
+      expect(screen.getByText("http://192.168.1.80:17002/v1/completions")).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getAllByRole("button", { name: "Volver a entorno" })[1]);
@@ -254,7 +246,7 @@ describe("AIDiagnosticsPanel integration", () => {
         "http://localhost:7005/v1/backoffice/ai-engine/target",
         expect.objectContaining({ method: "DELETE" }),
       );
-      expect(screen.getAllByText("http://localhost:7001").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("http://localhost:7002/v1/completions").length).toBeGreaterThan(0);
     });
   });
 
@@ -323,10 +315,9 @@ describe("AIDiagnosticsPanel integration", () => {
           label: null,
           host: "localhost",
           protocol: "http",
-          apiPort: 7001,
-          statsPort: 7000,
-          apiBaseUrl: "http://localhost:7001",
-          statsBaseUrl: "http://localhost:7000",
+          port: 7002,
+          llamaBaseUrl: "http://localhost:7002/v1/completions",
+          envLlamaBaseUrl: "http://localhost:7002/v1/completions",
           updatedAt: null,
         });
       }

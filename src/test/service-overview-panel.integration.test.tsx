@@ -36,8 +36,7 @@ describe("ServiceOverviewPanel integration", () => {
     name: string;
     host: string;
     protocol: "http" | "https";
-    apiPort: number;
-    statsPort: number;
+    port: number;
     updatedAt: string;
   }>;
 
@@ -74,17 +73,15 @@ describe("ServiceOverviewPanel integration", () => {
         name: "Este PC (192.168.0.14)",
         host: "192.168.0.14",
         protocol: "http",
-        apiPort: 7001,
-        statsPort: 7000,
+        port: 7002,
         updatedAt: "2026-04-19T00:00:00.000Z",
       },
       {
-        id: "stg-vps-relay",
-        name: "VPS staging (195.35.48.40)",
+        id: "workstation-public",
+        name: "Workstation publica (195.35.48.40)",
         host: "195.35.48.40",
         protocol: "http",
-        apiPort: 27001,
-        statsPort: 27000,
+        port: 27002,
         updatedAt: "2026-04-19T00:00:00.000Z",
       },
     ];
@@ -102,8 +99,7 @@ describe("ServiceOverviewPanel integration", () => {
           name: string;
           host: string;
           protocol: "http" | "https";
-          apiPort: number;
-          statsPort: number;
+          port: number;
         };
         const created = {
           id: "custom-preset",
@@ -114,16 +110,15 @@ describe("ServiceOverviewPanel integration", () => {
         return Promise.resolve(created);
       }
 
-      if (url.endsWith("/v1/backoffice/ai-engine/presets/stg-vps-relay") && options?.method === "PUT") {
+      if (url.endsWith("/v1/backoffice/ai-engine/presets/workstation-public") && options?.method === "PUT") {
         const payload = JSON.parse(String(options.body)) as {
           name: string;
           host: string;
           protocol: "http" | "https";
-          apiPort: number;
-          statsPort: number;
+          port: number;
         };
         const updated = {
-          id: "stg-vps-relay",
+          id: "workstation-public",
           ...payload,
           updatedAt: "2026-04-19T00:02:00.000Z",
         };
@@ -142,10 +137,9 @@ describe("ServiceOverviewPanel integration", () => {
           label: "workstation-gpu",
           host: "axiomnode-gateway.amksandbox.cloud",
           protocol: "http",
-          apiPort: 27001,
-          statsPort: 27000,
-          apiBaseUrl: "http://axiomnode-gateway.amksandbox.cloud:27001",
-          statsBaseUrl: "http://axiomnode-gateway.amksandbox.cloud:27000",
+          port: 27002,
+          llamaBaseUrl: "http://axiomnode-gateway.amksandbox.cloud:27002/v1/completions",
+          envLlamaBaseUrl: "http://llama-workstation.invalid:7002/v1/completions",
           updatedAt: "2026-04-18T23:10:31.882Z",
         });
       }
@@ -156,10 +150,9 @@ describe("ServiceOverviewPanel integration", () => {
           label: "VPS staging (195.35.48.40)",
           host: "195.35.48.40",
           protocol: "http",
-          apiPort: 27001,
-          statsPort: 27000,
-          apiBaseUrl: "http://195.35.48.40:27001",
-          statsBaseUrl: "http://195.35.48.40:27000",
+          port: 27002,
+          llamaBaseUrl: "http://195.35.48.40:27002/v1/completions",
+          envLlamaBaseUrl: "http://llama-workstation.invalid:7002/v1/completions",
           updatedAt: "2026-04-19T00:00:00.000Z",
         });
       }
@@ -168,28 +161,19 @@ describe("ServiceOverviewPanel integration", () => {
         const payload = JSON.parse(String(options.body)) as {
           host: string;
           protocol: "http" | "https";
-          apiPort: number;
-          statsPort: number;
+          port: number;
         };
 
         return Promise.resolve({
           host: payload.host,
           protocol: payload.protocol,
-          apiPort: payload.apiPort,
-          statsPort: payload.statsPort,
+          port: payload.port,
           reachable: payload.host !== "10.0.0.99",
-          api: {
+          llama: {
             ok: true,
             status: 200,
-            url: `${payload.protocol}://${payload.host}:${payload.apiPort}/health`,
+            url: `${payload.protocol}://${payload.host}:${payload.port}/v1/models`,
             latencyMs: 18,
-            message: null,
-          },
-          stats: {
-            ok: true,
-            status: 200,
-            url: `${payload.protocol}://${payload.host}:${payload.statsPort}/health`,
-            latencyMs: 12,
             message: null,
           },
         });
@@ -258,7 +242,7 @@ describe("ServiceOverviewPanel integration", () => {
         "http://localhost:7005/v1/backoffice/ai-engine/presets",
         expect.any(Object),
       );
-      expect(screen.getByText("Destino del AI Engine")).toBeInTheDocument();
+      expect(screen.getByText("Destino del servidor llama")).toBeInTheDocument();
     });
 
     await waitFor(() => {
@@ -268,11 +252,11 @@ describe("ServiceOverviewPanel integration", () => {
     });
 
     fireEvent.change(screen.getByLabelText("Destino guardado"), {
-      target: { value: "stg-vps-relay" },
+      target: { value: "workstation-public" },
     });
 
     await waitFor(() => {
-      expect(screen.getByLabelText("Nombre de opcion")).toHaveValue("VPS staging (195.35.48.40)");
+      expect(screen.getByLabelText("Nombre de opcion")).toHaveValue("Workstation publica (195.35.48.40)");
       expect(screen.getByLabelText("Host / IP")).toHaveValue("195.35.48.40");
     });
 
@@ -286,8 +270,7 @@ describe("ServiceOverviewPanel integration", () => {
           body: JSON.stringify({
             host: "195.35.48.40",
             protocol: "http",
-            apiPort: 27001,
-            statsPort: 27000,
+            port: 27002,
           }),
         }),
       );
@@ -304,13 +287,12 @@ describe("ServiceOverviewPanel integration", () => {
           body: JSON.stringify({
             host: "195.35.48.40",
             protocol: "http",
-            apiPort: 27001,
-            statsPort: 27000,
-            label: "VPS staging (195.35.48.40)",
+            port: 27002,
+            label: "Workstation publica (195.35.48.40)",
           }),
         }),
       );
-      expect(screen.getByText("http://195.35.48.40:27001")).toBeInTheDocument();
+      expect(screen.getByText("http://195.35.48.40:27002/v1/completions")).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Nueva opcion" }));
@@ -339,8 +321,7 @@ describe("ServiceOverviewPanel integration", () => {
             name: "Host alternativo",
             host: "10.0.0.25",
             protocol: "http",
-            apiPort: 7001,
-            statsPort: 7000,
+            port: 7002,
           }),
         }),
       );

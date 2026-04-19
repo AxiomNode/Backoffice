@@ -128,10 +128,9 @@ export type AiEngineTarget = {
   label: string | null;
   host: string | null;
   protocol: "http" | "https" | null;
-  apiPort: number | null;
-  statsPort: number | null;
-  apiBaseUrl: string;
-  statsBaseUrl: string;
+  port: number | null;
+  llamaBaseUrl: string | null;
+  envLlamaBaseUrl: string | null;
   updatedAt: string | null;
 };
 
@@ -141,8 +140,7 @@ export type AiEngineTargetPreset = {
   name: string;
   host: string;
   protocol: "http" | "https";
-  apiPort: number;
-  statsPort: number;
+  port: number;
   updatedAt: string;
 };
 
