@@ -303,8 +303,8 @@ export function BackofficeLayout({
 
       <Sidebar current={current} onChange={onNavigate} items={navItems} className="hidden h-fit lg:block lg:sticky lg:top-4" />
 
-      <main className="min-w-0 space-y-3 sm:space-y-4 xl:space-y-5">
-        <header className="m3-card ui-fade-in bg-[linear-gradient(120deg,color-mix(in_srgb,var(--md-sys-color-primary-container)_78%,var(--md-sys-color-surface)_22%)_0%,color-mix(in_srgb,var(--md-sys-color-surface)_88%,transparent_12%)_46%,color-mix(in_srgb,var(--md-sys-color-tertiary-container)_75%,var(--md-sys-color-surface)_25%)_100%)] p-4 xl:p-6">
+      <main className="relative z-0 min-w-0 space-y-3 overflow-visible sm:space-y-4 xl:space-y-5">
+        <header className="m3-card ui-fade-in relative z-20 overflow-visible bg-[linear-gradient(120deg,color-mix(in_srgb,var(--md-sys-color-primary-container)_78%,var(--md-sys-color-surface)_22%)_0%,color-mix(in_srgb,var(--md-sys-color-surface)_88%,transparent_12%)_46%,color-mix(in_srgb,var(--md-sys-color-tertiary-container)_75%,var(--md-sys-color-surface)_25%)_100%)] p-4 xl:p-6">
           <div className="grid gap-4 xl:grid-cols-[1fr_auto] xl:items-start">
             <div className="min-w-0">
               <p className="text-xs uppercase tracking-[0.22em] text-[var(--md-sys-color-on-surface-variant)]">{t("layout.header.adminConsole")}</p>
@@ -348,7 +348,7 @@ export function BackofficeLayout({
                   </p>
                 </div>
 
-                <div className="relative">
+                <div className="relative z-30">
                   <button
                     type="button"
                     onClick={() => setReleaseHistoryOpen((currentValue) => !currentValue)}
@@ -362,7 +362,7 @@ export function BackofficeLayout({
                   {releaseHistoryOpen && (
                     <div
                       id="deployment-history-panel"
-                      className="absolute left-0 top-full z-10 mt-2 w-[min(34rem,calc(100vw-3rem))] rounded-2xl border border-[var(--md-sys-color-outline-variant)] bg-[var(--md-sys-color-surface)] p-3 shadow-xl"
+                      className="absolute left-0 top-full z-40 mt-2 w-[min(34rem,calc(100vw-3rem))] rounded-2xl border border-[var(--md-sys-color-outline-variant)] bg-[var(--md-sys-color-surface)] p-3 shadow-xl"
                     >
                       <p className="text-sm font-semibold text-[var(--md-sys-color-on-surface)]">{t("layout.release.historyTitle")}</p>
                       <div className="mt-3 space-y-2">
