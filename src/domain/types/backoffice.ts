@@ -119,6 +119,30 @@ export type UiTypography = "sm" | "normal" | "lg" | "xl" | "xxl";
 /** Supported UI languages. */
 export type UiLanguage = "es" | "en" | "fr" | "de" | "it";
 
+/** Runtime ai-engine target state exposed by the backoffice BFF. */
+export type AiEngineTarget = {
+  source: "env" | "override";
+  label: string | null;
+  host: string | null;
+  protocol: "http" | "https" | null;
+  apiPort: number | null;
+  statsPort: number | null;
+  apiBaseUrl: string;
+  statsBaseUrl: string;
+  updatedAt: string | null;
+};
+
+/** Shared ai-engine destination preset stored by the backoffice BFF. */
+export type AiEngineTargetPreset = {
+  id: string;
+  name: string;
+  host: string;
+  protocol: "http" | "https";
+  apiPort: number;
+  statsPort: number;
+  updatedAt: string;
+};
+
 /** Sidebar navigation item displayed to the user. */
 export type NavItem = {
   key: NavKey;

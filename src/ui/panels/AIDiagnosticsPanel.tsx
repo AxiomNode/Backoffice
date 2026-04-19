@@ -2,7 +2,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { SessionContext, UiDensity } from "../../domain/types/backoffice";
 import { composeAuthHeaders } from "../../infrastructure/backoffice/authHeaders";
-import { EDGE_API_BASE, fetchJson } from "../../infrastructure/http/apiClient";
+import {
+  DEFAULT_EDGE_API_BASE,
+  EDGE_API_BASE,
+  fetchJson,
+  getEdgeApiBaseOverride,
+  setEdgeApiBaseOverride,
+} from "../../infrastructure/http/apiClient";
 import { useI18n } from "../../i18n/context";
 
 /** @module AIDiagnosticsPanel - AI diagnostics with RAG coverage stats and hallucination test runner. */
@@ -59,6 +65,39 @@ type TestRunStatus = {
   };
 };
 
+type AiEngineTarget = {
+  source: "env" | "override";
+  label: string | null;
+  host: string | null;
+  protocol: "http" | "https" | null;
+  apiPort: number | null;
+  statsPort: number | null;
+  apiBaseUrl: string;
+  statsBaseUrl: string;
+  updatedAt: string | null;
+};
+
+type ServiceTarget = {
+  service:
+    | "api-gateway"
+    | "bff-mobile"
+    | "microservice-users"
+    | "microservice-quiz"
+    | "microservice-wordpass"
+    | "ai-engine-stats"
+    | "ai-engine-api";
+  title: string;
+  source: "env" | "override";
+  baseUrl: string;
+  label: string | null;
+  updatedAt: string | null;
+};
+
+type ServiceTargetsResponse = {
+  total: number;
+  targets: ServiceTarget[];
+};
+
 type AIDiagnosticsPanelProps = {
   context: SessionContext;
   density: UiDensity;
@@ -91,6 +130,19 @@ function formatDuration(startMs: number, endMs: number): string {
   return diff < 1 ? `${Math.round(diff * 1000)}ms` : `${diff.toFixed(1)}s`;
 }
 
+function formatTimestamp(value: string | null): string {
+  if (!value) {
+    return "--";
+  }
+
+  const timestamp = new Date(value);
+  if (Number.isNaN(timestamp.getTime())) {
+    return value;
+  }
+
+  return timestamp.toLocaleString();
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -105,6 +157,28 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
   const [ragLoading, setRagLoading] = useState(false);
   const [ragError, setRagError] = useState<string | null>(null);
 
+  const [target, setTarget] = useState<AiEngineTarget | null>(null);
+  const [targetLoading, setTargetLoading] = useState(false);
+  const [targetSaving, setTargetSaving] = useState(false);
+  const [targetError, setTargetError] = useState<string | null>(null);
+  const [targetHost, setTargetHost] = useState("");
+  const [targetProtocol, setTargetProtocol] = useState<"http" | "https">("http");
+  const [targetApiPort, setTargetApiPort] = useState("7001");
+  const [targetStatsPort, setTargetStatsPort] = useState("7000");
+  const [targetLabel, setTargetLabel] = useState("");
+
+  const [edgeApiBaseInput, setEdgeApiBaseInput] = useState(EDGE_API_BASE);
+  const [edgeApiOverride, setEdgeApiOverride] = useState<string | null>(() => getEdgeApiBaseOverride());
+  const [edgeApiError, setEdgeApiError] = useState<string | null>(null);
+
+  const [serviceTargets, setServiceTargets] = useState<ServiceTarget[]>([]);
+  const [serviceTargetsLoading, setServiceTargetsLoading] = useState(false);
+  const [serviceTargetsSaving, setServiceTargetsSaving] = useState(false);
+  const [serviceTargetsError, setServiceTargetsError] = useState<string | null>(null);
+  const [selectedService, setSelectedService] = useState<ServiceTarget["service"]>("microservice-users");
+  const [selectedServiceBaseUrl, setSelectedServiceBaseUrl] = useState("");
+  const [selectedServiceLabel, setSelectedServiceLabel] = useState("");
+
   // Test runner state
   const [testStatus, setTestStatus] = useState<TestRunStatus | null>(null);
   const [testRunning, setTestRunning] = useState(false);
@@ -112,6 +186,19 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const headers = useCallback(() => composeAuthHeaders(context), [context]);
+
+  const syncTargetForm = useCallback((nextTarget: AiEngineTarget) => {
+    setTargetHost(nextTarget.host ?? "");
+    setTargetProtocol(nextTarget.protocol ?? "http");
+    setTargetApiPort(String(nextTarget.apiPort ?? 7001));
+    setTargetStatsPort(String(nextTarget.statsPort ?? 7000));
+    setTargetLabel(nextTarget.label ?? "");
+  }, []);
+
+  const syncServiceForm = useCallback((nextTarget: ServiceTarget | null) => {
+    setSelectedServiceBaseUrl(nextTarget?.baseUrl ?? "");
+    setSelectedServiceLabel(nextTarget?.label ?? "");
+  }, []);
 
   // ---- RAG stats loader ---------------------------------------------------
 
@@ -131,9 +218,171 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
     }
   }, [headers]);
 
+  const loadTarget = useCallback(async () => {
+    setTargetLoading(true);
+    setTargetError(null);
+    try {
+      const data = await fetchJson<AiEngineTarget>(
+        `${EDGE_API_BASE}/v1/backoffice/ai-engine/target`,
+        { headers: headers() },
+      );
+      setTarget(data);
+      syncTargetForm(data);
+    } catch (err) {
+      setTargetError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setTargetLoading(false);
+    }
+  }, [headers, syncTargetForm]);
+
+  const loadServiceTargets = useCallback(async () => {
+    setServiceTargetsLoading(true);
+    setServiceTargetsError(null);
+    try {
+      const payload = await fetchJson<ServiceTargetsResponse>(
+        `${EDGE_API_BASE}/v1/backoffice/service-targets`,
+        { headers: headers() },
+      );
+      setServiceTargets(payload.targets);
+      if (payload.targets.length > 0 && !payload.targets.some((entry) => entry.service === selectedService)) {
+        setSelectedService(payload.targets[0].service);
+      }
+    } catch (err) {
+      setServiceTargetsError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setServiceTargetsLoading(false);
+    }
+  }, [headers, selectedService]);
+
   useEffect(() => {
     loadRagStats();
-  }, [loadRagStats]);
+    loadTarget();
+    loadServiceTargets();
+  }, [loadRagStats, loadServiceTargets, loadTarget]);
+
+  useEffect(() => {
+    const activeTarget = serviceTargets.find((entry) => entry.service === selectedService) ?? serviceTargets[0] ?? null;
+    if (activeTarget && activeTarget.service !== selectedService) {
+      setSelectedService(activeTarget.service);
+    }
+    syncServiceForm(activeTarget);
+  }, [selectedService, serviceTargets, syncServiceForm]);
+
+  const applyTarget = useCallback(async () => {
+    setTargetSaving(true);
+    setTargetError(null);
+    try {
+      const nextTarget = await fetchJson<AiEngineTarget>(
+        `${EDGE_API_BASE}/v1/backoffice/ai-engine/target`,
+        {
+          method: "PUT",
+          headers: headers(),
+          body: JSON.stringify({
+            host: targetHost,
+            protocol: targetProtocol,
+            apiPort: Number(targetApiPort),
+            statsPort: Number(targetStatsPort),
+            label: targetLabel,
+          }),
+        },
+      );
+      setTarget(nextTarget);
+      syncTargetForm(nextTarget);
+      await loadRagStats();
+    } catch (err) {
+      setTargetError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setTargetSaving(false);
+    }
+  }, [headers, loadRagStats, syncTargetForm, targetApiPort, targetHost, targetLabel, targetProtocol, targetStatsPort]);
+
+  const resetTarget = useCallback(async () => {
+    setTargetSaving(true);
+    setTargetError(null);
+    try {
+      const nextTarget = await fetchJson<AiEngineTarget>(
+        `${EDGE_API_BASE}/v1/backoffice/ai-engine/target`,
+        {
+          method: "DELETE",
+          headers: headers(),
+        },
+      );
+      setTarget(nextTarget);
+      syncTargetForm(nextTarget);
+      await loadRagStats();
+    } catch (err) {
+      setTargetError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setTargetSaving(false);
+    }
+  }, [headers, loadRagStats, syncTargetForm]);
+
+  const applyEdgeApiTarget = useCallback(() => {
+    setEdgeApiError(null);
+    try {
+      const normalized = setEdgeApiBaseOverride(edgeApiBaseInput);
+      setEdgeApiOverride(normalized);
+      window.location.reload();
+    } catch (err) {
+      setEdgeApiError(err instanceof Error ? err.message : String(err));
+    }
+  }, [edgeApiBaseInput]);
+
+  const resetEdgeApiTarget = useCallback(() => {
+    setEdgeApiError(null);
+    setEdgeApiBaseOverride(null);
+    setEdgeApiOverride(null);
+    setEdgeApiBaseInput(DEFAULT_EDGE_API_BASE);
+    window.location.reload();
+  }, []);
+
+  const applyServiceTarget = useCallback(async () => {
+    setServiceTargetsSaving(true);
+    setServiceTargetsError(null);
+    try {
+      const nextTarget = await fetchJson<ServiceTarget>(
+        `${EDGE_API_BASE}/v1/backoffice/service-targets/${selectedService}`,
+        {
+          method: "PUT",
+          headers: headers(),
+          body: JSON.stringify({
+            baseUrl: selectedServiceBaseUrl,
+            label: selectedServiceLabel,
+          }),
+        },
+      );
+      setServiceTargets((current) =>
+        current.map((entry) => (entry.service === nextTarget.service ? nextTarget : entry)),
+      );
+      syncServiceForm(nextTarget);
+    } catch (err) {
+      setServiceTargetsError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setServiceTargetsSaving(false);
+    }
+  }, [headers, selectedService, selectedServiceBaseUrl, selectedServiceLabel, syncServiceForm]);
+
+  const resetServiceTarget = useCallback(async () => {
+    setServiceTargetsSaving(true);
+    setServiceTargetsError(null);
+    try {
+      const nextTarget = await fetchJson<ServiceTarget>(
+        `${EDGE_API_BASE}/v1/backoffice/service-targets/${selectedService}`,
+        {
+          method: "DELETE",
+          headers: headers(),
+        },
+      );
+      setServiceTargets((current) =>
+        current.map((entry) => (entry.service === nextTarget.service ? nextTarget : entry)),
+      );
+      syncServiceForm(nextTarget);
+    } catch (err) {
+      setServiceTargetsError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setServiceTargetsSaving(false);
+    }
+  }, [headers, selectedService, syncServiceForm]);
 
   // ---- Test runner --------------------------------------------------------
 
@@ -189,6 +438,7 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
   const coverageLevel = ragStats?.coverage_level ?? "empty";
   const coveragePercent = COVERAGE_BAR[coverageLevel] ?? 0;
   const coverageColor = COVERAGE_COLORS[coverageLevel] ?? "";
+  const currentServiceTarget = serviceTargets.find((entry) => entry.service === selectedService) ?? null;
 
   return (
     <div className={`grid gap-4 ${compact ? "gap-3" : "gap-5"}`}>
@@ -200,6 +450,314 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
         <p className="text-sm text-[var(--md-sys-color-on-surface-variant)]">
           {t("diag.subtitle")}
         </p>
+      </div>
+
+      <div className="m3-card ui-surface-raised p-4">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-base font-semibold text-[var(--md-sys-color-on-surface)]">
+              {t("diag.edge.title")}
+            </h3>
+            <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
+              {t("diag.edge.subtitle")}
+            </p>
+          </div>
+        </div>
+
+        {edgeApiError && (
+          <div className="ui-feedback text-sm text-[var(--md-sys-color-error)]">
+            {t("diag.edge.error")}: {edgeApiError}
+          </div>
+        )}
+
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <StatCard
+            label={t("diag.edge.current")}
+            value={EDGE_API_BASE}
+          />
+          <StatCard
+            label={t("diag.edge.default")}
+            value={DEFAULT_EDGE_API_BASE}
+          />
+          <StatCard
+            label={t("diag.edge.source")}
+            value={edgeApiOverride ? t("diag.target.source.override") : t("diag.target.source.env")}
+          />
+        </div>
+
+        <div className="mt-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-end">
+          <label className="text-xs">
+            {t("diag.edge.baseUrl")}
+            <input
+              value={edgeApiBaseInput}
+              onChange={(event) => setEdgeApiBaseInput(event.target.value)}
+              placeholder="http://localhost:7005"
+              className="mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] px-2 py-2 text-sm"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={applyEdgeApiTarget}
+            disabled={edgeApiBaseInput.trim().length === 0}
+            className="rounded-full border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-primary-container)] px-4 py-2 text-xs font-bold text-[var(--md-sys-color-on-primary-container)] transition hover:opacity-90 disabled:opacity-50"
+          >
+            {t("diag.edge.applyBtn")}
+          </button>
+          <button
+            type="button"
+            onClick={resetEdgeApiTarget}
+            className="rounded-full border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container-low)] px-4 py-2 text-xs font-semibold transition hover:bg-[var(--md-sys-color-surface-container)]"
+          >
+            {t("diag.edge.resetBtn")}
+          </button>
+        </div>
+
+        <p className="mt-3 text-xs text-[var(--md-sys-color-on-surface-variant)]">
+          {t("diag.edge.runtimeOnly")}
+        </p>
+      </div>
+
+      <div className="m3-card ui-surface-raised p-4">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-base font-semibold text-[var(--md-sys-color-on-surface)]">
+              {t("diag.services.title")}
+            </h3>
+            <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
+              {t("diag.services.subtitle")}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={loadServiceTargets}
+            disabled={serviceTargetsLoading || serviceTargetsSaving}
+            className="rounded-full border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container-low)] px-3 py-1.5 text-xs font-semibold transition hover:bg-[var(--md-sys-color-surface-container)] disabled:opacity-50"
+          >
+            {serviceTargetsLoading ? "..." : t("diag.services.refreshBtn")}
+          </button>
+        </div>
+
+        {serviceTargetsError && (
+          <div className="ui-feedback text-sm text-[var(--md-sys-color-error)]">
+            {t("diag.services.error")}: {serviceTargetsError}
+          </div>
+        )}
+
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {serviceTargets.map((entry) => (
+            <button
+              key={entry.service}
+              type="button"
+              onClick={() => setSelectedService(entry.service)}
+              className={`rounded-xl border p-3 text-left transition ${selectedService === entry.service ? "border-[var(--md-sys-color-primary)] bg-[var(--md-sys-color-primary-container)]" : "border-[var(--md-sys-color-outline-variant)] bg-[var(--md-sys-color-surface-container-low)] hover:bg-[var(--md-sys-color-surface-container)]"}`}
+            >
+              <div className="text-sm font-semibold text-[var(--md-sys-color-on-surface)]">{entry.title}</div>
+              <div className="mt-1 text-[11px] uppercase tracking-wide text-[var(--md-sys-color-on-surface-variant)]">
+                {entry.source === "override" ? t("diag.target.source.override") : t("diag.target.source.env")}
+              </div>
+              <div className="mt-2 break-all font-mono text-[11px] text-[var(--md-sys-color-on-surface-variant)]">{entry.baseUrl}</div>
+            </button>
+          ))}
+        </div>
+
+        {currentServiceTarget && (
+          <div className="mt-4 space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <StatCard label={t("diag.services.service")} value={currentServiceTarget.title} />
+              <StatCard
+                label={t("diag.target.source")}
+                value={currentServiceTarget.source === "override" ? t("diag.target.source.override") : t("diag.target.source.env")}
+              />
+              <StatCard label={t("diag.services.baseUrl")} value={currentServiceTarget.baseUrl} />
+              <StatCard label={t("diag.target.updatedAt")} value={formatTimestamp(currentServiceTarget.updatedAt)} />
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(220px,320px)]">
+              <label className="text-xs">
+                {t("diag.services.baseUrl")}
+                <input
+                  value={selectedServiceBaseUrl}
+                  onChange={(event) => setSelectedServiceBaseUrl(event.target.value)}
+                  placeholder="http://localhost:7102"
+                  className="mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] px-2 py-2 text-sm"
+                />
+              </label>
+
+              <label className="text-xs">
+                {t("diag.target.label")}
+                <input
+                  value={selectedServiceLabel}
+                  onChange={(event) => setSelectedServiceLabel(event.target.value)}
+                  placeholder={t("diag.services.labelHint")}
+                  className="mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] px-2 py-2 text-sm"
+                />
+              </label>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={applyServiceTarget}
+                disabled={serviceTargetsSaving || selectedServiceBaseUrl.trim().length === 0}
+                className="rounded-full border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-primary-container)] px-4 py-2 text-xs font-bold text-[var(--md-sys-color-on-primary-container)] transition hover:opacity-90 disabled:opacity-50"
+              >
+                {serviceTargetsSaving ? t("diag.tests.running") : t("diag.services.applyBtn")}
+              </button>
+              <button
+                type="button"
+                onClick={resetServiceTarget}
+                disabled={serviceTargetsSaving}
+                className="rounded-full border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container-low)] px-4 py-2 text-xs font-semibold transition hover:bg-[var(--md-sys-color-surface-container)] disabled:opacity-50"
+              >
+                {t("diag.services.resetBtn")}
+              </button>
+            </div>
+
+            <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
+              {t("diag.services.runtimeOnly")}
+            </p>
+          </div>
+        )}
+      </div>
+
+      <div className="m3-card ui-surface-raised p-4">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-base font-semibold text-[var(--md-sys-color-on-surface)]">
+              {t("diag.target.title")}
+            </h3>
+            <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
+              {t("diag.target.subtitle")}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={loadTarget}
+            disabled={targetLoading || targetSaving}
+            className="rounded-full border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container-low)] px-3 py-1.5 text-xs font-semibold transition hover:bg-[var(--md-sys-color-surface-container)] disabled:opacity-50"
+          >
+            {targetLoading ? "..." : t("diag.target.refreshBtn")}
+          </button>
+        </div>
+
+        {targetError && (
+          <div className="ui-feedback text-sm text-[var(--md-sys-color-error)]">
+            {t("diag.target.error")}: {targetError}
+          </div>
+        )}
+
+        {target && (
+          <div className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <StatCard
+                label={t("diag.target.source")}
+                value={target.source === "override" ? t("diag.target.source.override") : t("diag.target.source.env")}
+              />
+              <StatCard label={t("diag.target.host")} value={target.host ?? "--"} />
+              <StatCard label={t("diag.target.apiPort")} value={target.apiPort ?? "--"} />
+              <StatCard label={t("diag.target.statsPort")} value={target.statsPort ?? "--"} />
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="rounded border border-[var(--md-sys-color-outline-variant)] p-3">
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-[var(--md-sys-color-on-surface-variant)]">
+                  {t("diag.target.currentApiUrl")}
+                </div>
+                <div className="mt-1 break-all font-mono text-xs text-[var(--md-sys-color-on-surface)]">
+                  {target.apiBaseUrl}
+                </div>
+              </div>
+              <div className="rounded border border-[var(--md-sys-color-outline-variant)] p-3">
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-[var(--md-sys-color-on-surface-variant)]">
+                  {t("diag.target.currentStatsUrl")}
+                </div>
+                <div className="mt-1 break-all font-mono text-xs text-[var(--md-sys-color-on-surface)]">
+                  {target.statsBaseUrl}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+              <label className="text-xs">
+                {t("diag.target.host")}
+                <input
+                  value={targetHost}
+                  onChange={(event) => setTargetHost(event.target.value)}
+                  placeholder="192.168.1.80"
+                  className="mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] px-2 py-2 text-sm"
+                />
+              </label>
+
+              <label className="text-xs">
+                {t("diag.target.protocol")}
+                <select
+                  value={targetProtocol}
+                  onChange={(event) => setTargetProtocol(event.target.value as "http" | "https")}
+                  className="mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] px-2 py-2 text-sm"
+                >
+                  <option value="http">http</option>
+                  <option value="https">https</option>
+                </select>
+              </label>
+
+              <label className="text-xs">
+                {t("diag.target.apiPort")}
+                <input
+                  value={targetApiPort}
+                  onChange={(event) => setTargetApiPort(event.target.value)}
+                  inputMode="numeric"
+                  className="mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] px-2 py-2 text-sm"
+                />
+              </label>
+
+              <label className="text-xs">
+                {t("diag.target.statsPort")}
+                <input
+                  value={targetStatsPort}
+                  onChange={(event) => setTargetStatsPort(event.target.value)}
+                  inputMode="numeric"
+                  className="mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] px-2 py-2 text-sm"
+                />
+              </label>
+
+              <label className="text-xs">
+                {t("diag.target.label")}
+                <input
+                  value={targetLabel}
+                  onChange={(event) => setTargetLabel(event.target.value)}
+                  placeholder={t("diag.target.labelHint")}
+                  className="mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] px-2 py-2 text-sm"
+                />
+              </label>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={applyTarget}
+                disabled={targetSaving || targetHost.trim().length === 0}
+                className="rounded-full border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-primary-container)] px-4 py-2 text-xs font-bold text-[var(--md-sys-color-on-primary-container)] transition hover:opacity-90 disabled:opacity-50"
+              >
+                {targetSaving ? t("diag.tests.running") : t("diag.target.applyBtn")}
+              </button>
+              <button
+                type="button"
+                onClick={resetTarget}
+                disabled={targetSaving}
+                className="rounded-full border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container-low)] px-4 py-2 text-xs font-semibold transition hover:bg-[var(--md-sys-color-surface-container)] disabled:opacity-50"
+              >
+                {t("diag.target.resetBtn")}
+              </button>
+              <span className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
+                {t("diag.target.updatedAt")}: {formatTimestamp(target.updatedAt)}
+              </span>
+            </div>
+
+            <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
+              {t("diag.target.runtimeOnly")}
+            </p>
+          </div>
+        )}
       </div>
 
       {/* RAG Meter */}

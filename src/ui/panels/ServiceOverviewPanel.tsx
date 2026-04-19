@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { fetchServiceOperationalSummary, type ServiceOperationalRow } from "../../application/services/operationalSummary";
-import type { SessionContext, UiDensity } from "../../domain/types/backoffice";
+import type { AiEngineTarget, AiEngineTargetPreset, SessionContext, UiDensity } from "../../domain/types/backoffice";
+import { composeAuthHeaders } from "../../infrastructure/backoffice/authHeaders";
+import { EDGE_API_BASE, fetchJson } from "../../infrastructure/http/apiClient";
 import { useI18n } from "../../i18n/context";
 
 /** @module ServiceOverviewPanel - Dashboard showing real-time operational status of all services. */
@@ -15,6 +17,11 @@ type KpiCardProps = {
   label: string;
   value: number;
   tone?: "neutral" | "ok" | "warn" | "error";
+};
+
+type AiEnginePresetListResponse = {
+  total: number;
+  presets: AiEngineTargetPreset[];
 };
 
 function KpiCard({ label, value, tone = "neutral" }: KpiCardProps) {
@@ -50,11 +57,83 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
   const [refreshIntervalSeconds, setRefreshIntervalSeconds] = useState(10);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [aiTarget, setAiTarget] = useState<AiEngineTarget | null>(null);
+  const [aiTargetLoading, setAiTargetLoading] = useState(false);
+  const [aiTargetSaving, setAiTargetSaving] = useState(false);
+  const [aiTargetError, setAiTargetError] = useState<string | null>(null);
+  const [presets, setPresets] = useState<AiEngineTargetPreset[]>([]);
+  const [presetsLoading, setPresetsLoading] = useState(false);
+  const [selectedPresetId, setSelectedPresetId] = useState("");
+  const [isCreatingPreset, setIsCreatingPreset] = useState(false);
+  const [presetName, setPresetName] = useState("");
+  const [presetHost, setPresetHost] = useState("");
+  const [presetProtocol, setPresetProtocol] = useState<"http" | "https">("http");
+  const [presetApiPort, setPresetApiPort] = useState("7001");
+  const [presetStatsPort, setPresetStatsPort] = useState("7000");
 
   const requestVersionRef = useRef(0);
   const previousByServiceRef = useRef<Record<string, { requestsTotal: number | null; fetchedAt: number }>>({});
 
   const intervalOptions = [5, 10, 15, 30, 60];
+  const authHeaders = useCallback(() => composeAuthHeaders(context), [context]);
+
+  const syncPresetForm = useCallback((preset: AiEngineTargetPreset | null) => {
+    setPresetName(preset?.name ?? "");
+    setPresetHost(preset?.host ?? "");
+    setPresetProtocol(preset?.protocol ?? "http");
+    setPresetApiPort(String(preset?.apiPort ?? 7001));
+    setPresetStatsPort(String(preset?.statsPort ?? 7000));
+  }, []);
+
+  const findPresetMatch = useCallback((entries: AiEngineTargetPreset[], target: AiEngineTarget | null) => {
+    if (!target) {
+      return null;
+    }
+
+    return entries.find(
+      (entry) =>
+        entry.host === (target.host ?? "") &&
+        entry.protocol === (target.protocol ?? "http") &&
+        entry.apiPort === target.apiPort &&
+        entry.statsPort === target.statsPort,
+    ) ?? null;
+  }, []);
+
+  const loadPresets = useCallback(async () => {
+    setPresetsLoading(true);
+    setAiTargetError(null);
+    try {
+      const payload = await fetchJson<AiEnginePresetListResponse>(`${EDGE_API_BASE}/v1/backoffice/ai-engine/presets`, {
+        headers: authHeaders(),
+      });
+      setPresets(payload.presets);
+      setSelectedPresetId((current) => {
+        if (current && payload.presets.some((entry) => entry.id === current)) {
+          return current;
+        }
+        return payload.presets[0]?.id ?? "";
+      });
+    } catch (loadError) {
+      setAiTargetError(loadError instanceof Error ? loadError.message : t("roles.errorUnknown"));
+    } finally {
+      setPresetsLoading(false);
+    }
+  }, [authHeaders, t]);
+
+  const loadAiTarget = useCallback(async () => {
+    setAiTargetLoading(true);
+    setAiTargetError(null);
+    try {
+      const nextTarget = await fetchJson<AiEngineTarget>(`${EDGE_API_BASE}/v1/backoffice/ai-engine/target`, {
+        headers: authHeaders(),
+      });
+      setAiTarget(nextTarget);
+    } catch (loadError) {
+      setAiTargetError(loadError instanceof Error ? loadError.message : t("roles.errorUnknown"));
+    } finally {
+      setAiTargetLoading(false);
+    }
+  }, [authHeaders, t]);
 
   const loadSummary = useCallback(async () => {
     const requestVersion = ++requestVersionRef.current;
@@ -83,7 +162,30 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
 
   useEffect(() => {
     void loadSummary();
-  }, [loadSummary]);
+    void loadAiTarget();
+    void loadPresets();
+  }, [loadAiTarget, loadPresets, loadSummary]);
+
+  useEffect(() => {
+    if (isCreatingPreset) {
+      return;
+    }
+
+    const activePreset = presets.find((entry) => entry.id === selectedPresetId) ?? null;
+    if (activePreset) {
+      syncPresetForm(activePreset);
+      return;
+    }
+
+    const matchedPreset = findPresetMatch(presets, aiTarget);
+    if (matchedPreset) {
+      setSelectedPresetId(matchedPreset.id);
+      syncPresetForm(matchedPreset);
+      return;
+    }
+
+    syncPresetForm(null);
+  }, [aiTarget, findPresetMatch, isCreatingPreset, presets, selectedPresetId, syncPresetForm]);
 
   useEffect(() => {
     setElapsedMs(0);
@@ -126,6 +228,93 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
   }), [rows]);
 
   const statusClass = (online: boolean) => (online ? "ui-status-chip ui-status-chip--ok" : "ui-status-chip ui-status-chip--error");
+  const activePreset = isCreatingPreset ? null : presets.find((entry) => entry.id === selectedPresetId) ?? null;
+
+  const applyAiPreset = useCallback(async () => {
+    if (!activePreset) {
+      return;
+    }
+
+    setAiTargetSaving(true);
+    setAiTargetError(null);
+    try {
+      const nextTarget = await fetchJson<AiEngineTarget>(`${EDGE_API_BASE}/v1/backoffice/ai-engine/target`, {
+        method: "PUT",
+        headers: authHeaders(),
+        body: JSON.stringify({
+          host: activePreset.host,
+          protocol: activePreset.protocol,
+          apiPort: activePreset.apiPort,
+          statsPort: activePreset.statsPort,
+          label: activePreset.name,
+        }),
+      });
+      setAiTarget(nextTarget);
+    } catch (saveError) {
+      setAiTargetError(saveError instanceof Error ? saveError.message : t("roles.errorUnknown"));
+    } finally {
+      setAiTargetSaving(false);
+    }
+  }, [activePreset, authHeaders, t]);
+
+  const savePreset = useCallback(async () => {
+    setAiTargetSaving(true);
+    setAiTargetError(null);
+    try {
+      const payload = {
+        name: presetName.trim(),
+        host: presetHost.trim(),
+        protocol: presetProtocol,
+        apiPort: Number(presetApiPort),
+        statsPort: Number(presetStatsPort),
+      };
+      const nextPreset = activePreset && !isCreatingPreset
+        ? await fetchJson<AiEngineTargetPreset>(`${EDGE_API_BASE}/v1/backoffice/ai-engine/presets/${encodeURIComponent(activePreset.id)}`, {
+            method: "PUT",
+            headers: authHeaders(),
+            body: JSON.stringify(payload),
+          })
+        : await fetchJson<AiEngineTargetPreset>(`${EDGE_API_BASE}/v1/backoffice/ai-engine/presets`, {
+            method: "POST",
+            headers: authHeaders(),
+            body: JSON.stringify(payload),
+          });
+
+      await loadPresets();
+      setIsCreatingPreset(false);
+      setSelectedPresetId(nextPreset.id);
+    } catch (saveError) {
+      setAiTargetError(saveError instanceof Error ? saveError.message : t("roles.errorUnknown"));
+    } finally {
+      setAiTargetSaving(false);
+    }
+  }, [activePreset, authHeaders, isCreatingPreset, loadPresets, presetApiPort, presetHost, presetName, presetProtocol, presetStatsPort, t]);
+
+  const removePreset = useCallback(async () => {
+    if (!activePreset) {
+      return;
+    }
+
+    setAiTargetSaving(true);
+    setAiTargetError(null);
+    try {
+      await fetchJson<{ deleted: boolean; presetId: string }>(`${EDGE_API_BASE}/v1/backoffice/ai-engine/presets/${encodeURIComponent(activePreset.id)}`, {
+        method: "DELETE",
+        headers: authHeaders(),
+      });
+      await loadPresets();
+    } catch (deleteError) {
+      setAiTargetError(deleteError instanceof Error ? deleteError.message : t("roles.errorUnknown"));
+    } finally {
+      setAiTargetSaving(false);
+    }
+  }, [activePreset, authHeaders, loadPresets, t]);
+
+  const startNewPreset = useCallback(() => {
+    setIsCreatingPreset(true);
+    setSelectedPresetId("");
+    syncPresetForm(null);
+  }, [syncPresetForm]);
 
   return (
     <section className={`m3-card ui-fade-in ${compact ? "p-3 sm:p-4 xl:p-5 space-y-3" : "p-4 sm:p-5 xl:p-6 space-y-4 xl:space-y-5"}`}>
@@ -199,6 +388,124 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
         <KpiCard label={t("overview.summary.online")} value={totals.onlineCount} tone="ok" />
         <KpiCard label={t("overview.summary.accessIssues")} value={totals.accessIssues} tone="warn" />
         <KpiCard label={t("overview.summary.connectionErrors")} value={totals.connectionErrors} tone="error" />
+      </div>
+
+      <div className="ui-surface-raised rounded-2xl p-4 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-semibold sm:text-base text-[var(--md-sys-color-on-surface)]">{t("overview.aiTarget.title")}</h3>
+            <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">{t("overview.aiTarget.subtitle")}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              void loadAiTarget();
+              void loadPresets();
+            }}
+            disabled={aiTargetLoading || aiTargetSaving || presetsLoading}
+            className="rounded-full border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container-low)] px-3 py-1.5 text-xs font-semibold transition hover:bg-[var(--md-sys-color-surface-container)] disabled:opacity-50"
+          >
+            {aiTargetLoading || presetsLoading ? "..." : t("overview.aiTarget.refreshBtn")}
+          </button>
+        </div>
+
+        {aiTargetError && <p className="ui-feedback ui-feedback--error">{t("overview.aiTarget.error")}: {aiTargetError}</p>}
+
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <KpiCard label={t("overview.aiTarget.currentHost")} value={Number(aiTarget?.host ? 1 : 0)} tone={aiTarget?.host ? "ok" : "warn"} />
+          <KpiCard label={t("overview.aiTarget.apiPort")} value={aiTarget?.apiPort ?? 0} tone="neutral" />
+          <KpiCard label={t("overview.aiTarget.statsPort")} value={aiTarget?.statsPort ?? 0} tone="neutral" />
+          <KpiCard label={t("overview.aiTarget.optionsCount")} value={presets.length} tone="neutral" />
+        </div>
+
+        {aiTarget && (
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 text-xs text-[var(--md-sys-color-on-surface)]">
+            <p><span className="font-semibold">{t("overview.aiTarget.currentLabel")}:</span> {aiTarget.label ?? "--"}</p>
+            <p><span className="font-semibold">{t("overview.aiTarget.currentHostText")}:</span> {aiTarget.host ?? "--"}</p>
+            <p><span className="font-semibold">{t("overview.aiTarget.currentApiUrl")}:</span> {aiTarget.apiBaseUrl}</p>
+            <p><span className="font-semibold">{t("overview.aiTarget.currentStatsUrl")}:</span> {aiTarget.statsBaseUrl}</p>
+          </div>
+        )}
+
+        <div className="grid gap-3 xl:grid-cols-[minmax(240px,320px)_1fr]">
+          <label className="text-xs text-[var(--md-sys-color-on-surface)]">
+            {t("overview.aiTarget.selector")}
+            <select
+              value={selectedPresetId}
+              onChange={(event) => {
+                setIsCreatingPreset(false);
+                setSelectedPresetId(event.target.value);
+              }}
+              className="control-input mt-1 w-full px-2 py-2 text-sm"
+            >
+              {presets.length === 0 && <option value="">--</option>}
+              {presets.map((entry) => (
+                <option key={entry.id} value={entry.id}>{entry.name}</option>
+              ))}
+            </select>
+          </label>
+
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+            <label className="text-xs text-[var(--md-sys-color-on-surface)]">
+              {t("overview.aiTarget.optionName")}
+              <input value={presetName} onChange={(event) => setPresetName(event.target.value)} className="mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] px-2 py-2 text-sm" />
+            </label>
+            <label className="text-xs text-[var(--md-sys-color-on-surface)]">
+              {t("overview.aiTarget.optionHost")}
+              <input value={presetHost} onChange={(event) => setPresetHost(event.target.value)} className="mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] px-2 py-2 text-sm" />
+            </label>
+            <label className="text-xs text-[var(--md-sys-color-on-surface)]">
+              {t("overview.aiTarget.optionProtocol")}
+              <select value={presetProtocol} onChange={(event) => setPresetProtocol(event.target.value as "http" | "https")} className="mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] px-2 py-2 text-sm">
+                <option value="http">http</option>
+                <option value="https">https</option>
+              </select>
+            </label>
+            <label className="text-xs text-[var(--md-sys-color-on-surface)]">
+              {t("overview.aiTarget.optionApiPort")}
+              <input value={presetApiPort} onChange={(event) => setPresetApiPort(event.target.value)} inputMode="numeric" className="mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] px-2 py-2 text-sm" />
+            </label>
+            <label className="text-xs text-[var(--md-sys-color-on-surface)]">
+              {t("overview.aiTarget.optionStatsPort")}
+              <input value={presetStatsPort} onChange={(event) => setPresetStatsPort(event.target.value)} inputMode="numeric" className="mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] px-2 py-2 text-sm" />
+            </label>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={applyAiPreset}
+            disabled={aiTargetSaving || !activePreset}
+            className="rounded-full border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-primary-container)] px-4 py-2 text-xs font-bold text-[var(--md-sys-color-on-primary-container)] transition hover:opacity-90 disabled:opacity-50"
+          >
+            {aiTargetSaving ? t("service.button.updating") : t("overview.aiTarget.applyBtn")}
+          </button>
+          <button
+            type="button"
+            onClick={startNewPreset}
+            disabled={aiTargetSaving}
+            className="rounded-full border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container-low)] px-4 py-2 text-xs font-semibold transition hover:bg-[var(--md-sys-color-surface-container)] disabled:opacity-50"
+          >
+            {t("overview.aiTarget.newBtn")}
+          </button>
+          <button
+            type="button"
+            onClick={() => void savePreset()}
+            disabled={presetName.trim().length === 0 || presetHost.trim().length === 0}
+            className="rounded-full border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container-low)] px-4 py-2 text-xs font-semibold transition hover:bg-[var(--md-sys-color-surface-container)] disabled:opacity-50"
+          >
+            {activePreset ? t("overview.aiTarget.saveBtn") : t("overview.aiTarget.addBtn")}
+          </button>
+          <button
+            type="button"
+            onClick={() => void removePreset()}
+            disabled={!activePreset}
+            className="rounded-full border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container-low)] px-4 py-2 text-xs font-semibold transition hover:bg-[var(--md-sys-color-surface-container)] disabled:opacity-50"
+          >
+            {t("overview.aiTarget.deleteBtn")}
+          </button>
+        </div>
       </div>
 
       {error && <p className="ui-feedback ui-feedback--error">{t("overview.error.load")}: {error}</p>}

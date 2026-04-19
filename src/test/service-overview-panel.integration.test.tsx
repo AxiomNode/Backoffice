@@ -6,9 +6,15 @@ import type { SessionContext } from "../domain/types/backoffice";
 import { ServiceOverviewPanel } from "../ui/panels/ServiceOverviewPanel";
 
 const fetchServiceOperationalSummaryMock = vi.hoisted(() => vi.fn());
+const fetchJsonMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../application/services/operationalSummary", () => ({
   fetchServiceOperationalSummary: fetchServiceOperationalSummaryMock,
+}));
+
+vi.mock("../infrastructure/http/apiClient", () => ({
+  EDGE_API_BASE: "http://localhost:7005",
+  fetchJson: fetchJsonMock,
 }));
 
 const context: SessionContext = {
@@ -25,8 +31,19 @@ function renderPanel() {
 }
 
 describe("ServiceOverviewPanel integration", () => {
+  let presetsState: Array<{
+    id: string;
+    name: string;
+    host: string;
+    protocol: "http" | "https";
+    apiPort: number;
+    statsPort: number;
+    updatedAt: string;
+  }>;
+
   beforeEach(() => {
     fetchServiceOperationalSummaryMock.mockReset();
+    fetchJsonMock.mockReset();
     fetchServiceOperationalSummaryMock.mockResolvedValue({
       rows: [
         {
@@ -49,6 +66,105 @@ describe("ServiceOverviewPanel integration", () => {
         },
       ],
       totals: { total: 1, onlineCount: 1, accessIssues: 0, connectionErrors: 0 },
+    });
+
+    presetsState = [
+      {
+        id: "this-pc-lan",
+        name: "Este PC (192.168.0.14)",
+        host: "192.168.0.14",
+        protocol: "http",
+        apiPort: 7001,
+        statsPort: 7000,
+        updatedAt: "2026-04-19T00:00:00.000Z",
+      },
+      {
+        id: "stg-vps-relay",
+        name: "VPS staging (195.35.48.40)",
+        host: "195.35.48.40",
+        protocol: "http",
+        apiPort: 27001,
+        statsPort: 27000,
+        updatedAt: "2026-04-19T00:00:00.000Z",
+      },
+    ];
+
+    fetchJsonMock.mockImplementation((url: string, options?: RequestInit) => {
+      if (url.endsWith("/v1/backoffice/ai-engine/presets") && (!options?.method || options.method === "GET")) {
+        return Promise.resolve({
+          total: presetsState.length,
+          presets: presetsState,
+        });
+      }
+
+      if (url.endsWith("/v1/backoffice/ai-engine/presets") && options?.method === "POST") {
+        const payload = JSON.parse(String(options.body)) as {
+          name: string;
+          host: string;
+          protocol: "http" | "https";
+          apiPort: number;
+          statsPort: number;
+        };
+        const created = {
+          id: "custom-preset",
+          ...payload,
+          updatedAt: "2026-04-19T00:01:00.000Z",
+        };
+        presetsState = [...presetsState, created];
+        return Promise.resolve(created);
+      }
+
+      if (url.endsWith("/v1/backoffice/ai-engine/presets/stg-vps-relay") && options?.method === "PUT") {
+        const payload = JSON.parse(String(options.body)) as {
+          name: string;
+          host: string;
+          protocol: "http" | "https";
+          apiPort: number;
+          statsPort: number;
+        };
+        const updated = {
+          id: "stg-vps-relay",
+          ...payload,
+          updatedAt: "2026-04-19T00:02:00.000Z",
+        };
+        presetsState = presetsState.map((entry) => (entry.id === updated.id ? updated : entry));
+        return Promise.resolve(updated);
+      }
+
+      if (url.endsWith("/v1/backoffice/ai-engine/presets/custom-preset") && options?.method === "DELETE") {
+        presetsState = presetsState.filter((entry) => entry.id !== "custom-preset");
+        return Promise.resolve({ deleted: true, presetId: "custom-preset" });
+      }
+
+      if (url.endsWith("/v1/backoffice/ai-engine/target") && (!options?.method || options.method === "GET")) {
+        return Promise.resolve({
+          source: "override",
+          label: "workstation-gpu",
+          host: "axiomnode-gateway.amksandbox.cloud",
+          protocol: "http",
+          apiPort: 27001,
+          statsPort: 27000,
+          apiBaseUrl: "http://axiomnode-gateway.amksandbox.cloud:27001",
+          statsBaseUrl: "http://axiomnode-gateway.amksandbox.cloud:27000",
+          updatedAt: "2026-04-18T23:10:31.882Z",
+        });
+      }
+
+      if (url.endsWith("/v1/backoffice/ai-engine/target") && options?.method === "PUT") {
+        return Promise.resolve({
+          source: "override",
+          label: "VPS staging (195.35.48.40)",
+          host: "195.35.48.40",
+          protocol: "http",
+          apiPort: 27001,
+          statsPort: 27000,
+          apiBaseUrl: "http://195.35.48.40:27001",
+          statsBaseUrl: "http://195.35.48.40:27000",
+          updatedAt: "2026-04-19T00:00:00.000Z",
+        });
+      }
+
+      throw new Error(`Unhandled URL: ${url}`);
     });
   });
 
@@ -97,6 +213,100 @@ describe("ServiceOverviewPanel integration", () => {
     expect(fetchServiceOperationalSummaryMock).toHaveBeenCalledTimes(2);
 
     expect(screen.getByRole("progressbar")).toBeInTheDocument();
+  });
+
+  it("shows editable ai-engine options in the service overview and applies the selected destination", async () => {
+    renderPanel();
+
+    await waitFor(() => {
+      expect(fetchJsonMock).toHaveBeenCalledWith(
+        "http://localhost:7005/v1/backoffice/ai-engine/target",
+        expect.any(Object),
+      );
+      expect(fetchJsonMock).toHaveBeenCalledWith(
+        "http://localhost:7005/v1/backoffice/ai-engine/presets",
+        expect.any(Object),
+      );
+      expect(screen.getByText("Destino del AI Engine")).toBeInTheDocument();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Destino guardado")).toHaveValue("this-pc-lan");
+      expect(screen.getByLabelText("Nombre de opcion")).toHaveValue("Este PC (192.168.0.14)");
+      expect(screen.getByLabelText("Host / IP")).toHaveValue("192.168.0.14");
+    });
+
+    fireEvent.change(screen.getByLabelText("Destino guardado"), {
+      target: { value: "stg-vps-relay" },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Nombre de opcion")).toHaveValue("VPS staging (195.35.48.40)");
+      expect(screen.getByLabelText("Host / IP")).toHaveValue("195.35.48.40");
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Usar este destino" }));
+
+    await waitFor(() => {
+      expect(fetchJsonMock).toHaveBeenCalledWith(
+        "http://localhost:7005/v1/backoffice/ai-engine/target",
+        expect.objectContaining({
+          method: "PUT",
+          body: JSON.stringify({
+            host: "195.35.48.40",
+            protocol: "http",
+            apiPort: 27001,
+            statsPort: 27000,
+            label: "VPS staging (195.35.48.40)",
+          }),
+        }),
+      );
+      expect(screen.getByText("http://195.35.48.40:27001")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Nueva opcion" }));
+    await waitFor(() => {
+      expect(screen.getByLabelText("Nombre de opcion")).toHaveValue("");
+    });
+    fireEvent.change(screen.getByLabelText("Nombre de opcion"), {
+      target: { value: "Host alternativo" },
+    });
+    fireEvent.change(screen.getByLabelText("Host / IP"), {
+      target: { value: "10.0.0.25" },
+    });
+    const createButton = screen.getAllByRole("button").find((button) => {
+      const label = button.textContent ?? "";
+      return /opcion/i.test(label) && !/Nueva/i.test(label) && !/Eliminar/i.test(label);
+    });
+    expect(createButton).toBeDefined();
+    fireEvent.click(createButton!);
+
+    await waitFor(() => {
+      expect(fetchJsonMock).toHaveBeenCalledWith(
+        "http://localhost:7005/v1/backoffice/ai-engine/presets",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            name: "Host alternativo",
+            host: "10.0.0.25",
+            protocol: "http",
+            apiPort: 7001,
+            statsPort: 7000,
+          }),
+        }),
+      );
+      expect(screen.getByRole("option", { name: "Host alternativo" })).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText("Destino guardado"), {
+      target: { value: "custom-preset" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Eliminar opcion" }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("option", { name: "Host alternativo" })).not.toBeInTheDocument();
+    });
   });
 
 });
