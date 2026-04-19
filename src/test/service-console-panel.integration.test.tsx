@@ -59,7 +59,7 @@ describe("ServiceConsolePanel integration", () => {
   });
 
   it("shows not found state for non-service nav keys", () => {
-    renderPanel("hotfix");
+    renderPanel("roles");
 
     expect(screen.getByText("Servicio no encontrado.")).toBeInTheDocument();
   });
@@ -301,7 +301,7 @@ describe("ServiceConsolePanel integration", () => {
         return Promise.resolve({ item: { id: "entry-1" } });
       }
       if (url.includes("/data?")) {
-        return Promise.resolve({ rows: [{ id: "entry-1", categoryId: "22", categoryName: "Science", language: "en", status: "manual", request: { categoryId: "22", language: "en", difficulty_percentage: 55 }, response: { questions: [{ question: "Q" }] } }] });
+        return Promise.resolve({ rows: [{ id: "entry-1", categoryId: "22", categoryName: "Science", language: "en", status: "manual", request: { categoryId: "22", language: "en", difficulty_percentage: 55 }, response: { questions: [{ question: "Q", options: ["A1", "A2"], correct_index: 0 }] } }] });
       }
       return Promise.reject(new Error(`Unhandled URL: ${url}`));
     });
@@ -323,8 +323,17 @@ describe("ServiceConsolePanel integration", () => {
       );
     });
 
-    fireEvent.change(screen.getByLabelText("Contenido JSON"), {
-      target: { value: '{"question":"Q"}' },
+    fireEvent.change(screen.getByLabelText("Pregunta"), {
+      target: { value: "Pregunta creada desde backoffice" },
+    });
+    fireEvent.change(screen.getByLabelText("Opcion A"), {
+      target: { value: "Madrid" },
+    });
+    fireEvent.change(screen.getByLabelText("Opcion B"), {
+      target: { value: "Barcelona" },
+    });
+    fireEvent.change(screen.getByLabelText("Opcion correcta"), {
+      target: { value: "1" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Insertar entrada" }));
 
@@ -332,7 +341,19 @@ describe("ServiceConsolePanel integration", () => {
       expect(screen.getByText("Entrada insertada correctamente.")).toBeInTheDocument();
       expect(fetchJsonMock).toHaveBeenCalledWith(
         expect.stringContaining("/v1/backoffice/services/microservice-quiz/data"),
-        expect.objectContaining({ method: "POST" }),
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            dataset: "history",
+            categoryId: "22",
+            language: "en",
+            difficultyPercentage: 55,
+            content: {
+              questions: [{ question: "Pregunta creada desde backoffice", options: ["Madrid", "Barcelona"], correct_index: 1 }],
+            },
+            status: "validated",
+          }),
+        }),
       );
     });
 

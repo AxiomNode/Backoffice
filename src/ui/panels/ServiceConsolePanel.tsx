@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import type { DataDataset, NavKey, SessionContext, UiDensity } from "../../domain/types/backoffice";
 import { useI18n } from "../../i18n/context";
@@ -8,6 +8,96 @@ import { PaginatedFilterableTable } from "../components/PaginatedFilterableTable
 import { useServiceConsoleState, type ServiceConsoleMessages } from "../hooks/useServiceConsoleState";
 
 /** @module ServiceConsolePanel - Per-service console with metrics, logs, data, and CRUD controls. */
+
+type QuizManualDraft = {
+  question: string;
+  optionA: string;
+  optionB: string;
+  optionC: string;
+  optionD: string;
+  correctOption: "0" | "1" | "2" | "3";
+};
+
+type WordpassManualDraft = {
+  letter: string;
+  hint: string;
+  answer: string;
+};
+
+const EMPTY_QUIZ_MANUAL_DRAFT: QuizManualDraft = {
+  question: "",
+  optionA: "",
+  optionB: "",
+  optionC: "",
+  optionD: "",
+  correctOption: "0",
+};
+
+const EMPTY_WORDPASS_MANUAL_DRAFT: WordpassManualDraft = {
+  letter: "",
+  hint: "",
+  answer: "",
+};
+
+function buildQuizManualContent(draft: QuizManualDraft): Record<string, unknown> {
+  const options = [draft.optionA, draft.optionB, draft.optionC, draft.optionD]
+    .map((value, index) => ({ value: value.trim(), index }))
+    .filter((item) => item.value.length > 0);
+
+  const selectedIndex = Number(draft.correctOption);
+  const normalizedCorrectIndex = Math.max(0, options.findIndex((item) => item.index === selectedIndex));
+
+  return {
+    questions: [
+      {
+        question: draft.question.trim(),
+        options: options.map((item) => item.value),
+        correct_index: normalizedCorrectIndex,
+      },
+    ],
+  };
+}
+
+function buildWordpassManualContent(draft: WordpassManualDraft): Record<string, unknown> {
+  return {
+    words: [
+      {
+        letter: draft.letter.trim(),
+        hint: draft.hint.trim(),
+        answer: draft.answer.trim(),
+      },
+    ],
+  };
+}
+
+function parseQuizManualDraft(content: unknown): QuizManualDraft {
+  const payload = content && typeof content === "object" ? (content as Record<string, unknown>) : {};
+  const questions = Array.isArray(payload.questions) ? payload.questions : [];
+  const firstQuestion = questions[0] && typeof questions[0] === "object" ? (questions[0] as Record<string, unknown>) : {};
+  const options = Array.isArray(firstQuestion.options) ? firstQuestion.options : [];
+  const correctIndex = typeof firstQuestion.correct_index === "number" ? firstQuestion.correct_index : 0;
+
+  return {
+    question: typeof firstQuestion.question === "string" ? firstQuestion.question : "",
+    optionA: typeof options[0] === "string" ? options[0] : "",
+    optionB: typeof options[1] === "string" ? options[1] : "",
+    optionC: typeof options[2] === "string" ? options[2] : "",
+    optionD: typeof options[3] === "string" ? options[3] : "",
+    correctOption: String(Math.max(0, Math.min(3, correctIndex))) as "0" | "1" | "2" | "3",
+  };
+}
+
+function parseWordpassManualDraft(content: unknown): WordpassManualDraft {
+  const payload = content && typeof content === "object" ? (content as Record<string, unknown>) : {};
+  const words = Array.isArray(payload.words) ? payload.words : [];
+  const firstWord = words[0] && typeof words[0] === "object" ? (words[0] as Record<string, unknown>) : {};
+
+  return {
+    letter: typeof firstWord.letter === "string" ? firstWord.letter : "",
+    hint: typeof firstWord.hint === "string" ? firstWord.hint : "",
+    answer: typeof firstWord.answer === "string" ? firstWord.answer : "",
+  };
+}
 
 const NAV_TITLE_KEYS: Record<NavKey, LabelKey> = {
   "svc-overview": "nav.svc-overview.title",
@@ -57,14 +147,44 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
   const state = useServiceConsoleState(navKey, context, t("roles.errorUnknown"), messages);
   const { serviceConfig } = state;
   const compact = density === "dense";
+  const [quizDraft, setQuizDraft] = useState<QuizManualDraft>(EMPTY_QUIZ_MANUAL_DRAFT);
+  const [wordpassDraft, setWordpassDraft] = useState<WordpassManualDraft>(EMPTY_WORDPASS_MANUAL_DRAFT);
+
+  const isQuizHistoryDataset = serviceConfig?.service === "microservice-quiz" && state.dataset === "history";
+  const isWordpassHistoryDataset = serviceConfig?.service === "microservice-wordpass" && state.dataset === "history";
 
   if (!serviceConfig) {
     return <section className="m3-card p-5">{t("service.notFound")}</section>;
   }
 
-  const isGameHistoryDataset =
-    (serviceConfig.service === "microservice-quiz" || serviceConfig.service === "microservice-wordpass") &&
-    state.dataset === "history";
+  const isGameHistoryDataset = isQuizHistoryDataset || isWordpassHistoryDataset;
+
+  useEffect(() => {
+    if (serviceConfig.service === "microservice-quiz") {
+      setQuizDraft(EMPTY_QUIZ_MANUAL_DRAFT);
+      return;
+    }
+
+    if (serviceConfig.service === "microservice-wordpass") {
+      setWordpassDraft(EMPTY_WORDPASS_MANUAL_DRAFT);
+    }
+  }, [serviceConfig.service]);
+
+  useEffect(() => {
+    if (!isQuizHistoryDataset) {
+      return;
+    }
+
+    state.setManualContentJson(JSON.stringify(buildQuizManualContent(quizDraft), null, 2));
+  }, [isQuizHistoryDataset, quizDraft, state.setManualContentJson]);
+
+  useEffect(() => {
+    if (!isWordpassHistoryDataset) {
+      return;
+    }
+
+    state.setManualContentJson(JSON.stringify(buildWordpassManualContent(wordpassDraft), null, 2));
+  }, [isWordpassHistoryDataset, wordpassDraft, state.setManualContentJson]);
 
   const localizedDatasetLabel = (value: DataDataset, fallback: string) => {
     const keyMap: Record<DataDataset, "dataset.roles" | "dataset.leaderboard" | "dataset.history" | "dataset.processes"> = {
@@ -136,6 +256,24 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
       state.setManualDifficulty(payload.difficulty);
       state.setManualStatus(statusOverride ?? payload.status ?? "manual");
       state.setManualContentJson(payload.contentJson);
+
+      try {
+        const parsedContent = JSON.parse(payload.contentJson) as unknown;
+        if (serviceConfig.service === "microservice-quiz") {
+          setQuizDraft(parseQuizManualDraft(parsedContent));
+        }
+        if (serviceConfig.service === "microservice-wordpass") {
+          setWordpassDraft(parseWordpassManualDraft(parsedContent));
+        }
+      } catch {
+        if (serviceConfig.service === "microservice-quiz") {
+          setQuizDraft(EMPTY_QUIZ_MANUAL_DRAFT);
+        }
+        if (serviceConfig.service === "microservice-wordpass") {
+          setWordpassDraft(EMPTY_WORDPASS_MANUAL_DRAFT);
+        }
+      }
+
       return payload;
     };
 
@@ -245,8 +383,8 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
 
       {state.error && <p className="ui-feedback ui-feedback--error">{state.error}</p>}
 
-      <section className="grid gap-3 xl:grid-cols-[1.05fr_0.95fr]">
-        <article className="ui-surface-raised rounded-2xl p-4 space-y-2">
+      <section className="grid min-w-0 gap-3">
+        <article className="ui-surface-raised min-w-0 rounded-2xl p-4 space-y-2">
           <div className="flex items-center justify-between gap-3">
             <div>
               <h3 className={`m3-title ${compact ? "text-base" : "text-lg"}`}>{t("service.metrics.title")}</h3>
@@ -268,7 +406,7 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
           )}
         </article>
 
-        <article className="ui-surface-raised rounded-2xl p-4 space-y-2">
+        <article className="ui-surface-raised min-w-0 rounded-2xl p-4 space-y-2">
           <div>
             <h3 className={`m3-title ${compact ? "text-base" : "text-lg"}`}>{t("service.logs.title")}</h3>
             <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">Lectura operativa: comparte ciclo con métricas para no abrir otro temporizador innecesario.</p>
@@ -287,7 +425,7 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
       </section>
 
       {serviceConfig.datasets && serviceConfig.datasets.length > 0 && (
-        <article className="space-y-3 ui-surface-raised rounded-2xl p-4">
+        <article className="min-w-0 space-y-3 ui-surface-raised rounded-2xl p-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h3 className={`m3-title ${compact ? "text-base" : "text-lg"}`}>{t("service.data.title")}</h3>
@@ -461,6 +599,93 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
                   </select>
                 </label>
               </div>
+
+              {isQuizHistoryDataset && (
+                <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                  <label className="text-xs md:col-span-2 xl:col-span-3">
+                    {t("service.data.manual.quizQuestion")}
+                    <input
+                      value={quizDraft.question}
+                      onChange={(event) => setQuizDraft((current) => ({ ...current, question: event.target.value }))}
+                      className="control-input mt-1 w-full px-2 py-1.5 text-sm"
+                    />
+                  </label>
+                  <label className="text-xs">
+                    {t("service.data.manual.quizOptionA")}
+                    <input
+                      value={quizDraft.optionA}
+                      onChange={(event) => setQuizDraft((current) => ({ ...current, optionA: event.target.value }))}
+                      className="control-input mt-1 w-full px-2 py-1.5 text-sm"
+                    />
+                  </label>
+                  <label className="text-xs">
+                    {t("service.data.manual.quizOptionB")}
+                    <input
+                      value={quizDraft.optionB}
+                      onChange={(event) => setQuizDraft((current) => ({ ...current, optionB: event.target.value }))}
+                      className="control-input mt-1 w-full px-2 py-1.5 text-sm"
+                    />
+                  </label>
+                  <label className="text-xs">
+                    {t("service.data.manual.quizOptionC")}
+                    <input
+                      value={quizDraft.optionC}
+                      onChange={(event) => setQuizDraft((current) => ({ ...current, optionC: event.target.value }))}
+                      className="control-input mt-1 w-full px-2 py-1.5 text-sm"
+                    />
+                  </label>
+                  <label className="text-xs">
+                    {t("service.data.manual.quizOptionD")}
+                    <input
+                      value={quizDraft.optionD}
+                      onChange={(event) => setQuizDraft((current) => ({ ...current, optionD: event.target.value }))}
+                      className="control-input mt-1 w-full px-2 py-1.5 text-sm"
+                    />
+                  </label>
+                  <label className="text-xs">
+                    {t("service.data.manual.quizCorrectOption")}
+                    <select
+                      value={quizDraft.correctOption}
+                      onChange={(event) => setQuizDraft((current) => ({ ...current, correctOption: event.target.value as "0" | "1" | "2" | "3" }))}
+                      className="control-input mt-1 w-full px-2 py-1.5 text-sm"
+                    >
+                      <option value="0">A</option>
+                      <option value="1">B</option>
+                      <option value="2">C</option>
+                      <option value="3">D</option>
+                    </select>
+                  </label>
+                </div>
+              )}
+
+              {isWordpassHistoryDataset && (
+                <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                  <label className="text-xs">
+                    {t("service.data.manual.wordLetter")}
+                    <input
+                      value={wordpassDraft.letter}
+                      onChange={(event) => setWordpassDraft((current) => ({ ...current, letter: event.target.value }))}
+                      className="control-input mt-1 w-full px-2 py-1.5 text-sm"
+                    />
+                  </label>
+                  <label className="text-xs xl:col-span-2">
+                    {t("service.data.manual.wordHint")}
+                    <input
+                      value={wordpassDraft.hint}
+                      onChange={(event) => setWordpassDraft((current) => ({ ...current, hint: event.target.value }))}
+                      className="control-input mt-1 w-full px-2 py-1.5 text-sm"
+                    />
+                  </label>
+                  <label className="text-xs md:col-span-2 xl:col-span-3">
+                    {t("service.data.manual.wordAnswer")}
+                    <input
+                      value={wordpassDraft.answer}
+                      onChange={(event) => setWordpassDraft((current) => ({ ...current, answer: event.target.value }))}
+                      className="control-input mt-1 w-full px-2 py-1.5 text-sm"
+                    />
+                  </label>
+                </div>
+              )}
 
               <label className="text-xs">
                 {t("service.data.manual.contentJson")}
