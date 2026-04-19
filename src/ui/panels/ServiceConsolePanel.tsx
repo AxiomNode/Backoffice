@@ -39,6 +39,12 @@ const EMPTY_WORDPASS_MANUAL_DRAFT: WordpassManualDraft = {
   answer: "",
 };
 
+function resolveGamePayload(content: unknown): Record<string, unknown> {
+  const payload = content && typeof content === "object" ? (content as Record<string, unknown>) : {};
+  const nestedGame = payload.game && typeof payload.game === "object" ? (payload.game as Record<string, unknown>) : null;
+  return nestedGame && Object.keys(nestedGame).length > 0 ? nestedGame : payload;
+}
+
 function buildQuizManualContent(draft: QuizManualDraft): Record<string, unknown> {
   const options = [draft.optionA, draft.optionB, draft.optionC, draft.optionD]
     .map((value, index) => ({ value: value.trim(), index }))
@@ -71,7 +77,7 @@ function buildWordpassManualContent(draft: WordpassManualDraft): Record<string, 
 }
 
 function parseQuizManualDraft(content: unknown): QuizManualDraft {
-  const payload = content && typeof content === "object" ? (content as Record<string, unknown>) : {};
+  const payload = resolveGamePayload(content);
   const questions = Array.isArray(payload.questions) ? payload.questions : [];
   const firstQuestion = questions[0] && typeof questions[0] === "object" ? (questions[0] as Record<string, unknown>) : {};
   const options = Array.isArray(firstQuestion.options) ? firstQuestion.options : [];
@@ -88,7 +94,7 @@ function parseQuizManualDraft(content: unknown): QuizManualDraft {
 }
 
 function parseWordpassManualDraft(content: unknown): WordpassManualDraft {
-  const payload = content && typeof content === "object" ? (content as Record<string, unknown>) : {};
+  const payload = resolveGamePayload(content);
   const words = Array.isArray(payload.words) ? payload.words : [];
   const firstWord = words[0] && typeof words[0] === "object" ? (words[0] as Record<string, unknown>) : {};
 

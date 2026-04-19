@@ -60,6 +60,12 @@ function asNumber(value: unknown): number | null {
   return null;
 }
 
+function resolveGamePayload(value: unknown): Record<string, unknown> {
+  const payload = asRecord(value);
+  const nestedGame = asRecord(payload.game);
+  return Object.keys(nestedGame).length > 0 ? nestedGame : payload;
+}
+
 function simplifyGameHistoryRows(
   rows: Array<Record<string, unknown>>,
   gameType: "quiz" | "wordpass",
@@ -67,10 +73,12 @@ function simplifyGameHistoryRows(
   return rows.map((row) => {
     const request = asRecord(row.request);
     const response = asRecord(row.response);
-    const responseQuestions = Array.isArray(response.questions) ? response.questions : [];
-    const responseWords = Array.isArray(response.words) ? response.words : [];
+    const responseGame = resolveGamePayload(response);
+    const responseQuestions = Array.isArray(responseGame.questions) ? responseGame.questions : [];
+    const responseWords = Array.isArray(responseGame.words) ? responseGame.words : [];
 
     const difficulty =
+      asNumber(responseGame.difficulty_percentage) ??
       asNumber(response.difficulty_percentage) ??
       asNumber(request.difficulty_percentage);
 

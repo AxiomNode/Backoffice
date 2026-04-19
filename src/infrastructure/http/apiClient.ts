@@ -64,6 +64,49 @@ export function setEdgeApiBaseOverride(baseUrl: string | null): string | null {
   return normalized;
 }
 
+function extractErrorDetail(raw: string): string | null {
+  let current = raw.trim();
+  if (!current) {
+    return null;
+  }
+
+  for (let depth = 0; depth < 6; depth += 1) {
+    const httpWrapped = current.match(/^HTTP\s+\d+\s*:\s*(.+)$/s);
+    if (httpWrapped) {
+      current = httpWrapped[1]?.trim() ?? current;
+      continue;
+    }
+
+    try {
+      const parsed = JSON.parse(current) as unknown;
+      if (parsed && typeof parsed === "object") {
+        const payload = parsed as { message?: unknown; detail?: unknown; error?: unknown };
+
+        if (typeof payload.message === "string" && payload.message.trim()) {
+          current = payload.message.trim();
+          continue;
+        }
+
+        if (typeof payload.detail === "string" && payload.detail.trim()) {
+          current = payload.detail.trim();
+          continue;
+        }
+
+        if (typeof payload.error === "string" && payload.error.trim()) {
+          current = payload.error.trim();
+          continue;
+        }
+      }
+    } catch {
+      return current;
+    }
+
+    return current;
+  }
+
+  return current;
+}
+
 /** Performs a JSON fetch with automatic auth header injection and error handling. */
 export async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
   const headers = new Headers(options?.headers ?? {});
@@ -79,7 +122,7 @@ export async function fetchJson<T>(url: string, options?: RequestInit): Promise<
 
   if (!response.ok) {
     const body = await response.text();
-    throw new Error(`HTTP ${response.status}: ${body || response.statusText}`);
+    throw new Error(extractErrorDetail(body) || `HTTP ${response.status}: ${body || response.statusText}`);
   }
 
   return (await response.json()) as T;

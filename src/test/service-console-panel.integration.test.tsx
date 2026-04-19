@@ -23,6 +23,7 @@ vi.mock("../ui/components/PaginatedFilterableTable", () => ({
   PaginatedFilterableTable: ({ rows, rowActions }: { rows: Array<Record<string, unknown>>; rowActions?: Array<{ label: string; onClick: (row: Record<string, unknown>) => void }> }) => (
     <div data-testid="paginated-table">
       <div>rows:{rows.length}</div>
+      <div data-testid="first-row">{rows[0] ? JSON.stringify(rows[0]) : ""}</div>
       {rows[0] && rowActions?.map((action) => (
         <button key={action.label} type="button" onClick={() => action.onClick(rows[0])}>
           {action.label}
@@ -435,6 +436,65 @@ describe("ServiceConsolePanel integration", () => {
 
     await waitFor(() => {
       expect(screen.getByText("El contenido debe ser un objeto JSON.")).toBeInTheDocument();
+    });
+  });
+
+  it("reads nested wordpass history payloads from response.game and loads them into the editor", async () => {
+    window.location.hash = "#/backoffice/svc-wordpass?dataset=history";
+
+    fetchJsonMock.mockImplementation((url: string) => {
+      if (url.endsWith("/v1/backoffice/services")) {
+        return Promise.resolve({
+          services: [{ key: "microservice-wordpass", title: "Wordpass", domain: "games", supportsData: true }],
+        });
+      }
+      if (url.includes("/metrics")) {
+        return Promise.resolve({ metrics: { traffic: { requestsReceivedTotal: 10 } } });
+      }
+      if (url.includes("/logs")) {
+        return Promise.resolve({ logs: [] });
+      }
+      if (url.includes("/catalogs")) {
+        return Promise.resolve({
+          catalogs: {
+            categories: [{ id: "31", name: "Words" }],
+            languages: [{ code: "es", name: "Español" }],
+          },
+        });
+      }
+      if (url.includes("/data?")) {
+        return Promise.resolve({
+          rows: [{
+            id: "entry-word-1",
+            categoryId: "31",
+            categoryName: "Words",
+            language: "es",
+            status: "validated",
+            request: { categoryId: "31", language: "es", difficulty_percentage: 40 },
+            response: {
+              game_type: "word-pass",
+              game: {
+                words: [{ letter: "A", hint: "Primera pista", answer: "Atomo" }],
+              },
+            },
+          }],
+        });
+      }
+      return Promise.reject(new Error(`Unhandled URL: ${url}`));
+    });
+
+    renderPanel("svc-wordpass");
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("first-row")[1]).toHaveTextContent("Atomo");
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Cargar" }));
+
+    await waitFor(() => {
+      expect((screen.getByLabelText("Letra") as HTMLInputElement).value).toBe("A");
+      expect((screen.getByLabelText("Pista") as HTMLInputElement).value).toBe("Primera pista");
+      expect((screen.getByLabelText("Respuesta") as HTMLInputElement).value).toBe("Atomo");
     });
   });
 
