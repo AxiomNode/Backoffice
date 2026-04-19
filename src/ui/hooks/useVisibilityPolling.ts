@@ -17,44 +17,77 @@ export function useVisibilityPolling(
 ): void {
   const callbackRef = useRef(callback);
   callbackRef.current = callback;
+  const inFlightRef = useRef(false);
 
   useEffect(() => {
     if (!enabled || intervalMs <= 0) {
       return;
     }
 
-    let timer: ReturnType<typeof setInterval> | null = null;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let disposed = false;
 
-    const start = () => {
-      if (timer !== null) return;
-      timer = setInterval(() => {
-        void callbackRef.current();
-      }, intervalMs);
-    };
-
-    const stop = () => {
+    const clearTimer = () => {
       if (timer !== null) {
-        clearInterval(timer);
+        clearTimeout(timer);
         timer = null;
       }
     };
 
+    const schedule = () => {
+      clearTimer();
+      if (disposed || document.hidden) {
+        return;
+      }
+
+      timer = setTimeout(async () => {
+        timer = null;
+        if (disposed || document.hidden || inFlightRef.current) {
+          schedule();
+          return;
+        }
+
+        inFlightRef.current = true;
+        try {
+          await callbackRef.current();
+        } finally {
+          inFlightRef.current = false;
+          schedule();
+        }
+      }, intervalMs);
+    };
+
+    const runNow = () => {
+      if (disposed || document.hidden || inFlightRef.current) {
+        return;
+      }
+
+      inFlightRef.current = true;
+      clearTimer();
+      void Promise.resolve(callbackRef.current())
+        .finally(() => {
+          inFlightRef.current = false;
+          schedule();
+        });
+    };
+
     const onVisibilityChange = () => {
       if (document.hidden) {
-        stop();
+        clearTimer();
       } else {
-        start();
+        runNow();
       }
     };
 
     if (!document.hidden) {
-      start();
+      schedule();
     }
 
     document.addEventListener("visibilitychange", onVisibilityChange);
 
     return () => {
-      stop();
+      disposed = true;
+      clearTimer();
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, [intervalMs, enabled]);

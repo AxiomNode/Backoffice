@@ -7,6 +7,7 @@ import type { DataDataset, NavKey, ServiceCatalogItem, ServiceKey, SessionContex
 import { composeAuthHeaders } from "../../infrastructure/backoffice/authHeaders";
 import { EDGE_API_BASE, fetchJson } from "../../infrastructure/http/apiClient";
 import { rowsFromUnknown } from "../utils/table";
+import { useAutoRefreshScheduler } from "./useAutoRefreshScheduler";
 import { useDebouncedValue } from "./useDebouncedValue";
 
 /** @module useServiceConsoleState - State management hook for individual service console panels. */
@@ -160,7 +161,7 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
   // --- Refresh state ---
   const [refreshMode, setRefreshMode] = useState<"manual" | "auto">("manual");
   const [refreshIntervalSeconds, setRefreshIntervalSeconds] = useState(10);
-  const [elapsedMs, setElapsedMs] = useState(0);
+  const [refreshCycleVersion, setRefreshCycleVersion] = useState(0);
   const [followTaskId, setFollowTaskId] = useState("");
 
   // --- Loading / error state ---
@@ -209,7 +210,6 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
     setMetric("won");
     setRefreshMode("manual");
     setRefreshIntervalSeconds(10);
-    setElapsedMs(0);
     setFollowTaskId("");
     setManualCategoryId("23");
     setManualLanguage("es");
@@ -330,11 +330,6 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
       window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${nextHash}`);
     }
   }, [dataset, filter, followTaskId, limit, metric, navKey, page, pageSize, refreshIntervalSeconds, refreshMode, serviceConfig, sortBy, sortDirection]);
-
-  // --- Reset elapsed on refresh config change ---
-  useEffect(() => {
-    setElapsedMs(0);
-  }, [refreshMode, refreshIntervalSeconds]);
 
   useEffect(() => {
     let cancelled = false;
@@ -488,6 +483,7 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
       }
       if (requestVersion === overviewRequestVersionRef.current) {
         setOverviewLoading(false);
+        setRefreshCycleVersion((current) => current + 1);
       }
     }
   }, [context, limit, serviceConfig, errorLabel]);
@@ -624,27 +620,12 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
     setPage(1);
   }, [debouncedFilter, debouncedSortBy]);
 
-  // --- Auto-refresh ---
-  useEffect(() => {
-    if (refreshMode !== "auto") return;
-
-    const stepMs = 1000;
-    const timer = window.setInterval(() => {
-      setElapsedMs((current) => {
-        if (document.hidden) return current;
-        if (overviewLoading || dataLoading) return current;
-        const nextValue = current + stepMs;
-        const threshold = refreshIntervalSeconds * 1000;
-        if (nextValue >= threshold) {
-          void loadOverview();
-          return 0;
-        }
-        return nextValue;
-      });
-    }, stepMs);
-
-    return () => window.clearInterval(timer);
-  }, [dataLoading, loadOverview, overviewLoading, refreshIntervalSeconds, refreshMode]);
+  useAutoRefreshScheduler(
+    () => loadOverview(),
+    refreshIntervalSeconds * 1000,
+    refreshMode === "auto",
+    overviewLoading || dataLoading,
+  );
 
   // --- CRUD ---
   const insertManualEntry = useCallback(async (contentJson: string, categoryId: string, language: string, difficulty: number, status: "manual" | "validated" | "pending_review") => {
@@ -778,7 +759,7 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
     // Refresh
     refreshMode, setRefreshMode,
     refreshIntervalSeconds, setRefreshIntervalSeconds,
-    elapsedMs,
+    refreshCycleVersion,
     followTaskId, setFollowTaskId,
     // Loading / errors
     loading: overviewLoading || dataLoading,

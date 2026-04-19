@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import type { DataDataset, NavKey, SessionContext, UiDensity } from "../../domain/types/backoffice";
 import { useI18n } from "../../i18n/context";
 import type { LabelKey } from "../../i18n/labels";
+import { AutoRefreshCountdown } from "../components/AutoRefreshCountdown";
 import { PaginatedFilterableTable } from "../components/PaginatedFilterableTable";
 import { useServiceConsoleState, type ServiceConsoleMessages } from "../hooks/useServiceConsoleState";
 
@@ -92,15 +93,11 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
   }, [state.dataset, serviceConfig.service]);
 
   const intervalOptions = [5, 10, 15, 30, 60];
-  const currentCycleMs = Math.max(1, state.refreshIntervalSeconds * 1000);
-  const progressPercent = Math.min(100, (state.elapsedMs / currentCycleMs) * 100);
-  const remainingSeconds = Math.max(0, (currentCycleMs - state.elapsedMs) / 1000).toFixed(1);
   const refreshCardPadding = compact ? "p-2.5" : "p-3";
   const refreshLabelText = compact ? "text-[11px]" : "text-xs";
   const refreshInputPadding = compact ? "px-2 py-1" : "px-2 py-1.5";
   const refreshButtonPadding = compact ? "px-3 py-1.5" : "px-4 py-2";
   const refreshButtonText = compact ? "text-xs" : "text-sm";
-  const refreshProgressHeight = compact ? "h-1.5" : "h-2";
 
   const serviceMeta = state.catalog.find((item) => item.key === serviceConfig.service);
   const historyRowActions = useMemo(() => {
@@ -229,21 +226,15 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
               {state.overviewLoading ? t("service.button.updating") : t("service.button.update")}
             </button>
           ) : (
-            <div className="mt-3 space-y-2">
-              <div className={`${refreshProgressHeight} w-full overflow-hidden rounded-full bg-[var(--md-sys-color-surface-container)]`}>
-                <div
-                  className="h-full rounded-full bg-[var(--md-sys-color-primary)] transition-[width] duration-150"
-                  style={{ width: `${progressPercent}%` }}
-                  role="progressbar"
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-valuenow={Math.round(progressPercent)}
-                />
-              </div>
-              <p className={`${refreshLabelText} text-[var(--md-sys-color-on-surface-variant)]`}>
-                {state.overviewLoading ? t("service.button.updating") : t("service.refresh.nextSync", { seconds: remainingSeconds })}
-              </p>
-            </div>
+            <AutoRefreshCountdown
+              active={state.refreshMode === "auto"}
+              loading={state.overviewLoading}
+              intervalSeconds={state.refreshIntervalSeconds}
+              cycleVersion={state.refreshCycleVersion}
+              compact={compact}
+              updatingLabel={t("service.button.updating")}
+              getNextSyncLabel={(seconds) => t("service.refresh.nextSync", { seconds })}
+            />
           )}
         </div>
       </div>

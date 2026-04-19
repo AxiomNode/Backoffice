@@ -5,6 +5,8 @@ import type { AiEngineTarget, AiEngineTargetPreset, SessionContext, UiDensity } 
 import { composeAuthHeaders } from "../../infrastructure/backoffice/authHeaders";
 import { EDGE_API_BASE, fetchJson } from "../../infrastructure/http/apiClient";
 import { useI18n } from "../../i18n/context";
+import { AutoRefreshCountdown } from "../components/AutoRefreshCountdown";
+import { useAutoRefreshScheduler } from "../hooks/useAutoRefreshScheduler";
 
 /** @module ServiceOverviewPanel - Dashboard showing real-time operational status of all services. */
 
@@ -73,8 +75,8 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
   const [loading, setLoading] = useState(false);
   const [refreshMode, setRefreshMode] = useState<"manual" | "auto">("auto");
   const [refreshIntervalSeconds, setRefreshIntervalSeconds] = useState(10);
-  const [elapsedMs, setElapsedMs] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [refreshCycleVersion, setRefreshCycleVersion] = useState(0);
   const [aiTarget, setAiTarget] = useState<AiEngineTarget | null>(null);
   const [aiTargetLoading, setAiTargetLoading] = useState(false);
   const [aiTargetSaving, setAiTargetSaving] = useState(false);
@@ -196,6 +198,7 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
     } finally {
       if (requestVersion === requestVersionRef.current) {
         setLoading(false);
+        setRefreshCycleVersion((current) => current + 1);
       }
     }
   }, [context, t]);
@@ -231,38 +234,12 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
     setAiProbeResult(null);
   }, [isCreatingPreset, presetApiPort, presetHost, presetName, presetProtocol, presetStatsPort, selectedPresetId]);
 
-  useEffect(() => {
-    setElapsedMs(0);
-  }, [refreshMode, refreshIntervalSeconds]);
-
-  useEffect(() => {
-    if (refreshMode !== "auto") {
-      return;
-    }
-
-    const stepMs = 1000;
-    const timer = window.setInterval(() => {
-      setElapsedMs((current) => {
-        if (loading) {
-          return current;
-        }
-
-        const next = current + stepMs;
-        const threshold = refreshIntervalSeconds * 1000;
-        if (next >= threshold) {
-          void loadSummary();
-          return 0;
-        }
-        return next;
-      });
-    }, stepMs);
-
-    return () => window.clearInterval(timer);
-  }, [loadSummary, loading, refreshIntervalSeconds, refreshMode]);
-
-  const currentCycleMs = Math.max(1, refreshIntervalSeconds * 1000);
-  const progressPercent = Math.min(100, (elapsedMs / currentCycleMs) * 100);
-  const remainingSeconds = Math.max(0, (currentCycleMs - elapsedMs) / 1000).toFixed(1);
+  useAutoRefreshScheduler(
+    () => loadSummary(),
+    refreshIntervalSeconds * 1000,
+    refreshMode === "auto",
+    loading,
+  );
 
   const totals = useMemo(() => ({
     total: rows.length,
@@ -445,21 +422,15 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
               {loading ? t("service.button.updating") : t("service.button.update")}
             </button>
           ) : (
-            <div className="mt-3 space-y-2">
-              <div className={`${compact ? "h-1.5" : "h-2"} w-full overflow-hidden rounded-full bg-[var(--md-sys-color-surface-container)]`}>
-                <div
-                  className="h-full rounded-full bg-[var(--md-sys-color-primary)] transition-[width] duration-150"
-                  style={{ width: `${progressPercent}%` }}
-                  role="progressbar"
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-valuenow={Math.round(progressPercent)}
-                />
-              </div>
-              <p className={`${compact ? "text-[11px]" : "text-xs"} text-[var(--md-sys-color-on-surface-variant)]`}>
-                {loading ? t("service.button.updating") : t("service.refresh.nextSync", { seconds: remainingSeconds })}
-              </p>
-            </div>
+            <AutoRefreshCountdown
+              active={refreshMode === "auto"}
+              loading={loading}
+              intervalSeconds={refreshIntervalSeconds}
+              cycleVersion={refreshCycleVersion}
+              compact={compact}
+              updatingLabel={t("service.button.updating")}
+              getNextSyncLabel={(seconds) => t("service.refresh.nextSync", { seconds })}
+            />
           )}
         </div>
       </div>
