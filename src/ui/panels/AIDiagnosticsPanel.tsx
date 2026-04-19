@@ -227,12 +227,17 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
       );
       setTarget(data);
       syncTargetForm(data);
+      setTargetError(null);
     } catch (err) {
       setTargetError(err instanceof Error ? err.message : String(err));
     } finally {
       setTargetLoading(false);
     }
   }, [headers, syncTargetForm]);
+
+  useEffect(() => {
+    setTargetError(null);
+  }, [targetHost, targetLabel, targetPort, targetProtocol]);
 
   const loadServiceTargets = useCallback(async () => {
     setServiceTargetsLoading(true);
@@ -286,6 +291,7 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
       );
       setTarget(nextTarget);
       syncTargetForm(nextTarget);
+      setTargetError(null);
       await loadRagStats();
     } catch (err) {
       setTargetError(err instanceof Error ? err.message : String(err));
@@ -307,6 +313,7 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
       );
       setTarget(nextTarget);
       syncTargetForm(nextTarget);
+      setTargetError(null);
       await loadRagStats();
     } catch (err) {
       setTargetError(err instanceof Error ? err.message : String(err));

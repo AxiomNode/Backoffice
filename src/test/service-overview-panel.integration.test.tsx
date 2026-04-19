@@ -243,6 +243,7 @@ describe("ServiceOverviewPanel integration", () => {
         expect.any(Object),
       );
       expect(screen.getByText("Destino del servidor llama")).toBeInTheDocument();
+      expect(screen.getByText("Etiqueta actual")).toBeInTheDocument();
     });
 
     await waitFor(() => {
@@ -336,6 +337,52 @@ describe("ServiceOverviewPanel integration", () => {
 
     await waitFor(() => {
       expect(screen.queryByRole("option", { name: "Host alternativo" })).not.toBeInTheDocument();
+    });
+  });
+
+  it("clears ai-target errors after a successful retry", async () => {
+    let presetsShouldFail = true;
+
+    fetchJsonMock.mockImplementation((url: string, options?: RequestInit) => {
+      if (url.endsWith("/v1/backoffice/ai-engine/target") && (!options?.method || options.method === "GET")) {
+        return Promise.resolve({
+          source: "override",
+          label: "workstation-gpu",
+          host: "195.35.48.40",
+          protocol: "http",
+          port: 7002,
+          llamaBaseUrl: "http://195.35.48.40:7002/v1/completions",
+          envLlamaBaseUrl: "http://llama-workstation.invalid:7002/v1/completions",
+          updatedAt: "2026-04-19T00:00:00.000Z",
+        });
+      }
+
+      if (url.endsWith("/v1/backoffice/ai-engine/presets") && (!options?.method || options.method === "GET")) {
+        if (presetsShouldFail) {
+          presetsShouldFail = false;
+          return Promise.reject(new Error("HTTP 404: Not Found"));
+        }
+
+        return Promise.resolve({
+          total: 1,
+          presets: [presetsState[0]],
+        });
+      }
+
+      throw new Error(`Unhandled URL: ${url}`);
+    });
+
+    renderPanel();
+
+    await waitFor(() => {
+      expect(screen.getByText(/No se pudo gestionar el destino del AI engine/i)).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Recargar destino IA" }));
+
+    await waitFor(() => {
+      expect(screen.queryByText(/No se pudo gestionar el destino del AI engine/i)).not.toBeInTheDocument();
+      expect(screen.getByLabelText("Destino guardado")).toHaveValue("this-pc-lan");
     });
   });
 

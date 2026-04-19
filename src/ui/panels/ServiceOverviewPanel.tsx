@@ -17,7 +17,7 @@ type ServiceOverviewPanelProps = {
 
 type KpiCardProps = {
   label: string;
-  value: number;
+  value: string | number;
   tone?: "neutral" | "ok" | "warn" | "error";
 };
 
@@ -143,6 +143,7 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
         headers: authHeaders(),
       });
       setPresets(payload.presets);
+      setAiTargetError(null);
       setSelectedPresetId((current) => {
         if (current && payload.presets.some((entry) => entry.id === current)) {
           return current;
@@ -164,6 +165,7 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
         headers: authHeaders(),
       });
       setAiTarget(nextTarget);
+      setAiTargetError(null);
     } catch (loadError) {
       setAiTargetError(loadError instanceof Error ? loadError.message : t("roles.errorUnknown"));
     } finally {
@@ -228,6 +230,10 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
     setAiProbeResult(null);
   }, [isCreatingPreset, presetHost, presetName, presetPort, presetProtocol, selectedPresetId]);
 
+  useEffect(() => {
+    setAiTargetError(null);
+  }, [isCreatingPreset, presetHost, presetName, presetPort, presetProtocol, selectedPresetId]);
+
   useAutoRefreshScheduler(
     () => loadSummary(),
     refreshIntervalSeconds * 1000,
@@ -261,6 +267,7 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
         body: JSON.stringify(payload),
       });
       setAiProbeResult(probe);
+      setAiTargetError(null);
       return probe;
     } catch (probeError) {
       const message = probeError instanceof Error ? probeError.message : t("roles.errorUnknown");
@@ -300,6 +307,7 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
         }),
       });
       setAiTarget(nextTarget);
+      setAiTargetError(null);
     } catch (saveError) {
       setAiTargetError(saveError instanceof Error ? saveError.message : t("roles.errorUnknown"));
     } finally {
@@ -332,6 +340,7 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
       await loadPresets();
       setIsCreatingPreset(false);
       setSelectedPresetId(nextPreset.id);
+      setAiTargetError(null);
     } catch (saveError) {
       setAiTargetError(saveError instanceof Error ? saveError.message : t("roles.errorUnknown"));
     } finally {
@@ -352,6 +361,7 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
         headers: authHeaders(),
       });
       await loadPresets();
+      setAiTargetError(null);
     } catch (deleteError) {
       setAiTargetError(deleteError instanceof Error ? deleteError.message : t("roles.errorUnknown"));
     } finally {
@@ -466,9 +476,9 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
         {aiTargetError && <p className="ui-feedback ui-feedback--error">{t("overview.aiTarget.error")}: {aiTargetError}</p>}
 
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <KpiCard label={t("overview.aiTarget.currentHost")} value={Number(aiTarget?.host ? 1 : 0)} tone={aiTarget?.host ? "ok" : "warn"} />
-          <KpiCard label={t("overview.aiTarget.apiPort")} value={aiTarget?.port ?? 0} tone="neutral" />
-          <KpiCard label={t("overview.aiTarget.statsPort")} value={aiTarget?.label ?? "--"} tone="neutral" />
+          <KpiCard label={t("overview.aiTarget.currentHost")} value={aiTarget?.host ?? "--"} tone={aiTarget?.host ? "ok" : "warn"} />
+          <KpiCard label={t("overview.aiTarget.apiPort")} value={aiTarget?.port ?? "--"} tone="neutral" />
+          <KpiCard label={t("overview.aiTarget.currentLabel")} value={aiTarget?.label ?? "--"} tone="neutral" />
           <KpiCard label={t("overview.aiTarget.optionsCount")} value={presets.length} tone="neutral" />
         </div>
 
