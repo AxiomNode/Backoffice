@@ -63,7 +63,7 @@ export function HotfixPanel({ session, context, density }: HotfixPanelProps) {
   const [categoryId, setCategoryId] = useState("23");
   const [generationLanguage, setGenerationLanguage] = useState("es");
   const [difficultyPercentage, setDifficultyPercentage] = useState(55);
-  const [numQuestions, setNumQuestions] = useState(3);
+  const [itemCount, setItemCount] = useState(3);
   const [generationCount, setGenerationCount] = useState(10);
   const [generationMode, setGenerationMode] = useState<GenerationMode>("progress");
   const [generationCatalogSource, setGenerationCatalogSource] = useState<"quiz" | "wordpass">("quiz");
@@ -157,7 +157,7 @@ export function HotfixPanel({ session, context, density }: HotfixPanelProps) {
         language: generationLanguage,
         categoryId,
         difficultyPercentage,
-        numQuestions,
+        itemCount,
         count: generationCount,
       };
 
@@ -345,7 +345,7 @@ export function HotfixPanel({ session, context, density }: HotfixPanelProps) {
           </label>
           <label className="mb-3 block text-sm">
             {t("hotfix.numQuestions")}
-            <input type="number" min={1} max={50} value={numQuestions} onChange={(event) => setNumQuestions(Number(event.target.value || 1))} className="control-input mt-1 w-full px-2 py-2" />
+            <input type="number" min={1} max={50} value={itemCount} onChange={(event) => setItemCount(Number(event.target.value || 1))} className="control-input mt-1 w-full px-2 py-2" />
           </label>
           <label className="mb-2 block text-sm">
             {t("hotfix.generationCount")}

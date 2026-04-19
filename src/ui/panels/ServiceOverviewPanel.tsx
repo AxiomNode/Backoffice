@@ -24,6 +24,24 @@ type AiEnginePresetListResponse = {
   presets: AiEngineTargetPreset[];
 };
 
+type AiEngineProbeEndpointStatus = {
+  ok: boolean;
+  status: number | null;
+  url: string;
+  latencyMs: number | null;
+  message: string | null;
+};
+
+type AiEngineProbeResult = {
+  host: string;
+  protocol: "http" | "https";
+  apiPort: number;
+  statsPort: number;
+  reachable: boolean;
+  api: AiEngineProbeEndpointStatus;
+  stats: AiEngineProbeEndpointStatus;
+};
+
 function KpiCard({ label, value, tone = "neutral" }: KpiCardProps) {
   const toneClass =
     tone === "ok"
@@ -70,6 +88,8 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
   const [presetProtocol, setPresetProtocol] = useState<"http" | "https">("http");
   const [presetApiPort, setPresetApiPort] = useState("7001");
   const [presetStatsPort, setPresetStatsPort] = useState("7000");
+  const [aiProbeLoading, setAiProbeLoading] = useState(false);
+  const [aiProbeResult, setAiProbeResult] = useState<AiEngineProbeResult | null>(null);
 
   const requestVersionRef = useRef(0);
   const previousByServiceRef = useRef<Record<string, { requestsTotal: number | null; fetchedAt: number }>>({});
@@ -97,6 +117,26 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
         entry.apiPort === target.apiPort &&
         entry.statsPort === target.statsPort,
     ) ?? null;
+  }, []);
+
+  const parsePort = useCallback((value: string, fallback: number) => {
+    const parsed = Number(value);
+    return Number.isInteger(parsed) && parsed > 0 && parsed <= 65535 ? parsed : fallback;
+  }, []);
+
+  const buildDraftTarget = useCallback(() => ({
+    host: presetHost.trim(),
+    protocol: presetProtocol,
+    apiPort: parsePort(presetApiPort, 7001),
+    statsPort: parsePort(presetStatsPort, 7000),
+  }), [parsePort, presetApiPort, presetHost, presetProtocol, presetStatsPort]);
+
+  const describeProbeStatus = useCallback((status: AiEngineProbeEndpointStatus) => {
+    if (status.ok) {
+      return `${status.url} OK${status.latencyMs !== null ? ` · ${status.latencyMs}ms` : ""}`;
+    }
+
+    return `${status.url} ${status.message ?? "sin respuesta"}`;
   }, []);
 
   const loadPresets = useCallback(async () => {
@@ -188,6 +228,10 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
   }, [aiTarget, findPresetMatch, isCreatingPreset, presets, selectedPresetId, syncPresetForm]);
 
   useEffect(() => {
+    setAiProbeResult(null);
+  }, [isCreatingPreset, presetApiPort, presetHost, presetName, presetProtocol, presetStatsPort, selectedPresetId]);
+
+  useEffect(() => {
     setElapsedMs(0);
   }, [refreshMode, refreshIntervalSeconds]);
 
@@ -196,7 +240,7 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
       return;
     }
 
-    const stepMs = 200;
+    const stepMs = 1000;
     const timer = window.setInterval(() => {
       setElapsedMs((current) => {
         if (loading) {
@@ -230,6 +274,32 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
   const statusClass = (online: boolean) => (online ? "ui-status-chip ui-status-chip--ok" : "ui-status-chip ui-status-chip--error");
   const activePreset = isCreatingPreset ? null : presets.find((entry) => entry.id === selectedPresetId) ?? null;
 
+  const probeAiTarget = useCallback(async (targetOverride?: { host: string; protocol: "http" | "https"; apiPort: number; statsPort: number }) => {
+    const payload = targetOverride ?? buildDraftTarget();
+
+    if (!payload.host) {
+      throw new Error(t("overview.aiTarget.missingHost"));
+    }
+
+    setAiProbeLoading(true);
+    setAiTargetError(null);
+    try {
+      const probe = await fetchJson<AiEngineProbeResult>(`${EDGE_API_BASE}/v1/backoffice/ai-engine/probe`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify(payload),
+      });
+      setAiProbeResult(probe);
+      return probe;
+    } catch (probeError) {
+      const message = probeError instanceof Error ? probeError.message : t("roles.errorUnknown");
+      setAiTargetError(message);
+      throw probeError;
+    } finally {
+      setAiProbeLoading(false);
+    }
+  }, [authHeaders, buildDraftTarget, t]);
+
   const applyAiPreset = useCallback(async () => {
     if (!activePreset) {
       return;
@@ -238,6 +308,17 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
     setAiTargetSaving(true);
     setAiTargetError(null);
     try {
+      const probe = await probeAiTarget({
+        host: activePreset.host,
+        protocol: activePreset.protocol,
+        apiPort: activePreset.apiPort,
+        statsPort: activePreset.statsPort,
+      });
+
+      if (!probe.reachable) {
+        throw new Error(t("overview.aiTarget.probeApplyBlocked"));
+      }
+
       const nextTarget = await fetchJson<AiEngineTarget>(`${EDGE_API_BASE}/v1/backoffice/ai-engine/target`, {
         method: "PUT",
         headers: authHeaders(),
@@ -255,7 +336,7 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
     } finally {
       setAiTargetSaving(false);
     }
-  }, [activePreset, authHeaders, t]);
+  }, [activePreset, authHeaders, probeAiTarget, t]);
 
   const savePreset = useCallback(async () => {
     setAiTargetSaving(true);
@@ -409,6 +490,17 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
           </button>
         </div>
 
+        <div className="grid gap-3 xl:grid-cols-2">
+          <div className="rounded-2xl border border-[var(--md-sys-color-outline-variant)] bg-[var(--md-sys-color-surface-container-low)] p-3 text-xs text-[var(--md-sys-color-on-surface)]">
+            <p className="font-semibold">{t("overview.aiTarget.dayOpsTitle")}</p>
+            <p className="mt-1 text-[var(--md-sys-color-on-surface-variant)]">{t("overview.aiTarget.dayOpsBody")}</p>
+          </div>
+          <div className="rounded-2xl border border-amber-300/60 bg-amber-50 p-3 text-xs text-amber-950">
+            <p className="font-semibold">{t("overview.aiTarget.criticalTitle")}</p>
+            <p className="mt-1">{t("overview.aiTarget.criticalBody")}</p>
+          </div>
+        </div>
+
         {aiTargetError && <p className="ui-feedback ui-feedback--error">{t("overview.aiTarget.error")}: {aiTargetError}</p>}
 
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -475,6 +567,14 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
         <div className="flex flex-wrap items-center gap-3">
           <button
             type="button"
+            onClick={() => void probeAiTarget()}
+            disabled={aiProbeLoading || presetHost.trim().length === 0}
+            className="rounded-full border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container-low)] px-4 py-2 text-xs font-semibold transition hover:bg-[var(--md-sys-color-surface-container)] disabled:opacity-50"
+          >
+            {aiProbeLoading ? t("service.button.updating") : t("overview.aiTarget.probeBtn")}
+          </button>
+          <button
+            type="button"
             onClick={applyAiPreset}
             disabled={aiTargetSaving || !activePreset}
             className="rounded-full border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-primary-container)] px-4 py-2 text-xs font-bold text-[var(--md-sys-color-on-primary-container)] transition hover:opacity-90 disabled:opacity-50"
@@ -506,6 +606,16 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
             {t("overview.aiTarget.deleteBtn")}
           </button>
         </div>
+
+        {aiProbeResult && (
+          <div className={`rounded-2xl border p-3 text-xs ${aiProbeResult.reachable ? "border-emerald-300 bg-emerald-50 text-emerald-950" : "border-rose-300 bg-rose-50 text-rose-950"}`}>
+            <p className="font-semibold">
+              {aiProbeResult.reachable ? t("overview.aiTarget.probeOk") : t("overview.aiTarget.probeFail")}
+            </p>
+            <p className="mt-1">{describeProbeStatus(aiProbeResult.api)}</p>
+            <p className="mt-1">{describeProbeStatus(aiProbeResult.stats)}</p>
+          </div>
+        )}
       </div>
 
       {error && <p className="ui-feedback ui-feedback--error">{t("overview.error.load")}: {error}</p>}

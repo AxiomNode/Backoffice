@@ -36,89 +36,10 @@ export type ServiceOperationalSummary = {
   };
 };
 
-type TimedResult<T> =
-  | { ok: true; data: T; latencyMs: number }
-  | { ok: false; error: string; latencyMs: number };
-
-function asTimedResult<T>(promiseFactory: () => Promise<T>): Promise<TimedResult<T>> {
-  const start = performance.now();
-  return promiseFactory()
-    .then((data) => ({ ok: true as const, data, latencyMs: Math.round(performance.now() - start) }))
-    .catch((error: unknown) => ({
-      ok: false as const,
-      error: error instanceof Error ? error.message : "Unknown error",
-      latencyMs: Math.round(performance.now() - start),
-    }));
-}
-
-function toRequestsTotal(metrics: unknown): number | null {
-  if (!metrics || typeof metrics !== "object") {
-    return null;
-  }
-
-  const payload = metrics as Record<string, unknown>;
-  const traffic = payload.traffic;
-
-  if (traffic && typeof traffic === "object") {
-    const value = (traffic as Record<string, unknown>).requestsReceivedTotal;
-    if (typeof value === "number" && Number.isFinite(value)) {
-      return value;
-    }
-  }
-
-  const topLevel = payload.requestsReceivedTotal;
-  if (typeof topLevel === "number" && Number.isFinite(topLevel)) {
-    return topLevel;
-  }
-
-  return null;
-}
-
-function toGenerationConversion(metrics: unknown): {
-  requestedTotal: number | null;
-  createdTotal: number | null;
-  conversionRatio: number | null;
-} {
-  if (!metrics || typeof metrics !== "object") {
-    return { requestedTotal: null, createdTotal: null, conversionRatio: null };
-  }
-
-  const payload = metrics as Record<string, unknown>;
-  const batch = payload.batch;
-
-  if (!batch || typeof batch !== "object") {
-    return { requestedTotal: null, createdTotal: null, conversionRatio: null };
-  }
-
-  const batchPayload = batch as Record<string, unknown>;
-  const requestedValue = batchPayload.requestedTotal;
-  const createdValue = batchPayload.createdTotal;
-
-  const requestedTotal = typeof requestedValue === "number" && Number.isFinite(requestedValue)
-    ? requestedValue
-    : null;
-  const createdTotal = typeof createdValue === "number" && Number.isFinite(createdValue)
-    ? createdValue
-    : null;
-
-  if (requestedTotal === null || createdTotal === null || requestedTotal <= 0) {
-    return { requestedTotal, createdTotal, conversionRatio: null };
-  }
-
-  return {
-    requestedTotal,
-    createdTotal,
-    conversionRatio: Number((createdTotal / requestedTotal).toFixed(4)),
-  };
-}
-
-function isAuthorizationError(message: string): boolean {
-  return /HTTP\s+(401|403)/i.test(message);
-}
-
-function isConnectionError(message: string): boolean {
-  return /Failed to fetch|NetworkError|HTTP\s+(5\d\d|429|408|0)/i.test(message);
-}
+type ServiceOperationalSummaryApiResponse = {
+  rows: Array<Omit<ServiceOperationalRow, "lastKnownError"> & { lastKnownError?: { message: string; at: string } | null }>;
+  totals: ServiceOperationalSummary["totals"];
+};
 
 /** Persists the last error for a service key in localStorage. */
 export function storeServiceLastError(serviceKey: string, message: string): void {
@@ -160,99 +81,25 @@ function readServiceLastError(serviceKey: string): { message: string; at: string
 /** Fetches health and metrics for all services, computing request rates and conversion ratios. */
 export async function fetchServiceOperationalSummary(
   context: SessionContext,
-  previousByService: Record<string, { requestsTotal: number | null; fetchedAt: number }>,
+  _previousByService: Record<string, { requestsTotal: number | null; fetchedAt: number }>,
 ): Promise<ServiceOperationalSummary> {
-  const catalogPayload = await fetchJson<{ services: ServiceCatalogItem[] }>(`${EDGE_API_BASE}/v1/backoffice/services`, {
+  const payload = await fetchJson<ServiceOperationalSummaryApiResponse>(`${EDGE_API_BASE}/v1/backoffice/services/operational-summary`, {
     headers: composeAuthHeaders(context),
   });
 
-  const services = catalogPayload.services ?? [];
-  const now = Date.now();
-
-  const metricsResults = await Promise.all(
-    services.map(async (service) => {
-      const result = await asTimedResult(() =>
-        fetchJson<{ metrics: unknown }>(`${EDGE_API_BASE}/v1/backoffice/services/${service.key}/metrics`, {
-          headers: composeAuthHeaders(context),
-        }),
-      );
-      return { service, result };
-    }),
-  );
-
-  const rows: ServiceOperationalRow[] = metricsResults.map(({ service, result }) => {
-    if (!result.ok) {
-      storeServiceLastError(service.key, result.error);
-      return {
-        key: service.key,
-        title: service.title,
-        domain: service.domain,
-        supportsData: service.supportsData,
-        online: false,
-        accessGuaranteed: !isAuthorizationError(result.error),
-        connectionError: isConnectionError(result.error),
-        requestsTotal: null,
-        requestsPerSecond: null,
-        generationRequestedTotal: null,
-        generationCreatedTotal: null,
-        generationConversionRatio: null,
-        latencyMs: result.latencyMs,
-        lastUpdatedAt: new Date(now).toISOString(),
-        errorMessage: result.error,
-        lastKnownError: readServiceLastError(service.key),
-      };
+  const rows: ServiceOperationalRow[] = (payload.rows ?? []).map((row) => {
+    if (row.errorMessage) {
+      storeServiceLastError(row.key, row.errorMessage);
     }
-
-    const requestsTotal = toRequestsTotal(result.data.metrics);
-    const conversion = toGenerationConversion(result.data.metrics);
-    const previous = previousByService[service.key];
-    let requestsPerSecond: number | null = null;
-
-    if (
-      previous &&
-      previous.requestsTotal !== null &&
-      requestsTotal !== null &&
-      now > previous.fetchedAt &&
-      requestsTotal >= previous.requestsTotal
-    ) {
-      const deltaRequests = requestsTotal - previous.requestsTotal;
-      const deltaSeconds = (now - previous.fetchedAt) / 1000;
-      if (deltaSeconds > 0) {
-        requestsPerSecond = Number((deltaRequests / deltaSeconds).toFixed(2));
-      }
-    }
-
-    previousByService[service.key] = {
-      requestsTotal,
-      fetchedAt: now,
-    };
 
     return {
-      key: service.key,
-      title: service.title,
-      domain: service.domain,
-      supportsData: service.supportsData,
-      online: true,
-      accessGuaranteed: true,
-      connectionError: false,
-      requestsTotal,
-      requestsPerSecond,
-      generationRequestedTotal: conversion.requestedTotal,
-      generationCreatedTotal: conversion.createdTotal,
-      generationConversionRatio: conversion.conversionRatio,
-      latencyMs: result.latencyMs,
-      lastUpdatedAt: new Date(now).toISOString(),
-      errorMessage: null,
-      lastKnownError: readServiceLastError(service.key),
+      ...row,
+      lastKnownError: readServiceLastError(row.key),
     };
   });
 
-  const totals = {
-    total: rows.length,
-    onlineCount: rows.filter((row) => row.online).length,
-    accessIssues: rows.filter((row) => !row.accessGuaranteed).length,
-    connectionErrors: rows.filter((row) => row.connectionError).length,
+  return {
+    rows,
+    totals: payload.totals,
   };
-
-  return { rows, totals };
 }

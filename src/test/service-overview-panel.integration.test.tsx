@@ -164,6 +164,37 @@ describe("ServiceOverviewPanel integration", () => {
         });
       }
 
+      if (url.endsWith("/v1/backoffice/ai-engine/probe") && options?.method === "POST") {
+        const payload = JSON.parse(String(options.body)) as {
+          host: string;
+          protocol: "http" | "https";
+          apiPort: number;
+          statsPort: number;
+        };
+
+        return Promise.resolve({
+          host: payload.host,
+          protocol: payload.protocol,
+          apiPort: payload.apiPort,
+          statsPort: payload.statsPort,
+          reachable: payload.host !== "10.0.0.99",
+          api: {
+            ok: true,
+            status: 200,
+            url: `${payload.protocol}://${payload.host}:${payload.apiPort}/health`,
+            latencyMs: 18,
+            message: null,
+          },
+          stats: {
+            ok: true,
+            status: 200,
+            url: `${payload.protocol}://${payload.host}:${payload.statsPort}/health`,
+            latencyMs: 12,
+            message: null,
+          },
+        });
+      }
+
       throw new Error(`Unhandled URL: ${url}`);
     });
   });
@@ -243,6 +274,24 @@ describe("ServiceOverviewPanel integration", () => {
     await waitFor(() => {
       expect(screen.getByLabelText("Nombre de opcion")).toHaveValue("VPS staging (195.35.48.40)");
       expect(screen.getByLabelText("Host / IP")).toHaveValue("195.35.48.40");
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Verificar conectividad" }));
+
+    await waitFor(() => {
+      expect(fetchJsonMock).toHaveBeenCalledWith(
+        "http://localhost:7005/v1/backoffice/ai-engine/probe",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            host: "195.35.48.40",
+            protocol: "http",
+            apiPort: 27001,
+            statsPort: 27000,
+          }),
+        }),
+      );
+      expect(screen.getByText(/Destino verificado/i)).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Usar este destino" }));

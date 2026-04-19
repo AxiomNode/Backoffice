@@ -183,7 +183,9 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
   const [testStatus, setTestStatus] = useState<TestRunStatus | null>(null);
   const [testRunning, setTestRunning] = useState(false);
   const [testError, setTestError] = useState<string | null>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pollInFlightRef = useRef(false);
+  const pollDelayMsRef = useRef(1000);
 
   const headers = useCallback(() => composeAuthHeaders(context), [context]);
 
@@ -388,12 +390,25 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) {
-      clearInterval(pollRef.current);
+      clearTimeout(pollRef.current);
       pollRef.current = null;
     }
   }, []);
 
+  const scheduleNextPoll = useCallback((delayMs: number, poller: () => Promise<void>) => {
+    stopPolling();
+    pollRef.current = setTimeout(() => {
+      pollRef.current = null;
+      void poller();
+    }, delayMs);
+  }, [stopPolling]);
+
   const pollTestStatus = useCallback(async () => {
+    if (pollInFlightRef.current) {
+      return;
+    }
+
+    pollInFlightRef.current = true;
     try {
       const data = await fetchJson<TestRunStatus>(
         `${EDGE_API_BASE}/v1/backoffice/ai-diagnostics/tests/status`,
@@ -403,29 +418,35 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
       if (data.status === "completed" || data.status === "error" || data.status === "idle") {
         setTestRunning(false);
         stopPolling();
+        pollDelayMsRef.current = 1000;
+      } else {
+        pollDelayMsRef.current = 1000;
+        scheduleNextPoll(pollDelayMsRef.current, pollTestStatus);
       }
     } catch {
-      // Keep polling — transient error
+      pollDelayMsRef.current = Math.min(pollDelayMsRef.current * 2, 5000);
+      scheduleNextPoll(pollDelayMsRef.current, pollTestStatus);
+    } finally {
+      pollInFlightRef.current = false;
     }
-  }, [headers, stopPolling]);
+  }, [headers, scheduleNextPoll, stopPolling]);
 
   const runTests = useCallback(async () => {
     setTestError(null);
     setTestRunning(true);
     setTestStatus(null);
+    pollDelayMsRef.current = 1000;
     try {
       await fetchJson<{ status: string }>(
         `${EDGE_API_BASE}/v1/backoffice/ai-diagnostics/tests/run`,
         { method: "POST", headers: headers() },
       );
-      // Start polling for results
       stopPolling();
-      pollRef.current = setInterval(pollTestStatus, 1000);
-      // Also poll immediately
       await pollTestStatus();
     } catch (err) {
       setTestError(err instanceof Error ? err.message : String(err));
       setTestRunning(false);
+      stopPolling();
     }
   }, [headers, pollTestStatus, stopPolling]);
 

@@ -121,7 +121,7 @@ describe("HotfixPanel integration", () => {
             language: "en",
             categoryId: "15",
             difficultyPercentage: 70,
-            numQuestions: 5,
+            itemCount: 5,
             count: 10,
           }),
         }),

@@ -20,6 +20,20 @@ const context: SessionContext = {
   devUid: "uid-test",
 };
 
+type TestRunStatusStub = {
+  status: "idle" | "running" | "completed" | "error" | "already_running";
+  started_at?: number;
+  finished_at?: number;
+  suites: Record<string, unknown>;
+  summary: {
+    total: number;
+    passed: number;
+    failed: number;
+    skipped: number;
+    errors: number;
+  };
+};
+
 function renderPanel() {
   return render(
     <I18nProvider language="es" setLanguage={vi.fn()}>
@@ -283,4 +297,109 @@ describe("AIDiagnosticsPanel integration", () => {
       );
     });
   });
+
+  it("polls test status without overlapping requests and stops after completion", async () => {
+    let resolveFirstStatus: ((value: TestRunStatusStub) => void) | null = null;
+    let statusCalls = 0;
+
+    fetchJsonMock.mockImplementation((url: string, options?: RequestInit) => {
+      if (url.endsWith("/v1/backoffice/ai-diagnostics/rag/stats")) {
+        return Promise.resolve({
+          total_chunks: 10,
+          total_chars: 2000,
+          unique_documents: 3,
+          embedding_dimensions: 384,
+          avg_chunk_chars: 200,
+          coverage_level: "good",
+          coverage_message: "ok",
+          retriever_config: { top_k: 4, min_score: 0.25 },
+          sources: [],
+        });
+      }
+
+      if (url.endsWith("/v1/backoffice/ai-engine/target") && (!options?.method || options.method === "GET")) {
+        return Promise.resolve({
+          source: "env",
+          label: null,
+          host: "localhost",
+          protocol: "http",
+          apiPort: 7001,
+          statsPort: 7000,
+          apiBaseUrl: "http://localhost:7001",
+          statsBaseUrl: "http://localhost:7000",
+          updatedAt: null,
+        });
+      }
+
+      if (url.endsWith("/v1/backoffice/service-targets") && (!options?.method || options.method === "GET")) {
+        return Promise.resolve({ total: 0, targets: [] });
+      }
+
+      if (url.endsWith("/v1/backoffice/ai-diagnostics/tests/run") && options?.method === "POST") {
+        return Promise.resolve({ status: "running" });
+      }
+
+      if (url.endsWith("/v1/backoffice/ai-diagnostics/tests/status")) {
+        statusCalls += 1;
+        if (statusCalls === 1) {
+          return new Promise<TestRunStatusStub>((resolve) => {
+            resolveFirstStatus = resolve;
+          });
+        }
+
+        return Promise.resolve({
+          status: "completed",
+          suites: {},
+          started_at: 1000,
+          finished_at: 2500,
+          summary: { total: 1, passed: 1, failed: 0, skipped: 0, errors: 0 },
+        });
+      }
+
+      throw new Error(`Unhandled URL: ${url}`);
+    });
+
+    renderPanel();
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Ejecutar tests" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Ejecutar tests" }));
+
+    await waitFor(() => {
+      expect(fetchJsonMock).toHaveBeenCalledWith(
+        "http://localhost:7005/v1/backoffice/ai-diagnostics/tests/run",
+        expect.objectContaining({ method: "POST" }),
+      );
+    });
+
+    expect(statusCalls).toBe(1);
+
+    await new Promise((resolve) => window.setTimeout(resolve, 1200));
+    expect(statusCalls).toBe(1);
+
+    const firstStatusResolver = resolveFirstStatus as ((value: TestRunStatusStub) => void) | null;
+    expect(firstStatusResolver).not.toBeNull();
+    if (firstStatusResolver) {
+      firstStatusResolver({
+        status: "running",
+        suites: {},
+        started_at: 1000,
+        summary: { total: 1, passed: 0, failed: 0, skipped: 0, errors: 0 },
+      });
+    }
+
+    await waitFor(() => {
+      expect(screen.getByText("Ejecutando...")).toBeInTheDocument();
+    });
+
+    await waitFor(() => {
+      expect(statusCalls).toBe(2);
+      expect(screen.getByText("Completado")).toBeInTheDocument();
+    }, { timeout: 2000 });
+
+    await new Promise((resolve) => window.setTimeout(resolve, 1200));
+    expect(statusCalls).toBe(2);
+  }, 10000);
 });

@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { I18nProvider } from "../i18n/context";
@@ -20,8 +20,15 @@ vi.mock("../application/services/operationalSummary", () => ({
 }));
 
 vi.mock("../ui/components/PaginatedFilterableTable", () => ({
-  PaginatedFilterableTable: ({ rows }: { rows: Array<Record<string, unknown>> }) => (
-    <div data-testid="paginated-table">rows:{rows.length}</div>
+  PaginatedFilterableTable: ({ rows, rowActions }: { rows: Array<Record<string, unknown>>; rowActions?: Array<{ label: string; onClick: (row: Record<string, unknown>) => void }> }) => (
+    <div data-testid="paginated-table">
+      <div>rows:{rows.length}</div>
+      {rows[0] && rowActions?.map((action) => (
+        <button key={action.label} type="button" onClick={() => action.onClick(rows[0])}>
+          {action.label}
+        </button>
+      ))}
+    </div>
   ),
 }));
 
@@ -47,6 +54,7 @@ describe("ServiceConsolePanel integration", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     cleanup();
   });
 
@@ -131,6 +139,135 @@ describe("ServiceConsolePanel integration", () => {
     });
   });
 
+  it("debounces text filter requests before reloading remote data", async () => {
+    vi.useFakeTimers();
+
+    fetchJsonMock.mockImplementation((url: string) => {
+      if (url.endsWith("/v1/backoffice/services")) {
+        return Promise.resolve({
+          services: [{ key: "microservice-users", title: "Users", domain: "core", supportsData: true }],
+        });
+      }
+      if (url.includes("/metrics")) {
+        return Promise.resolve({ metrics: { traffic: { requestsReceivedTotal: 10 } } });
+      }
+      if (url.includes("/logs")) {
+        return Promise.resolve({ logs: [] });
+      }
+      if (url.includes("/data?")) {
+        return Promise.resolve({ rows: [] });
+      }
+      return Promise.reject(new Error(`Unhandled URL: ${url}`));
+    });
+
+    renderPanel("svc-users");
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const initialDataCalls = fetchJsonMock.mock.calls.filter(([url]) => String(url).includes("/data?")).length;
+    const initialMetricCalls = fetchJsonMock.mock.calls.filter(([url]) => String(url).includes("/metrics")).length;
+    const initialLogCalls = fetchJsonMock.mock.calls.filter(([url]) => String(url).includes("/logs")).length;
+    fireEvent.change(screen.getByLabelText("Filtro"), { target: { value: "nuevo filtro" } });
+
+    const immediateDataCalls = fetchJsonMock.mock.calls.filter(([url]) => String(url).includes("/data?")).length;
+    expect(immediateDataCalls).toBe(initialDataCalls);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(350);
+      await Promise.resolve();
+    });
+
+    const nextDataCalls = fetchJsonMock.mock.calls.filter(([url]) => String(url).includes("/data?")).length;
+    expect(nextDataCalls).toBe(initialDataCalls + 1);
+    expect(fetchJsonMock.mock.calls.filter(([url]) => String(url).includes("/metrics")).length).toBe(initialMetricCalls);
+    expect(fetchJsonMock.mock.calls.filter(([url]) => String(url).includes("/logs")).length).toBe(initialLogCalls);
+  });
+
+  it("reloads only paginated data when pagination changes", async () => {
+    fetchJsonMock.mockImplementation((url: string) => {
+      if (url.endsWith("/v1/backoffice/services")) {
+        return Promise.resolve({
+          services: [{ key: "microservice-users", title: "Users", domain: "core", supportsData: true }],
+        });
+      }
+      if (url.includes("/metrics")) {
+        return Promise.resolve({ metrics: { traffic: { requestsReceivedTotal: 10 } } });
+      }
+      if (url.includes("/logs")) {
+        return Promise.resolve({ logs: [] });
+      }
+      if (url.includes("/data?")) {
+        return Promise.resolve({ rows: [], total: 55, page: 1, pageSize: 20 });
+      }
+      return Promise.reject(new Error(`Unhandled URL: ${url}`));
+    });
+
+    renderPanel("svc-users");
+
+    await waitFor(() => {
+      expect(fetchJsonMock).toHaveBeenCalled();
+    });
+
+    const initialDataCalls = fetchJsonMock.mock.calls.filter(([url]) => String(url).includes("/data?")).length;
+    const initialMetricCalls = fetchJsonMock.mock.calls.filter(([url]) => String(url).includes("/metrics")).length;
+    const initialLogCalls = fetchJsonMock.mock.calls.filter(([url]) => String(url).includes("/logs")).length;
+
+    fireEvent.change(screen.getByLabelText("Pagina"), { target: { value: "2" } });
+
+    await waitFor(() => {
+      expect(fetchJsonMock.mock.calls.filter(([url]) => String(url).includes("/data?")).length).toBe(initialDataCalls + 1);
+    });
+
+    expect(fetchJsonMock.mock.calls.filter(([url]) => String(url).includes("/metrics")).length).toBe(initialMetricCalls);
+    expect(fetchJsonMock.mock.calls.filter(([url]) => String(url).includes("/logs")).length).toBe(initialLogCalls);
+  });
+
+  it("auto refresh updates observability without reloading paginated data", async () => {
+    vi.useFakeTimers();
+
+    fetchJsonMock.mockImplementation((url: string) => {
+      if (url.endsWith("/v1/backoffice/services")) {
+        return Promise.resolve({
+          services: [{ key: "microservice-users", title: "Users", domain: "core", supportsData: true }],
+        });
+      }
+      if (url.includes("/metrics")) {
+        return Promise.resolve({ metrics: { traffic: { requestsReceivedTotal: 10 } } });
+      }
+      if (url.includes("/logs")) {
+        return Promise.resolve({ logs: [] });
+      }
+      if (url.includes("/data?")) {
+        return Promise.resolve({ rows: [], total: 12, page: 1, pageSize: 20 });
+      }
+      return Promise.reject(new Error(`Unhandled URL: ${url}`));
+    });
+
+    renderPanel("svc-users");
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const initialDataCalls = fetchJsonMock.mock.calls.filter(([url]) => String(url).includes("/data?")).length;
+    const initialMetricCalls = fetchJsonMock.mock.calls.filter(([url]) => String(url).includes("/metrics")).length;
+    const initialLogCalls = fetchJsonMock.mock.calls.filter(([url]) => String(url).includes("/logs")).length;
+
+    fireEvent.change(screen.getByLabelText("Actualizacion"), { target: { value: "auto" } });
+    fireEvent.change(screen.getByLabelText("Intervalo"), { target: { value: "5" } });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5200);
+      await Promise.resolve();
+    });
+
+    expect(fetchJsonMock.mock.calls.filter(([url]) => String(url).includes("/metrics")).length).toBeGreaterThan(initialMetricCalls);
+    expect(fetchJsonMock.mock.calls.filter(([url]) => String(url).includes("/logs")).length).toBeGreaterThan(initialLogCalls);
+    expect(fetchJsonMock.mock.calls.filter(([url]) => String(url).includes("/data?")).length).toBe(initialDataCalls);
+  });
+
   it("supports manual insert and delete actions for game history datasets", async () => {
     window.location.hash = "#/backoffice/svc-quiz?dataset=history";
 
@@ -157,11 +294,14 @@ describe("ServiceConsolePanel integration", () => {
       if (url.includes("/data/") && options?.method === "DELETE") {
         return Promise.resolve({ deleted: true });
       }
+      if (url.includes("/data/") && options?.method === "PATCH") {
+        return Promise.resolve({ item: { id: "entry-1", status: "pending_review" } });
+      }
       if (url.endsWith("/data") && options?.method === "POST") {
         return Promise.resolve({ item: { id: "entry-1" } });
       }
       if (url.includes("/data?")) {
-        return Promise.resolve({ rows: [{ id: "entry-1", question: "Q" }] });
+        return Promise.resolve({ rows: [{ id: "entry-1", categoryId: "22", categoryName: "Science", language: "en", status: "manual", request: { categoryId: "22", language: "en", difficulty_percentage: 55 }, response: { questions: [{ question: "Q" }] } }] });
       }
       return Promise.reject(new Error(`Unhandled URL: ${url}`));
     });
@@ -172,6 +312,15 @@ describe("ServiceConsolePanel integration", () => {
       expect(screen.getByText("Alta/baja manual de datos")).toBeInTheDocument();
       expect((screen.getByLabelText("Categoria") as HTMLSelectElement).value).toBe("22");
       expect((screen.getByLabelText("Lenguaje") as HTMLSelectElement).value).toBe("en");
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Validar" }));
+
+    await waitFor(() => {
+      expect(fetchJsonMock).toHaveBeenCalledWith(
+        expect.stringContaining("/v1/backoffice/services/microservice-quiz/data/entry-1"),
+        expect.objectContaining({ method: "PATCH" }),
+      );
     });
 
     fireEvent.change(screen.getByLabelText("Contenido JSON"), {
@@ -187,10 +336,32 @@ describe("ServiceConsolePanel integration", () => {
       );
     });
 
+    const metricCallsAfterInsert = fetchJsonMock.mock.calls.filter(([url]) => String(url).includes("/metrics")).length;
+    const logCallsAfterInsert = fetchJsonMock.mock.calls.filter(([url]) => String(url).includes("/logs")).length;
+
+    fireEvent.change(screen.getByLabelText("ID a actualizar"), {
+      target: { value: "entry-1" },
+    });
+    fireEvent.change(screen.getByLabelText("Estado editorial"), {
+      target: { value: "pending_review" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Actualizar entrada" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Entrada actualizada correctamente.")).toBeInTheDocument();
+      expect(fetchJsonMock).toHaveBeenCalledWith(
+        expect.stringContaining("/v1/backoffice/services/microservice-quiz/data/entry-1"),
+        expect.objectContaining({ method: "PATCH" }),
+      );
+    });
+
+    expect(fetchJsonMock.mock.calls.filter(([url]) => String(url).includes("/metrics")).length).toBe(metricCallsAfterInsert);
+    expect(fetchJsonMock.mock.calls.filter(([url]) => String(url).includes("/logs")).length).toBe(logCallsAfterInsert);
+
     fireEvent.change(screen.getByLabelText("ID a eliminar"), {
       target: { value: "entry-1" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Eliminar entrada" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Eliminar entrada" })[0]);
 
     await waitFor(() => {
       expect(screen.getByText("Entrada eliminada correctamente.")).toBeInTheDocument();

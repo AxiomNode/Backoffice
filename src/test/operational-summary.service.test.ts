@@ -24,31 +24,63 @@ describe("fetchServiceOperationalSummary", () => {
 
   it("classifies mixed service states: online, connection error and access denied", async () => {
     fetchJsonMock.mockImplementation((url: string) => {
-      if (url.endsWith("/v1/backoffice/services")) {
+      if (url.endsWith("/v1/backoffice/services/operational-summary")) {
         return Promise.resolve({
-          services: [
-            { key: "svc-ok", title: "Service OK", domain: "core", supportsData: true },
-            { key: "svc-down", title: "Service Down", domain: "core", supportsData: false },
-            { key: "svc-denied", title: "Service Denied", domain: "admin", supportsData: false },
+          rows: [
+            {
+              key: "svc-ok",
+              title: "Service OK",
+              domain: "core",
+              supportsData: true,
+              online: true,
+              accessGuaranteed: true,
+              connectionError: false,
+              requestsTotal: 100,
+              requestsPerSecond: 2,
+              generationRequestedTotal: 50,
+              generationCreatedTotal: 40,
+              generationConversionRatio: 0.8,
+              latencyMs: 10,
+              lastUpdatedAt: "2026-04-19T00:00:00.000Z",
+              errorMessage: null,
+            },
+            {
+              key: "svc-down",
+              title: "Service Down",
+              domain: "core",
+              supportsData: false,
+              online: false,
+              accessGuaranteed: true,
+              connectionError: true,
+              requestsTotal: null,
+              requestsPerSecond: null,
+              generationRequestedTotal: null,
+              generationCreatedTotal: null,
+              generationConversionRatio: null,
+              latencyMs: 12,
+              lastUpdatedAt: "2026-04-19T00:00:00.000Z",
+              errorMessage: "HTTP 503: service unavailable",
+            },
+            {
+              key: "svc-denied",
+              title: "Service Denied",
+              domain: "admin",
+              supportsData: false,
+              online: false,
+              accessGuaranteed: false,
+              connectionError: false,
+              requestsTotal: null,
+              requestsPerSecond: null,
+              generationRequestedTotal: null,
+              generationCreatedTotal: null,
+              generationConversionRatio: null,
+              latencyMs: 8,
+              lastUpdatedAt: "2026-04-19T00:00:00.000Z",
+              errorMessage: "HTTP 403: forbidden",
+            },
           ],
+          totals: { total: 3, onlineCount: 1, connectionErrors: 1, accessIssues: 1 },
         });
-      }
-
-      if (url.includes("svc-ok/metrics")) {
-        return Promise.resolve({
-          metrics: {
-            traffic: { requestsReceivedTotal: 100 },
-            batch: { requestedTotal: 50, createdTotal: 40 },
-          },
-        });
-      }
-
-      if (url.includes("svc-down/metrics")) {
-        return Promise.reject(new Error("HTTP 503: service unavailable"));
-      }
-
-      if (url.includes("svc-denied/metrics")) {
-        return Promise.reject(new Error("HTTP 403: forbidden"));
       }
 
       return Promise.reject(new Error(`Unexpected URL: ${url}`));
@@ -85,36 +117,80 @@ describe("fetchServiceOperationalSummary", () => {
 
   it("handles unknown rejection payloads, malformed stored errors, and computes req/s deltas", async () => {
     fetchJsonMock.mockImplementation((url: string) => {
-      if (url.endsWith("/v1/backoffice/services")) {
+      if (url.endsWith("/v1/backoffice/services/operational-summary")) {
         return Promise.resolve({
-          services: [
-            { key: "svc-fast", title: "Service Fast", domain: "core", supportsData: true },
-            { key: "svc-unknown", title: "Service Unknown", domain: "edge", supportsData: false },
-            { key: "svc-bad-json", title: "Service Bad Json", domain: "ops", supportsData: false },
-            { key: "svc-bad-shape", title: "Service Bad Shape", domain: "ops", supportsData: false },
+          rows: [
+            {
+              key: "svc-fast",
+              title: "Service Fast",
+              domain: "core",
+              supportsData: true,
+              online: true,
+              accessGuaranteed: true,
+              connectionError: false,
+              requestsTotal: 140,
+              requestsPerSecond: 8,
+              generationRequestedTotal: 0,
+              generationCreatedTotal: 0,
+              generationConversionRatio: null,
+              latencyMs: 5,
+              lastUpdatedAt: "2026-04-19T00:00:00.000Z",
+              errorMessage: null,
+            },
+            {
+              key: "svc-unknown",
+              title: "Service Unknown",
+              domain: "edge",
+              supportsData: false,
+              online: false,
+              accessGuaranteed: true,
+              connectionError: false,
+              requestsTotal: null,
+              requestsPerSecond: null,
+              generationRequestedTotal: null,
+              generationCreatedTotal: null,
+              generationConversionRatio: null,
+              latencyMs: 6,
+              lastUpdatedAt: "2026-04-19T00:00:00.000Z",
+              errorMessage: "Unknown error",
+            },
+            {
+              key: "svc-bad-json",
+              title: "Service Bad Json",
+              domain: "ops",
+              supportsData: false,
+              online: true,
+              accessGuaranteed: true,
+              connectionError: false,
+              requestsTotal: 11,
+              requestsPerSecond: null,
+              generationRequestedTotal: null,
+              generationCreatedTotal: null,
+              generationConversionRatio: null,
+              latencyMs: 7,
+              lastUpdatedAt: "2026-04-19T00:00:00.000Z",
+              errorMessage: null,
+            },
+            {
+              key: "svc-bad-shape",
+              title: "Service Bad Shape",
+              domain: "ops",
+              supportsData: false,
+              online: true,
+              accessGuaranteed: true,
+              connectionError: false,
+              requestsTotal: 9,
+              requestsPerSecond: null,
+              generationRequestedTotal: null,
+              generationCreatedTotal: null,
+              generationConversionRatio: null,
+              latencyMs: 9,
+              lastUpdatedAt: "2026-04-19T00:00:00.000Z",
+              errorMessage: null,
+            },
           ],
+          totals: { total: 4, onlineCount: 3, connectionErrors: 0, accessIssues: 0 },
         });
-      }
-
-      if (url.includes("svc-fast/metrics")) {
-        return Promise.resolve({
-          metrics: {
-            requestsReceivedTotal: 140,
-            batch: { requestedTotal: 0, createdTotal: 0 },
-          },
-        });
-      }
-
-      if (url.includes("svc-unknown/metrics")) {
-        return Promise.reject("network-down");
-      }
-
-      if (url.includes("svc-bad-json/metrics")) {
-        return Promise.resolve({ metrics: { traffic: { requestsReceivedTotal: 11 } } });
-      }
-
-      if (url.includes("svc-bad-shape/metrics")) {
-        return Promise.resolve({ metrics: { traffic: { requestsReceivedTotal: 9 } } });
       }
 
       return Promise.reject(new Error(`Unexpected URL: ${url}`));
@@ -125,9 +201,6 @@ describe("fetchServiceOperationalSummary", () => {
       "backoffice.serviceLastError.svc-bad-shape",
       JSON.stringify({ message: 42, at: null }),
     );
-
-    const nowSpy = vi.spyOn(Date, "now");
-    nowSpy.mockReturnValue(20000);
 
     const previousByService: Record<string, { requestsTotal: number | null; fetchedAt: number }> = {
       "svc-fast": { requestsTotal: 100, fetchedAt: 15000 },
@@ -151,7 +224,5 @@ describe("fetchServiceOperationalSummary", () => {
 
     expect(badJsonRow?.lastKnownError).toBeNull();
     expect(badShapeRow?.lastKnownError).toBeNull();
-
-    nowSpy.mockRestore();
   });
 });

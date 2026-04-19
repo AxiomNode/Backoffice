@@ -3,10 +3,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { navConfigByKey } from "../../domain/constants/navigation";
 import { storeServiceLastError } from "../../application/services/operationalSummary";
 import { UI_SERVICE_GENERATION_FOLLOW_STORAGE_PREFIX, UI_SERVICE_ROUTE_QUERY_STORAGE_PREFIX } from "../../domain/constants/ui";
-import type { DataDataset, NavKey, ServiceCatalogItem, SessionContext } from "../../domain/types/backoffice";
+import type { DataDataset, NavKey, ServiceCatalogItem, ServiceKey, SessionContext } from "../../domain/types/backoffice";
 import { composeAuthHeaders } from "../../infrastructure/backoffice/authHeaders";
 import { EDGE_API_BASE, fetchJson } from "../../infrastructure/http/apiClient";
 import { rowsFromUnknown } from "../utils/table";
+import { useDebouncedValue } from "./useDebouncedValue";
 
 /** @module useServiceConsoleState - State management hook for individual service console panels. */
 
@@ -39,6 +40,10 @@ function asSectionResult<T>(promise: Promise<T>): Promise<SectionResult<T>> {
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === "AbortError";
 }
 
 function asString(value: unknown): string {
@@ -77,10 +82,13 @@ function simplifyGameHistoryRows(
         detail: { id: row.id },
         createdAt: row.createdAt,
         status: row.status,
+        categoryId: row.categoryId,
         category: row.categoryName ?? row.categoryId,
         language: row.language,
         difficultyPercentage: difficulty,
         primaryQuestion,
+        request,
+        response,
       };
     }
 
@@ -97,10 +105,13 @@ function simplifyGameHistoryRows(
       detail: { id: row.id },
       createdAt: row.createdAt,
       status: row.status,
+      categoryId: row.categoryId,
       category: row.categoryName ?? row.categoryId,
       language: row.language,
       difficultyPercentage: difficulty,
       primaryWords,
+      request,
+      response,
     };
   });
 }
@@ -108,7 +119,9 @@ function simplifyGameHistoryRows(
 /** I18n message keys consumed by the service console hook. */
 export type ServiceConsoleMessages = {
   insertOk: string;
+  updateOk: string;
   deleteOk: string;
+  updateIdRequired: string;
   contentObjectOnly: string;
   contentNonNull: string;
 };
@@ -116,13 +129,21 @@ export type ServiceConsoleMessages = {
 /** Manages data fetching, pagination, filters, and CRUD state for a service console panel. */
 export function useServiceConsoleState(navKey: NavKey, context: SessionContext, errorLabel: string, messages: ServiceConsoleMessages) {
   const serviceConfig = navConfigByKey(navKey);
-  const requestVersionRef = useRef(0);
+  const overviewRequestVersionRef = useRef(0);
+  const dataRequestVersionRef = useRef(0);
+  const overviewAbortControllerRef = useRef<AbortController | null>(null);
+  const dataAbortControllerRef = useRef<AbortController | null>(null);
+  const serviceCatalogCacheRef = useRef<ServiceCatalogItem[] | null>(null);
+  const manualCatalogCacheRef = useRef<Partial<Record<ServiceKey, ServiceCatalogSnapshot>>>({});
 
   // --- Data state ---
   const [catalog, setCatalog] = useState<ServiceCatalogItem[]>([]);
   const [metricsRows, setMetricsRows] = useState<Array<Record<string, unknown>>>([]);
   const [logsRows, setLogsRows] = useState<Array<Record<string, unknown>>>([]);
   const [dataRows, setDataRows] = useState<Array<Record<string, unknown>>>([]);
+  const [dataTotal, setDataTotal] = useState(0);
+  const [dataPage, setDataPage] = useState(1);
+  const [dataPageSize, setDataPageSize] = useState(20);
 
   // --- Filter / pagination state ---
   const [dataset, setDataset] = useState<DataDataset>(serviceConfig?.defaultDataset ?? "history");
@@ -133,6 +154,8 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [limit, setLimit] = useState(200);
+  const debouncedFilter = useDebouncedValue(filter, 300);
+  const debouncedSortBy = useDebouncedValue(sortBy, 150);
 
   // --- Refresh state ---
   const [refreshMode, setRefreshMode] = useState<"manual" | "auto">("manual");
@@ -141,7 +164,8 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
   const [followTaskId, setFollowTaskId] = useState("");
 
   // --- Loading / error state ---
-  const [loading, setLoading] = useState(false);
+  const [overviewLoading, setOverviewLoading] = useState(false);
+  const [dataLoading, setDataLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [metricsError, setMetricsError] = useState<string | null>(null);
   const [logsError, setLogsError] = useState<string | null>(null);
@@ -151,7 +175,9 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
   const [manualCategoryId, setManualCategoryId] = useState("23");
   const [manualLanguage, setManualLanguage] = useState("es");
   const [manualDifficulty, setManualDifficulty] = useState(55);
+  const [manualStatus, setManualStatus] = useState<"manual" | "validated" | "pending_review">("manual");
   const [manualContentJson, setManualContentJson] = useState('{"title":"", "content":""}');
+  const [editEntryId, setEditEntryId] = useState("");
   const [deleteEntryId, setDeleteEntryId] = useState("");
   const [manualCatalogs, setManualCatalogs] = useState<ServiceCatalogSnapshot>({ categories: [], languages: [] });
   const [manualCatalogError, setManualCatalogError] = useState<string | null>(null);
@@ -165,11 +191,15 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
     setMetricsRows([]);
     setLogsRows([]);
     setDataRows([]);
+    setDataTotal(0);
+    setDataPage(1);
+    setDataPageSize(20);
     setError(null);
     setMetricsError(null);
     setLogsError(null);
     setDataError(null);
-    setLoading(false);
+    setOverviewLoading(false);
+    setDataLoading(false);
     setFilter("");
     setSortBy("");
     setSortDirection("desc");
@@ -184,14 +214,17 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
     setManualCategoryId("23");
     setManualLanguage("es");
     setManualDifficulty(55);
+    setManualStatus("manual");
     setManualContentJson('{"title":"", "content":""}');
+    setEditEntryId("");
     setDeleteEntryId("");
     setManualCatalogs({ categories: [], languages: [] });
     setManualCatalogError(null);
     setDataMutationMessage(null);
     setDataMutationError(null);
     setDataMutationLoading(false);
-    requestVersionRef.current += 1;
+    overviewRequestVersionRef.current += 1;
+    dataRequestVersionRef.current += 1;
 
     if (typeof window === "undefined") {
       if (serviceConfig?.defaultDataset) setDataset(serviceConfig.defaultDataset);
@@ -303,6 +336,36 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
     setElapsedMs(0);
   }, [refreshMode, refreshIntervalSeconds]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadServiceCatalog = async () => {
+      if (serviceCatalogCacheRef.current) {
+        setCatalog(serviceCatalogCacheRef.current);
+        return;
+      }
+
+      try {
+        const payload = await fetchJson<{ services: ServiceCatalogItem[] }>(`${EDGE_API_BASE}/v1/backoffice/services`, {
+          headers: composeAuthHeaders(context),
+        });
+
+        if (cancelled) return;
+        const nextCatalog = payload.services ?? [];
+        serviceCatalogCacheRef.current = nextCatalog;
+        setCatalog(nextCatalog);
+      } catch {
+        if (cancelled) return;
+        setCatalog([]);
+      }
+    };
+
+    void loadServiceCatalog();
+    return () => {
+      cancelled = true;
+    };
+  }, [context]);
+
   // --- Load catalog for game services ---
   useEffect(() => {
     if (!serviceConfig || (serviceConfig.service !== "microservice-quiz" && serviceConfig.service !== "microservice-wordpass")) {
@@ -313,6 +376,20 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
     const loadCatalogs = async () => {
       try {
         setManualCatalogError(null);
+        const cachedCatalog = manualCatalogCacheRef.current[serviceConfig.service];
+        if (cachedCatalog) {
+          if (cancelled) return;
+          setManualCatalogs(cachedCatalog);
+
+          if (cachedCatalog.categories.length > 0 && !cachedCatalog.categories.some((item) => item.id === manualCategoryId)) {
+            setManualCategoryId(cachedCatalog.categories[0].id);
+          }
+          if (cachedCatalog.languages.length > 0 && !cachedCatalog.languages.some((item) => item.code === manualLanguage)) {
+            setManualLanguage(cachedCatalog.languages[0].code);
+          }
+          return;
+        }
+
         const payload = await fetchJson<{ catalogs?: { categories?: Array<{ id: string; name: string }>; languages?: Array<{ code: string; name: string }> } }>(
           `${EDGE_API_BASE}/v1/backoffice/services/${serviceConfig.service}/catalogs`,
           { headers: composeAuthHeaders(context) },
@@ -320,9 +397,11 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
 
         if (cancelled) return;
 
-        const categories = payload.catalogs?.categories ?? [];
-        const languages = payload.catalogs?.languages ?? [];
-        setManualCatalogs({ categories, languages });
+          const categories = payload.catalogs?.categories ?? [];
+          const languages = payload.catalogs?.languages ?? [];
+          const nextCatalog = { categories, languages };
+          manualCatalogCacheRef.current[serviceConfig.service] = nextCatalog;
+          setManualCatalogs(nextCatalog);
 
         if (categories.length > 0 && !categories.some((item) => item.id === manualCategoryId)) {
           setManualCategoryId(categories[0].id);
@@ -340,44 +419,43 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
     return () => { cancelled = true; };
   }, [context, serviceConfig]);
 
-  // --- loadAll: fetch catalog + metrics + logs + data ---
-  const loadAll = useCallback(async () => {
+  useEffect(() => {
+    return () => {
+      overviewAbortControllerRef.current?.abort();
+      dataAbortControllerRef.current?.abort();
+    };
+  }, []);
+
+  const loadOverview = useCallback(async () => {
     if (!serviceConfig) return;
 
-    const requestVersion = ++requestVersionRef.current;
+    const requestVersion = ++overviewRequestVersionRef.current;
+    overviewAbortControllerRef.current?.abort();
+    const abortController = new AbortController();
+    overviewAbortControllerRef.current = abortController;
 
-    setLoading(true);
+    setOverviewLoading(true);
     setError(null);
     setMetricsError(null);
     setLogsError(null);
-    setDataError(null);
 
     try {
-      const [catalogResult, metricsResult, logsResult] = await Promise.all([
-        asSectionResult(
-          fetchJson<{ services: ServiceCatalogItem[] }>(`${EDGE_API_BASE}/v1/backoffice/services`, {
-            headers: composeAuthHeaders(context),
-          }),
-        ),
+      const [metricsResult, logsResult] = await Promise.all([
         asSectionResult(
           fetchJson<{ metrics: unknown }>(`${EDGE_API_BASE}/v1/backoffice/services/${serviceConfig.service}/metrics`, {
             headers: composeAuthHeaders(context),
+            signal: abortController.signal,
           }),
         ),
         asSectionResult(
           fetchJson<{ logs: unknown }>(`${EDGE_API_BASE}/v1/backoffice/services/${serviceConfig.service}/logs?limit=${limit}`, {
             headers: composeAuthHeaders(context),
+            signal: abortController.signal,
           }),
         ),
       ]);
 
-      if (requestVersion !== requestVersionRef.current) return;
-
-      if (catalogResult.ok) {
-        setCatalog(catalogResult.data.services ?? []);
-      } else {
-        setCatalog([]);
-      }
+      if (requestVersion !== overviewRequestVersionRef.current) return;
 
       if (metricsResult.ok) {
         setMetricsRows(rowsFromUnknown(metricsResult.data.metrics));
@@ -394,102 +472,171 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
         setLogsError(logsResult.error);
         storeServiceLastError(serviceConfig.service, logsResult.error);
       }
-
-      if (serviceConfig.datasets && serviceConfig.datasets.length > 0) {
-        const query = new URLSearchParams({
-          dataset,
-          page: String(page),
-          pageSize: String(pageSize),
-          sortBy,
-          sortDirection,
-          filter,
-          metric,
-          limit: String(limit),
-        });
-
-        const dataResult = await asSectionResult(
-          fetchJson<{ rows: Array<Record<string, unknown>> }>(
-            `${EDGE_API_BASE}/v1/backoffice/services/${serviceConfig.service}/data?${query.toString()}`,
-            { headers: composeAuthHeaders(context) },
-          ),
-        );
-        if (requestVersion !== requestVersionRef.current) return;
-        if (dataResult.ok) {
-          let nextRows = dataResult.data.rows ?? [];
-
-          const isQuizHistory = serviceConfig.service === "microservice-quiz" && dataset === "history";
-          const isWordpassHistory = serviceConfig.service === "microservice-wordpass" && dataset === "history";
-
-          if (isQuizHistory) nextRows = simplifyGameHistoryRows(nextRows, "quiz");
-          if (isWordpassHistory) nextRows = simplifyGameHistoryRows(nextRows, "wordpass");
-
-          const supportsProcessFollow =
-            dataset === "processes" &&
-            followTaskId.trim().length > 0 &&
-            (serviceConfig.service === "microservice-quiz" || serviceConfig.service === "microservice-wordpass");
-
-          if (supportsProcessFollow) {
-            const followResult = await asSectionResult(
-              fetchJson<{ task?: Record<string, unknown> }>(
-                `${EDGE_API_BASE}/v1/backoffice/services/${serviceConfig.service}/generation/process/${encodeURIComponent(followTaskId.trim())}?includeItems=false`,
-                { headers: composeAuthHeaders(context) },
-              ),
-            );
-
-            if (requestVersion !== requestVersionRef.current) return;
-
-            if (followResult.ok && followResult.data.task) {
-              const followedTask = followResult.data.task;
-              const followedTaskId = String(followedTask.taskId ?? "");
-              nextRows = [
-                followedTask,
-                ...nextRows.filter((row) => String(row.taskId ?? "") !== followedTaskId),
-              ];
-            }
-          }
-
-          setDataRows(nextRows);
-        } else {
-          setDataRows([]);
-          setDataError(dataResult.error);
-          storeServiceLastError(serviceConfig.service, dataResult.error);
-        }
-      } else {
-        if (requestVersion !== requestVersionRef.current) return;
-        setDataRows([]);
-      }
     } catch (err) {
-      if (requestVersion !== requestVersionRef.current) return;
+      if (isAbortError(err)) {
+        return;
+      }
+      if (requestVersion !== overviewRequestVersionRef.current) return;
       setMetricsRows([]);
       setLogsRows([]);
-      setDataRows([]);
       const message = err instanceof Error ? err.message : errorLabel;
       setError(message);
       storeServiceLastError(serviceConfig.service, message);
     } finally {
-      if (requestVersion === requestVersionRef.current) {
-        setLoading(false);
+      if (overviewAbortControllerRef.current === abortController) {
+        overviewAbortControllerRef.current = null;
+      }
+      if (requestVersion === overviewRequestVersionRef.current) {
+        setOverviewLoading(false);
       }
     }
-  }, [context, dataset, filter, followTaskId, limit, metric, page, pageSize, serviceConfig, sortBy, sortDirection, errorLabel]);
+  }, [context, limit, serviceConfig, errorLabel]);
 
-  // --- Trigger initial + dependency load ---
+  const loadData = useCallback(async () => {
+    if (!serviceConfig) return;
+
+    const requestVersion = ++dataRequestVersionRef.current;
+    dataAbortControllerRef.current?.abort();
+    const abortController = new AbortController();
+    dataAbortControllerRef.current = abortController;
+
+    setDataLoading(true);
+    setDataError(null);
+
+    try {
+      if (!serviceConfig.datasets || serviceConfig.datasets.length === 0) {
+        if (requestVersion !== dataRequestVersionRef.current) return;
+        setDataRows([]);
+        setDataTotal(0);
+        setDataPage(page);
+        setDataPageSize(pageSize);
+        return;
+      }
+
+      const query = new URLSearchParams({
+        dataset,
+        page: String(page),
+        pageSize: String(pageSize),
+        sortBy: debouncedSortBy,
+        sortDirection,
+        filter: debouncedFilter,
+        metric,
+        limit: String(limit),
+      });
+
+      const dataResult = await asSectionResult(
+        fetchJson<{ rows: Array<Record<string, unknown>>; total?: number; page?: number; pageSize?: number }>(
+          `${EDGE_API_BASE}/v1/backoffice/services/${serviceConfig.service}/data?${query.toString()}`,
+          { headers: composeAuthHeaders(context), signal: abortController.signal },
+        ),
+      );
+
+      if (requestVersion !== dataRequestVersionRef.current) return;
+
+      if (!dataResult.ok) {
+        setDataRows([]);
+        setDataTotal(0);
+        setDataPage(page);
+        setDataPageSize(pageSize);
+        setDataError(dataResult.error);
+        storeServiceLastError(serviceConfig.service, dataResult.error);
+        return;
+      }
+
+      let nextRows = dataResult.data.rows ?? [];
+      const nextTotal = typeof dataResult.data.total === "number" ? dataResult.data.total : nextRows.length;
+      const nextPage = typeof dataResult.data.page === "number" ? dataResult.data.page : page;
+      const nextResolvedPageSize = typeof dataResult.data.pageSize === "number" ? dataResult.data.pageSize : pageSize;
+
+      const isQuizHistory = serviceConfig.service === "microservice-quiz" && dataset === "history";
+      const isWordpassHistory = serviceConfig.service === "microservice-wordpass" && dataset === "history";
+
+      if (isQuizHistory) nextRows = simplifyGameHistoryRows(nextRows, "quiz");
+      if (isWordpassHistory) nextRows = simplifyGameHistoryRows(nextRows, "wordpass");
+
+      const supportsProcessFollow =
+        dataset === "processes" &&
+        followTaskId.trim().length > 0 &&
+        (serviceConfig.service === "microservice-quiz" || serviceConfig.service === "microservice-wordpass");
+
+      if (supportsProcessFollow) {
+        const followResult = await asSectionResult(
+          fetchJson<{ task?: Record<string, unknown> }>(
+            `${EDGE_API_BASE}/v1/backoffice/services/${serviceConfig.service}/generation/process/${encodeURIComponent(followTaskId.trim())}?includeItems=false`,
+            { headers: composeAuthHeaders(context), signal: abortController.signal },
+          ),
+        );
+
+        if (requestVersion !== dataRequestVersionRef.current) return;
+
+        if (followResult.ok && followResult.data.task) {
+          const followedTask = followResult.data.task;
+          const followedTaskId = String(followedTask.taskId ?? "");
+          nextRows = [
+            followedTask,
+            ...nextRows.filter((row) => String(row.taskId ?? "") !== followedTaskId),
+          ];
+        }
+      }
+
+      setDataRows(nextRows);
+      setDataTotal(nextTotal);
+      setDataPage(nextPage);
+      setDataPageSize(nextResolvedPageSize);
+    } catch (err) {
+      if (isAbortError(err)) {
+        return;
+      }
+      if (requestVersion !== dataRequestVersionRef.current) return;
+      setDataRows([]);
+      setDataTotal(0);
+      setDataPage(page);
+      setDataPageSize(pageSize);
+      const message = err instanceof Error ? err.message : errorLabel;
+      setDataError(message);
+      storeServiceLastError(serviceConfig.service, message);
+    } finally {
+      if (dataAbortControllerRef.current === abortController) {
+        dataAbortControllerRef.current = null;
+      }
+      if (requestVersion === dataRequestVersionRef.current) {
+        setDataLoading(false);
+      }
+    }
+  }, [context, dataset, debouncedFilter, debouncedSortBy, followTaskId, limit, metric, page, pageSize, serviceConfig, sortDirection, errorLabel]);
+
+  // --- loadAll: fetch overview + data ---
+  const loadAll = useCallback(async () => {
+    await Promise.all([loadOverview(), loadData()]);
+  }, [loadData, loadOverview]);
+
+  // --- Trigger overview load ---
   useEffect(() => {
-    void loadAll();
-  }, [loadAll]);
+    void loadOverview();
+  }, [loadOverview]);
+
+  // --- Trigger data load ---
+  useEffect(() => {
+    void loadData();
+  }, [loadData]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedFilter, debouncedSortBy]);
 
   // --- Auto-refresh ---
   useEffect(() => {
     if (refreshMode !== "auto") return;
 
-    const stepMs = 200;
+    const stepMs = 1000;
     const timer = window.setInterval(() => {
       setElapsedMs((current) => {
-        if (loading) return current;
+        if (document.hidden) return current;
+        if (overviewLoading || dataLoading) return current;
         const nextValue = current + stepMs;
         const threshold = refreshIntervalSeconds * 1000;
         if (nextValue >= threshold) {
-          void loadAll();
+          void loadOverview();
           return 0;
         }
         return nextValue;
@@ -497,10 +644,10 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
     }, stepMs);
 
     return () => window.clearInterval(timer);
-  }, [loadAll, loading, refreshIntervalSeconds, refreshMode]);
+  }, [dataLoading, loadOverview, overviewLoading, refreshIntervalSeconds, refreshMode]);
 
   // --- CRUD ---
-  const insertManualEntry = useCallback(async (contentJson: string, categoryId: string, language: string, difficulty: number) => {
+  const insertManualEntry = useCallback(async (contentJson: string, categoryId: string, language: string, difficulty: number, status: "manual" | "validated" | "pending_review") => {
     if (!serviceConfig) return;
     try {
       setDataMutationLoading(true);
@@ -526,18 +673,69 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
           language,
           difficultyPercentage: difficulty,
           content,
-          status: "manual",
+          status,
         }),
       });
 
       setDataMutationMessage(messages.insertOk);
-      await loadAll();
+      await loadData();
     } catch (mutationError) {
       setDataMutationError(mutationError instanceof Error ? mutationError.message : errorLabel);
     } finally {
       setDataMutationLoading(false);
     }
-  }, [context, loadAll, serviceConfig, errorLabel, messages]);
+  }, [context, loadData, serviceConfig, errorLabel, messages]);
+
+  const updateManualEntry = useCallback(async (
+    entryId: string,
+    contentJson: string,
+    categoryId: string,
+    language: string,
+    difficulty: number,
+    status: "manual" | "validated" | "pending_review",
+  ) => {
+    if (!serviceConfig) return;
+    if (!entryId.trim()) {
+      setDataMutationError(messages.updateIdRequired);
+      return;
+    }
+
+    try {
+      setDataMutationLoading(true);
+      setDataMutationError(null);
+      setDataMutationMessage(null);
+
+      const parsed = JSON.parse(contentJson) as unknown;
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        throw new Error(messages.contentObjectOnly);
+      }
+      const entries = Object.entries(parsed as Record<string, unknown>).filter(([, value]) => value !== null && value !== undefined);
+      if (entries.length === 0) {
+        throw new Error(messages.contentNonNull);
+      }
+      const content = Object.fromEntries(entries);
+
+      await fetchJson<{ item: Record<string, unknown> }>(`${EDGE_API_BASE}/v1/backoffice/services/${serviceConfig.service}/data/${encodeURIComponent(entryId.trim())}`, {
+        method: "PATCH",
+        headers: composeAuthHeaders(context),
+        body: JSON.stringify({
+          dataset: "history",
+          categoryId,
+          language,
+          difficultyPercentage: difficulty,
+          content,
+          status,
+        }),
+      });
+
+      setDataMutationMessage(messages.updateOk);
+      await loadData();
+    } catch (mutationError) {
+      setDataMutationError(mutationError instanceof Error ? mutationError.message : errorLabel);
+    } finally {
+      setDataMutationLoading(false);
+    }
+  }, [context, loadData, serviceConfig, errorLabel, messages]);
 
   const deleteManualEntry = useCallback(async (entryId: string) => {
     if (!serviceConfig || !entryId.trim()) return;
@@ -556,18 +754,18 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
 
       setDataMutationMessage(messages.deleteOk);
       setDeleteEntryId("");
-      await loadAll();
+      await loadData();
     } catch (mutationError) {
       setDataMutationError(mutationError instanceof Error ? mutationError.message : errorLabel);
     } finally {
       setDataMutationLoading(false);
     }
-  }, [context, loadAll, serviceConfig, errorLabel, messages]);
+  }, [context, loadData, serviceConfig, errorLabel, messages]);
 
   return {
     serviceConfig,
     // Data
-    catalog, metricsRows, logsRows, dataRows,
+    catalog, metricsRows, logsRows, dataRows, dataTotal, dataPage, dataPageSize,
     // Filter / pagination
     dataset, setDataset,
     metric, setMetric,
@@ -583,17 +781,27 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
     elapsedMs,
     followTaskId, setFollowTaskId,
     // Loading / errors
-    loading, error,
+    loading: overviewLoading || dataLoading,
+    overviewLoading,
+    dataLoading,
+    error,
     metricsError, logsError, dataError,
     // Manual CRUD
     manualCategoryId, setManualCategoryId,
     manualLanguage, setManualLanguage,
     manualDifficulty, setManualDifficulty,
+    manualStatus, setManualStatus,
     manualContentJson, setManualContentJson,
+    editEntryId, setEditEntryId,
     deleteEntryId, setDeleteEntryId,
     manualCatalogs, manualCatalogError,
     dataMutationMessage, dataMutationError, dataMutationLoading,
     // Actions
-    loadAll, insertManualEntry, deleteManualEntry,
+    loadAll,
+    loadOverview,
+    loadData,
+    insertManualEntry,
+    updateManualEntry,
+    deleteManualEntry,
   };
 }

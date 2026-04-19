@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useState } from "react";
+import { memo, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import type { UiDensity } from "../../domain/types/backoffice";
@@ -12,11 +12,22 @@ type PaginatedFilterableTableProps = {
   defaultPageSize?: number;
   density?: UiDensity;
   iconOnlyColumns?: string[];
+  remoteState?: {
+    totalRows: number;
+    page: number;
+    pageSize: number;
+  };
+  rowActions?: Array<{
+    label: string;
+    onClick: (row: Record<string, unknown>) => void;
+    tone?: "neutral" | "primary" | "success" | "warn";
+  }>;
 };
 
 /** Memoized data table with client-side filtering, sorting, pagination, and cell detail dialog. */
-export const PaginatedFilterableTable = memo(function PaginatedFilterableTable({ rows, defaultPageSize = 10, density = "comfortable", iconOnlyColumns = [] }: PaginatedFilterableTableProps) {
+export const PaginatedFilterableTable = memo(function PaginatedFilterableTable({ rows, defaultPageSize = 10, density = "comfortable", iconOnlyColumns = [], remoteState, rowActions = [] }: PaginatedFilterableTableProps) {
   const { t } = useI18n();
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const columns = useMemo(() => {
     const keys = new Set<string>();
     rows.slice(0, 50).forEach((row) => {
@@ -35,6 +46,9 @@ export const PaginatedFilterableTable = memo(function PaginatedFilterableTable({
   const [dialogColumn, setDialogColumn] = useState("");
   const [dialogFormat, setDialogFormat] = useState<"auto" | "json" | "xml" | "plain" | "url">("auto");
   const [dialogCompact, setDialogCompact] = useState(false);
+  const [scrollTop, setScrollTop] = useState(0);
+  const deferredFilterText = useDeferredValue(filterText);
+  const isRemoteMode = !!remoteState;
 
   const iconOnlyColumnSet = useMemo(() => new Set(iconOnlyColumns.map((column) => column.trim().toLowerCase())), [iconOnlyColumns]);
 
@@ -49,18 +63,31 @@ export const PaginatedFilterableTable = memo(function PaginatedFilterableTable({
 
   useEffect(() => {
     setPage(1);
-  }, [filterText, sortBy, sortDirection, pageSize, rows]);
+  }, [deferredFilterText, sortBy, sortDirection, pageSize, rows]);
+
+  useEffect(() => {
+    setScrollTop(0);
+    scrollContainerRef.current?.scrollTo({ top: 0 });
+  }, [page, deferredFilterText, pageSize, rows, sortBy, sortDirection, remoteState?.page]);
 
   const filteredRows = useMemo(() => {
-    const term = filterText.trim().toLowerCase();
+    if (isRemoteMode) {
+      return rows;
+    }
+
+    const term = deferredFilterText.trim().toLowerCase();
     if (!term) {
       return rows;
     }
 
     return rows.filter((row) => columns.some((column) => stringifyCell(row[column]).toLowerCase().includes(term)));
-  }, [columns, filterText, rows]);
+  }, [columns, deferredFilterText, isRemoteMode, rows]);
 
   const sortedRows = useMemo(() => {
+    if (isRemoteMode) {
+      return filteredRows;
+    }
+
     if (!sortBy) {
       return filteredRows;
     }
@@ -69,10 +96,12 @@ export const PaginatedFilterableTable = memo(function PaginatedFilterableTable({
     return [...filteredRows].sort((left, right) => compareCells(left[sortBy], right[sortBy]) * direction);
   }, [filteredRows, sortBy, sortDirection]);
 
-  const totalPages = Math.max(1, Math.ceil(sortedRows.length / pageSize));
-  const currentPage = Math.min(page, totalPages);
-  const start = (currentPage - 1) * pageSize;
-  const pageRows = sortedRows.slice(start, start + pageSize);
+  const totalRows = isRemoteMode ? Math.max(0, remoteState.totalRows) : sortedRows.length;
+  const resolvedPageSize = isRemoteMode ? Math.max(1, remoteState.pageSize) : pageSize;
+  const totalPages = Math.max(1, Math.ceil(totalRows / resolvedPageSize));
+  const currentPage = isRemoteMode ? Math.min(Math.max(1, remoteState.page), totalPages) : Math.min(page, totalPages);
+  const start = (currentPage - 1) * resolvedPageSize;
+  const pageRows = isRemoteMode ? rows : sortedRows.slice(start, start + resolvedPageSize);
 
   const compact = density === "dense";
   const controlsPadding = compact ? "p-2" : "p-3";
@@ -81,6 +110,31 @@ export const PaginatedFilterableTable = memo(function PaginatedFilterableTable({
   const tableCellPadding = compact ? "px-2 py-1.5" : "px-3 py-2";
   const footerPadding = compact ? "p-2" : "p-3";
   const footerText = compact ? "text-xs" : "text-sm";
+  const hasRowActions = rowActions.length > 0;
+  const estimatedRowHeight = compact ? 40 : 48;
+  const virtualizationThreshold = 24;
+  const virtualizationOverscan = 6;
+  const virtualViewportHeight = compact ? 320 : 420;
+  const shouldVirtualizeRows = pageRows.length > virtualizationThreshold;
+  const visibleRowCapacity = Math.max(1, Math.ceil(virtualViewportHeight / estimatedRowHeight));
+  const virtualStartIndex = shouldVirtualizeRows ? Math.max(0, Math.floor(scrollTop / estimatedRowHeight) - virtualizationOverscan) : 0;
+  const virtualEndIndex = shouldVirtualizeRows ? Math.min(pageRows.length, virtualStartIndex + visibleRowCapacity + virtualizationOverscan * 2) : pageRows.length;
+  const visiblePageRows = shouldVirtualizeRows ? pageRows.slice(virtualStartIndex, virtualEndIndex) : pageRows;
+  const topSpacerHeight = shouldVirtualizeRows ? virtualStartIndex * estimatedRowHeight : 0;
+  const bottomSpacerHeight = shouldVirtualizeRows ? Math.max(0, (pageRows.length - virtualEndIndex) * estimatedRowHeight) : 0;
+
+  const actionToneClass = (tone: "neutral" | "primary" | "success" | "warn" = "neutral") => {
+    switch (tone) {
+      case "primary":
+        return "border-[var(--md-sys-color-primary)] text-[var(--md-sys-color-primary)]";
+      case "success":
+        return "border-emerald-600 text-emerald-700";
+      case "warn":
+        return "border-amber-600 text-amber-700";
+      default:
+        return "border-[var(--md-sys-color-outline-variant)] text-[var(--md-sys-color-on-surface)]";
+    }
+  };
 
   const isLikelyUrl = (value: string) => /^https?:\/\//i.test(value.trim());
 
@@ -208,6 +262,7 @@ export const PaginatedFilterableTable = memo(function PaginatedFilterableTable({
 
   return (
     <div className="space-y-3">
+      {!isRemoteMode && (
       <div className={`ui-surface-raised grid gap-2 rounded-xl md:grid-cols-2 xl:grid-cols-4 ${controlsPadding}`}>
         <label className="text-xs">
           {t("table.filter")}
@@ -260,21 +315,35 @@ export const PaginatedFilterableTable = memo(function PaginatedFilterableTable({
           </select>
         </label>
       </div>
+      )}
 
-      <div className="ui-surface-raised overflow-x-auto rounded-xl">
+      <div
+        ref={scrollContainerRef}
+        onScroll={shouldVirtualizeRows ? (event) => setScrollTop(event.currentTarget.scrollTop) : undefined}
+        className={`ui-surface-raised overflow-x-auto rounded-xl ${shouldVirtualizeRows ? "overflow-y-auto" : ""}`}
+        style={shouldVirtualizeRows ? { maxHeight: `${virtualViewportHeight}px` } : undefined}
+      >
         <table className={`min-w-full ${tableTextSize}`}>
-          <thead className="bg-[var(--md-sys-color-surface-container)] text-left">
+          <thead className={`bg-[var(--md-sys-color-surface-container)] text-left ${shouldVirtualizeRows ? "sticky top-0 z-10" : ""}`}>
             <tr>
               {columns.map((column) => (
                 <th key={column} className={`${tableCellPadding} font-semibold`}>
                   {column}
                 </th>
               ))}
+              {hasRowActions && <th className={`${tableCellPadding} font-semibold`}>{t("table.actions")}</th>}
             </tr>
           </thead>
           <tbody>
-            {pageRows.map((row, rowIndex) => (
-              <tr key={`${start + rowIndex}-${stringifyCell(row[columns[0]])}`} className="border-t border-[var(--md-sys-color-outline-variant)]">
+            {shouldVirtualizeRows && topSpacerHeight > 0 && (
+              <tr aria-hidden="true">
+                <td colSpan={columns.length + (hasRowActions ? 1 : 0)} style={{ height: `${topSpacerHeight}px`, padding: 0, border: 0 }} />
+              </tr>
+            )}
+            {visiblePageRows.map((row, rowIndex) => {
+              const actualIndex = shouldVirtualizeRows ? virtualStartIndex + rowIndex : rowIndex;
+              return (
+              <tr key={`${start + actualIndex}-${stringifyCell(row[columns[0]])}`} className="border-t border-[var(--md-sys-color-outline-variant)]">
                 {columns.map((column) => (
                   <td key={column} className={`${tableCellPadding} align-top`}>
                     {shouldUseIconOnlyButton(column, row[column]) ? (
@@ -304,11 +373,33 @@ export const PaginatedFilterableTable = memo(function PaginatedFilterableTable({
                     )}
                   </td>
                 ))}
+                {hasRowActions && (
+                  <td className={`${tableCellPadding} align-top`}>
+                    <div className="flex flex-wrap gap-2">
+                      {rowActions.map((action) => (
+                        <button
+                          key={action.label}
+                          type="button"
+                          onClick={() => action.onClick(row)}
+                          className={`rounded-lg border px-2 py-1 text-[11px] font-semibold ${actionToneClass(action.tone)}`}
+                        >
+                          {action.label}
+                        </button>
+                      ))}
+                    </div>
+                  </td>
+                )}
               </tr>
-            ))}
+              );
+            })}
+            {shouldVirtualizeRows && bottomSpacerHeight > 0 && (
+              <tr aria-hidden="true">
+                <td colSpan={columns.length + (hasRowActions ? 1 : 0)} style={{ height: `${bottomSpacerHeight}px`, padding: 0, border: 0 }} />
+              </tr>
+            )}
             {!pageRows.length && (
               <tr>
-                <td colSpan={columns.length} className={`px-3 py-6 text-center ${footerText} text-[var(--md-sys-color-on-surface-variant)]`}>
+                <td colSpan={columns.length + (hasRowActions ? 1 : 0)} className={`px-3 py-6 text-center ${footerText} text-[var(--md-sys-color-on-surface-variant)]`}>
                   {t("table.noResults")}
                 </td>
               </tr>
@@ -321,30 +412,34 @@ export const PaginatedFilterableTable = memo(function PaginatedFilterableTable({
         <p>
           {t("table.showing", {
             from: pageRows.length ? start + 1 : 0,
-            to: Math.min(start + pageRows.length, sortedRows.length),
-            total: sortedRows.length,
+            to: Math.min(start + pageRows.length, totalRows),
+            total: totalRows,
           })}
         </p>
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setPage((value) => Math.max(1, value - 1))}
-            disabled={currentPage <= 1}
-            className="rounded-lg border border-[var(--md-sys-color-outline-variant)] px-3 py-1 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {t("table.previous")}
-          </button>
           <span>
             {t("table.pageOf", { page: currentPage, total: totalPages })}
           </span>
-          <button
-            type="button"
-            onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
-            disabled={currentPage >= totalPages}
-            className="rounded-lg border border-[var(--md-sys-color-outline-variant)] px-3 py-1 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {t("table.next")}
-          </button>
+          {!isRemoteMode && (
+            <>
+              <button
+                type="button"
+                onClick={() => setPage((value) => Math.max(1, value - 1))}
+                disabled={currentPage <= 1}
+                className="rounded-lg border border-[var(--md-sys-color-outline-variant)] px-3 py-1 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {t("table.previous")}
+              </button>
+              <button
+                type="button"
+                onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
+                disabled={currentPage >= totalPages}
+                className="rounded-lg border border-[var(--md-sys-color-outline-variant)] px-3 py-1 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {t("table.next")}
+              </button>
+            </>
+          )}
         </div>
       </div>
 

@@ -49,7 +49,9 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
   const { t } = useI18n();
   const messages: ServiceConsoleMessages = useMemo(() => ({
     insertOk: t("service.data.manual.insertOk"),
+    updateOk: t("service.data.manual.updateOk"),
     deleteOk: t("service.data.manual.deleteOk"),
+    updateIdRequired: t("service.data.manual.updateIdRequired"),
     contentObjectOnly: t("service.data.manual.contentObjectOnly"),
     contentNonNull: t("service.data.manual.contentNonNull"),
   }), [t]);
@@ -101,6 +103,81 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
   const refreshProgressHeight = compact ? "h-1.5" : "h-2";
 
   const serviceMeta = state.catalog.find((item) => item.key === serviceConfig.service);
+  const historyRowActions = useMemo(() => {
+    if (!isGameHistoryDataset) {
+      return [];
+    }
+
+    const parseRecord = (value: unknown) => (value && typeof value === "object" ? (value as Record<string, unknown>) : {});
+    const parseString = (value: unknown) => (typeof value === "string" ? value : "");
+    const parseDifficulty = (value: unknown) => {
+      if (typeof value === "number" && Number.isFinite(value)) return value;
+      if (typeof value === "string") {
+        const parsed = Number(value);
+        if (Number.isFinite(parsed)) return parsed;
+      }
+      return 0;
+    };
+
+    const extractRowPayload = (row: Record<string, unknown>) => {
+      const detail = parseRecord(row.detail);
+      const request = parseRecord(row.request);
+      const response = parseRecord(row.response);
+      const entryId = parseString(detail.id);
+      const categoryId = parseString(row.categoryId ?? request.categoryId);
+      const language = parseString(row.language ?? request.language);
+      const difficulty = parseDifficulty(row.difficultyPercentage ?? request.difficulty_percentage);
+      const contentJson = JSON.stringify(response, null, 2);
+      const status = parseString(row.status) as "manual" | "validated" | "pending_review";
+      return { entryId, categoryId, language, difficulty, contentJson, status };
+    };
+
+    const loadIntoEditor = (row: Record<string, unknown>, statusOverride?: "manual" | "validated" | "pending_review") => {
+      const payload = extractRowPayload(row);
+      state.setEditEntryId(payload.entryId);
+      state.setDeleteEntryId(payload.entryId);
+      if (payload.categoryId) state.setManualCategoryId(payload.categoryId);
+      if (payload.language) state.setManualLanguage(payload.language);
+      state.setManualDifficulty(payload.difficulty);
+      state.setManualStatus(statusOverride ?? payload.status ?? "manual");
+      state.setManualContentJson(payload.contentJson);
+      return payload;
+    };
+
+    return [
+      {
+        label: t("service.data.manual.rowEdit"),
+        tone: "primary" as const,
+        onClick: (row: Record<string, unknown>) => {
+          loadIntoEditor(row);
+        },
+      },
+      {
+        label: t("service.data.manual.rowPending"),
+        tone: "warn" as const,
+        onClick: (row: Record<string, unknown>) => {
+          const payload = loadIntoEditor(row, "pending_review");
+          void state.updateManualEntry(payload.entryId, payload.contentJson, payload.categoryId, payload.language, payload.difficulty, "pending_review");
+        },
+      },
+      {
+        label: t("service.data.manual.rowValidate"),
+        tone: "success" as const,
+        onClick: (row: Record<string, unknown>) => {
+          const payload = loadIntoEditor(row, "validated");
+          void state.updateManualEntry(payload.entryId, payload.contentJson, payload.categoryId, payload.language, payload.difficulty, "validated");
+        },
+      },
+      {
+        label: t("service.data.manual.delete"),
+        tone: "neutral" as const,
+        onClick: (row: Record<string, unknown>) => {
+          const payload = loadIntoEditor(row);
+          void state.deleteManualEntry(payload.entryId);
+        },
+      },
+    ];
+  }, [isGameHistoryDataset, state, t]);
 
   return (
     <section className={`m3-card ui-fade-in ${compact ? "p-3 sm:p-4 xl:p-5 space-y-3" : "p-4 sm:p-5 xl:p-6 space-y-4 xl:space-y-5"}`}>
@@ -146,10 +223,10 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
           {state.refreshMode === "manual" ? (
             <button
               type="button"
-              onClick={() => void state.loadAll()}
+              onClick={() => void state.loadOverview()}
               className={`mt-3 w-full rounded-xl bg-[var(--md-sys-color-primary)] ${refreshButtonPadding} ${refreshButtonText} font-semibold text-[var(--md-sys-color-on-primary)] transition-all duration-200 hover:-translate-y-[1px] hover:brightness-105`}
             >
-              {state.loading ? t("service.button.updating") : t("service.button.update")}
+              {state.overviewLoading ? t("service.button.updating") : t("service.button.update")}
             </button>
           ) : (
             <div className="mt-3 space-y-2">
@@ -164,7 +241,7 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
                 />
               </div>
               <p className={`${refreshLabelText} text-[var(--md-sys-color-on-surface-variant)]`}>
-                {state.loading ? t("service.button.updating") : t("service.refresh.nextSync", { seconds: remainingSeconds })}
+                {state.overviewLoading ? t("service.button.updating") : t("service.refresh.nextSync", { seconds: remainingSeconds })}
               </p>
             </div>
           )}
@@ -179,37 +256,58 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
 
       {state.error && <p className="ui-feedback ui-feedback--error">{state.error}</p>}
 
-      <article className="space-y-2">
-        <h3 className={`m3-title ${compact ? "text-base" : "text-lg"}`}>{t("service.metrics.title")}</h3>
-        {state.metricsError ? (
-          <p className="ui-feedback ui-feedback--error">{state.metricsError}</p>
-        ) : state.metricsRows.length ? (
-          <PaginatedFilterableTable rows={state.metricsRows} defaultPageSize={10} density={density} />
-        ) : (
-          <div className="rounded-xl border border-dashed border-[var(--md-sys-color-outline)] px-4 py-3 text-sm">
-            <p className="font-medium">{t("service.metrics.none")}</p>
-            <p className="mt-1 text-xs text-[var(--md-sys-color-on-surface-variant)]">{t("service.metrics.emptyHint")}</p>
+      <section className="grid gap-3 xl:grid-cols-[1.05fr_0.95fr]">
+        <article className="ui-surface-raised rounded-2xl p-4 space-y-2">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h3 className={`m3-title ${compact ? "text-base" : "text-lg"}`}>{t("service.metrics.title")}</h3>
+              <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">Observabilidad viva: auto refresh permitido porque no toca la capa editorial.</p>
+            </div>
+            <button type="button" onClick={() => void state.loadOverview()} className="rounded-lg border border-[var(--md-sys-color-outline-variant)] px-3 py-1.5 text-xs font-semibold">
+              {state.overviewLoading ? t("service.button.updating") : t("service.button.update")}
+            </button>
           </div>
-        )}
-      </article>
+          {state.metricsError ? (
+            <p className="ui-feedback ui-feedback--error">{state.metricsError}</p>
+          ) : state.metricsRows.length ? (
+            <PaginatedFilterableTable rows={state.metricsRows} defaultPageSize={10} density={density} />
+          ) : (
+            <div className="rounded-xl border border-dashed border-[var(--md-sys-color-outline)] px-4 py-3 text-sm">
+              <p className="font-medium">{t("service.metrics.none")}</p>
+              <p className="mt-1 text-xs text-[var(--md-sys-color-on-surface-variant)]">{t("service.metrics.emptyHint")}</p>
+            </div>
+          )}
+        </article>
 
-      <article className="space-y-2">
-        <h3 className={`m3-title ${compact ? "text-base" : "text-lg"}`}>{t("service.logs.title")}</h3>
-        {state.logsError ? (
-          <p className="ui-feedback ui-feedback--error">{state.logsError}</p>
-        ) : state.logsRows.length ? (
-          <PaginatedFilterableTable rows={state.logsRows} defaultPageSize={20} density={density} />
-        ) : (
-          <div className="rounded-xl border border-dashed border-[var(--md-sys-color-outline)] px-4 py-3 text-sm">
-            <p className="font-medium">{t("service.logs.none")}</p>
-            <p className="mt-1 text-xs text-[var(--md-sys-color-on-surface-variant)]">{t("service.logs.emptyHint")}</p>
+        <article className="ui-surface-raised rounded-2xl p-4 space-y-2">
+          <div>
+            <h3 className={`m3-title ${compact ? "text-base" : "text-lg"}`}>{t("service.logs.title")}</h3>
+            <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">Lectura operativa: comparte ciclo con métricas para no abrir otro temporizador innecesario.</p>
           </div>
-        )}
-      </article>
+          {state.logsError ? (
+            <p className="ui-feedback ui-feedback--error">{state.logsError}</p>
+          ) : state.logsRows.length ? (
+            <PaginatedFilterableTable rows={state.logsRows} defaultPageSize={20} density={density} />
+          ) : (
+            <div className="rounded-xl border border-dashed border-[var(--md-sys-color-outline)] px-4 py-3 text-sm">
+              <p className="font-medium">{t("service.logs.none")}</p>
+              <p className="mt-1 text-xs text-[var(--md-sys-color-on-surface-variant)]">{t("service.logs.emptyHint")}</p>
+            </div>
+          )}
+        </article>
+      </section>
 
       {serviceConfig.datasets && serviceConfig.datasets.length > 0 && (
-        <article className="space-y-3">
-          <h3 className={`m3-title ${compact ? "text-base" : "text-lg"}`}>{t("service.data.title")}</h3>
+        <article className="space-y-3 ui-surface-raised rounded-2xl p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 className={`m3-title ${compact ? "text-base" : "text-lg"}`}>{t("service.data.title")}</h3>
+              <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">Explorador paginado: se actualiza por filtros, paginacion o mutaciones, no por cada tick de observabilidad.</p>
+            </div>
+            <button type="button" onClick={() => void state.loadData()} className="rounded-lg border border-[var(--md-sys-color-outline-variant)] px-3 py-1.5 text-xs font-semibold">
+              {state.dataLoading ? t("service.button.updating") : t("service.button.update")}
+            </button>
+          </div>
 
           {state.dataset === "processes" && state.followTaskId.trim() && (
             <div className="ui-surface-soft rounded-xl p-3 text-xs sm:text-sm">
@@ -331,6 +429,7 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
           {isGameHistoryDataset && (
             <div className={`ui-surface-soft space-y-3 rounded-xl ${compact ? "p-3" : "p-4"}`}>
               <h4 className="text-sm font-semibold">{t("service.data.manual.title")}</h4>
+              <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">Edicion puntual: las escrituras refrescan solo el dataset actual para no degradar el resto del panel.</p>
               <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
                 <label className="text-xs">
                   {t("service.data.manual.categoryId")}
@@ -364,6 +463,14 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
                   {t("service.data.manual.difficulty")}
                   <input type="number" min={0} max={100} value={state.manualDifficulty} onChange={(event) => state.setManualDifficulty(Number(event.target.value || 0))} className="control-input mt-1 w-full px-2 py-1.5 text-sm" />
                 </label>
+                <label className="text-xs">
+                  {t("service.data.manual.status")}
+                  <select value={state.manualStatus} onChange={(event) => state.setManualStatus(event.target.value as "manual" | "validated" | "pending_review")} className="control-input mt-1 w-full px-2 py-1.5 text-sm">
+                    <option value="manual">manual</option>
+                    <option value="validated">validated</option>
+                    <option value="pending_review">pending_review</option>
+                  </select>
+                </label>
               </div>
 
               <label className="text-xs">
@@ -372,8 +479,15 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
               </label>
 
               <div className="flex flex-wrap gap-2">
-                <button type="button" onClick={() => void state.insertManualEntry(state.manualContentJson, state.manualCategoryId, state.manualLanguage, state.manualDifficulty)} disabled={state.dataMutationLoading} className="rounded-lg bg-[var(--md-sys-color-primary)] px-3 py-2 text-sm font-semibold text-[var(--md-sys-color-on-primary)] disabled:cursor-not-allowed disabled:opacity-60">
+                <button type="button" onClick={() => void state.insertManualEntry(state.manualContentJson, state.manualCategoryId, state.manualLanguage, state.manualDifficulty, state.manualStatus)} disabled={state.dataMutationLoading} className="rounded-lg bg-[var(--md-sys-color-primary)] px-3 py-2 text-sm font-semibold text-[var(--md-sys-color-on-primary)] disabled:cursor-not-allowed disabled:opacity-60">
                   {state.dataMutationLoading ? t("service.button.updating") : t("service.data.manual.insert")}
+                </button>
+                <label className="min-w-[14rem] flex-1 text-xs">
+                  {t("service.data.manual.updateId")}
+                  <input value={state.editEntryId} onChange={(event) => state.setEditEntryId(event.target.value)} className="control-input mt-1 w-full px-2 py-1.5 text-sm" placeholder={t("service.data.manual.updatePlaceholder")} />
+                </label>
+                <button type="button" onClick={() => void state.updateManualEntry(state.editEntryId, state.manualContentJson, state.manualCategoryId, state.manualLanguage, state.manualDifficulty, state.manualStatus)} disabled={state.dataMutationLoading} className="rounded-lg bg-[var(--md-sys-color-secondary)] px-3 py-2 text-sm font-semibold text-[var(--md-sys-color-on-secondary)] disabled:cursor-not-allowed disabled:opacity-60">
+                  {state.dataMutationLoading ? t("service.button.updating") : t("service.data.manual.update")}
                 </button>
               </div>
 
@@ -396,7 +510,18 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
           {state.dataError ? (
             <p className="ui-feedback ui-feedback--error">{state.dataError}</p>
           ) : state.dataRows.length ? (
-            <PaginatedFilterableTable rows={state.dataRows} defaultPageSize={10} density={density} iconOnlyColumns={technicalDialogColumns} />
+            <PaginatedFilterableTable
+              rows={state.dataRows}
+              defaultPageSize={10}
+              density={density}
+              iconOnlyColumns={technicalDialogColumns}
+              remoteState={{
+                totalRows: state.dataTotal,
+                page: state.dataPage,
+                pageSize: state.dataPageSize,
+              }}
+              rowActions={historyRowActions}
+            />
           ) : (
             <div className="rounded-xl border border-dashed border-[var(--md-sys-color-outline)] px-4 py-3 text-sm">
               <p className="font-medium">{t("service.data.none")}</p>

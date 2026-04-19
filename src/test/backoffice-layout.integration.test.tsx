@@ -86,7 +86,7 @@ describe("BackofficeLayout integration", () => {
 
     renderLayout();
 
-    const gatewayButtons = screen.getAllByRole("button", { name: /API Gateway/i });
+    const gatewayButtons = screen.getAllByRole("button", { name: /Entrada publica/i });
     fireEvent.click(gatewayButtons[0]);
 
     await waitFor(() => {
@@ -105,13 +105,28 @@ describe("BackofficeLayout integration", () => {
 
     expect(screen.getByTestId("service-overview-panel")).toBeInTheDocument();
 
-    const gatewayButtons = screen.getAllByRole("button", { name: /API Gateway/i });
+    const gatewayButtons = screen.getAllByRole("button", { name: /Entrada publica/i });
     fireEvent.click(gatewayButtons[0]);
 
     await waitFor(() => {
       expect(screen.getByTestId("service-console-panel")).toHaveTextContent("console-panel:svc-api-gateway");
       expect(window.location.hash).toContain("#/backoffice/svc-api-gateway");
     });
+  });
+
+  it("groups sidebar entries by functional area", async () => {
+    fetchServiceOperationalSummaryMock.mockResolvedValue({
+      rows: [],
+      totals: { total: 0, onlineCount: 0, accessIssues: 0, connectionErrors: 0 },
+    });
+
+    renderLayout();
+
+    expect(screen.getAllByText("Vision general").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Plataforma").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Juego y datos").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("IA y diagnostico").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Infra y pasarelas con impacto transversal").length).toBeGreaterThan(0);
   });
 
   it("shows critical semaphore when connection errors are present", async () => {

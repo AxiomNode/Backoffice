@@ -119,6 +119,9 @@ export type UiTypography = "sm" | "normal" | "lg" | "xl" | "xxl";
 /** Supported UI languages. */
 export type UiLanguage = "es" | "en" | "fr" | "de" | "it";
 
+/** Functional grouping for sidebar navigation. */
+export type NavSectionKey = "overview" | "platform" | "games" | "ai" | "admin";
+
 /** Runtime ai-engine target state exposed by the backoffice BFF. */
 export type AiEngineTarget = {
   source: "env" | "override";
@@ -146,6 +149,7 @@ export type AiEngineTargetPreset = {
 /** Sidebar navigation item displayed to the user. */
 export type NavItem = {
   key: NavKey;
+  section: NavSectionKey;
   title: string;
   subtitle: string;
 };
