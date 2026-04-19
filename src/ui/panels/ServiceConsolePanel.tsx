@@ -19,7 +19,6 @@ const NAV_TITLE_KEYS: Record<NavKey, LabelKey> = {
   "svc-wordpass": "nav.svc-wordpass.title",
   "svc-ai-stats": "nav.svc-ai-stats.title",
   "svc-ai-api": "nav.svc-ai-api.title",
-  hotfix: "nav.hotfix.title",
   roles: "nav.roles.title",
   "ai-diagnostics": "nav.ai-diagnostics.title",
 };
@@ -34,7 +33,6 @@ const NAV_SUBTITLE_KEYS: Record<NavKey, LabelKey> = {
   "svc-wordpass": "nav.svc-wordpass.subtitle",
   "svc-ai-stats": "nav.svc-ai-stats.subtitle",
   "svc-ai-api": "nav.svc-ai-api.subtitle",
-  hotfix: "nav.hotfix.subtitle",
   roles: "nav.roles.subtitle",
   "ai-diagnostics": "nav.ai-diagnostics.subtitle",
 };

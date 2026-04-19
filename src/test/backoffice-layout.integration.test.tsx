@@ -22,10 +22,6 @@ vi.mock("../ui/panels/ServiceConsolePanel", () => ({
   ServiceConsolePanel: ({ navKey }: { navKey: string }) => <div data-testid="service-console-panel">console-panel:{navKey}</div>,
 }));
 
-vi.mock("../ui/panels/HotfixPanel", () => ({
-  HotfixPanel: () => <div data-testid="hotfix-panel">hotfix-panel</div>,
-}));
-
 vi.mock("../ui/panels/RoleManagementPanel", () => ({
   RoleManagementPanel: () => <div data-testid="roles-panel">roles-panel</div>,
 }));
@@ -127,6 +123,18 @@ describe("BackofficeLayout integration", () => {
     expect(screen.getAllByText("Juego y datos").length).toBeGreaterThan(0);
     expect(screen.getAllByText("IA y diagnostico").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Infra y pasarelas con impacto transversal").length).toBeGreaterThan(0);
+  });
+
+  it("does not render the hot modification section in the sidebar", async () => {
+    fetchServiceOperationalSummaryMock.mockResolvedValue({
+      rows: [],
+      totals: { total: 0, onlineCount: 0, accessIssues: 0, connectionErrors: 0 },
+    });
+
+    renderLayout();
+
+    expect(screen.queryByRole("button", { name: /Operaciones delicadas/i })).not.toBeInTheDocument();
+    expect(screen.queryByText("Operaciones delicadas")).not.toBeInTheDocument();
   });
 
   it("shows critical semaphore when connection errors are present", async () => {

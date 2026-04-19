@@ -15,7 +15,6 @@ import { Sidebar } from "../components/Sidebar";
 /** @module BackofficeLayout - Main authenticated layout with sidebar, header, and lazy-loaded panels. */
 
 const AIDiagnosticsPanel = lazy(() => import("../panels/AIDiagnosticsPanel").then((m) => ({ default: m.AIDiagnosticsPanel })));
-const HotfixPanel = lazy(() => import("../panels/HotfixPanel").then((m) => ({ default: m.HotfixPanel })));
 const RoleManagementPanel = lazy(() => import("../panels/RoleManagementPanel").then((m) => ({ default: m.RoleManagementPanel })));
 const ServiceConsolePanel = lazy(() => import("../panels/ServiceConsolePanel").then((m) => ({ default: m.ServiceConsolePanel })));
 const ServiceOverviewPanel = lazy(() => import("../panels/ServiceOverviewPanel").then((m) => ({ default: m.ServiceOverviewPanel })));
@@ -31,7 +30,6 @@ const NAV_LABELS: Record<NavKey, { title: LabelKey; subtitle: LabelKey }> = {
   "svc-ai-stats": { title: "nav.svc-ai-stats.title", subtitle: "nav.svc-ai-stats.subtitle" },
   "svc-ai-api": { title: "nav.svc-ai-api.title", subtitle: "nav.svc-ai-api.subtitle" },
   "ai-diagnostics": { title: "nav.ai-diagnostics.title", subtitle: "nav.ai-diagnostics.subtitle" },
-  hotfix: { title: "nav.hotfix.title", subtitle: "nav.hotfix.subtitle" },
   roles: { title: "nav.roles.title", subtitle: "nav.roles.subtitle" },
 };
 
@@ -373,7 +371,6 @@ export function BackofficeLayout({
         <Suspense fallback={<div className="m3-card animate-pulse p-6 text-center text-sm text-[var(--md-sys-color-on-surface-variant)]">…</div>}>
           {current === "svc-overview" && <ServiceOverviewPanel context={context} density={density} />}
           {current !== "svc-overview" && SERVICE_NAV_KEYS.has(current) && <ServiceConsolePanel key={current} navKey={current} context={context} density={density} />}
-          {current === "hotfix" && roleCanModify(session.role) && <HotfixPanel session={session} context={context} density={density} />}
           {current === "ai-diagnostics" && roleCanModify(session.role) && <AIDiagnosticsPanel context={context} density={density} />}
           {current === "roles" && roleCanManageUsers(session.role) && <RoleManagementPanel context={context} density={density} />}
         </Suspense>

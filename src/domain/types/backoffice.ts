@@ -17,7 +17,6 @@ export type NavKey =
   | "svc-ai-stats"
   | "svc-ai-api"
   | "ai-diagnostics"
-  | "hotfix"
   | "roles";
 
 /** Backend service identifier used in API calls. */

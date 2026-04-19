@@ -44,7 +44,6 @@ export function Sidebar({ current, onChange, items, className }: SidebarProps) {
     "svc-ai-stats": "M5 19V9m7 10V5m7 14v-7",
     "svc-ai-api": "M12 2 4 6v6c0 5 3.4 8.7 8 10 4.6-1.3 8-5 8-10V6l-8-4Z",
     "ai-diagnostics": "M10 4h4m-7 5h10m-8 5h6m-9 5h12",
-    hotfix: "M13 2 4 14h6l-1 8 9-12h-6l1-8Z",
     roles: "M12 2l3 3 4 .5-1 4 2 3.5-3.5 2-1 4-4-.5-3.5 2-2-3.5-4-1  .5-4-2-3.5 3.5-2 1-4 4 .5Z",
   };
   const sectionLabels: Record<NavSectionKey, { title: string; subtitle: string }> = {
