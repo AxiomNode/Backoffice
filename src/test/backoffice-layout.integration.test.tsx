@@ -188,4 +188,24 @@ describe("BackofficeLayout integration", () => {
       expect(screen.getByText("Sin señal")).toBeInTheDocument();
     });
   });
+
+  it("shows deployed version metadata and toggles deployment history", async () => {
+    fetchServiceOperationalSummaryMock.mockResolvedValue({
+      rows: [],
+      totals: { total: 1, onlineCount: 1, accessIssues: 0, connectionErrors: 0 },
+    });
+
+    renderLayout();
+
+    expect(screen.getByText(/Version: 7f9015b/i)).toBeInTheDocument();
+    expect(screen.getByText(/Desplegada: 2026-04-19 22:00 UTC/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Historico de versiones/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Versiones desplegadas")).toBeInTheDocument();
+      expect(screen.getByText("Compatibilidad con payloads legacy del target/probe de IA")).toBeInTheDocument();
+      expect(screen.getByText("28f3fd9")).toBeInTheDocument();
+    });
+  });
 });

@@ -1,0 +1,25 @@
+{
+  "environment": "stg",
+  "currentVersion": "7f9015b",
+  "currentDeployedAt": "2026-04-19 22:00 UTC",
+  "history": [
+    {
+      "version": "7f9015b",
+      "deployedAt": "2026-04-19 22:00 UTC",
+      "commitSha": "7f9015b4e2baa0aafdf2a8849a58e7935476241c",
+      "summary": "Compatibilidad con payloads legacy del target/probe de IA"
+    },
+    {
+      "version": "28f3fd9",
+      "deployedAt": "2026-04-19 21:49 UTC",
+      "commitSha": "28f3fd9f98623d0d07ed23db553ad300994dd9e0",
+      "summary": "Formularios manuales de quiz y wordpass mas ajuste de layout"
+    },
+    {
+      "version": "efe5bf6",
+      "deployedAt": "2026-04-19 21:27 UTC",
+      "commitSha": "efe5bf63b0fbcd5b3a9c594fd62339019b95f62f",
+      "summary": "Estabilizacion de la gestion del destino llama y limpieza de errores UI"
+    }
+  ]
+}

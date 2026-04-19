@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState, type TouchEvent }
 
 import type { BackofficeSession } from "../../auth";
 import { fetchServiceOperationalSummary } from "../../application/services/operationalSummary";
+import deploymentHistory from "../../data/deployment-history.json";
 import { navItemsForRole, roleCanManageUsers, roleCanModify } from "../../application/services/rolePolicies";
 import { SERVICE_NAV_KEYS } from "../../domain/constants/navigation";
 import { ACCENT_OPTIONS, UI_DENSITY_STORAGE_KEY, UI_SERVICE_ROUTE_QUERY_STORAGE_PREFIX } from "../../domain/constants/ui";
@@ -82,6 +83,7 @@ export function BackofficeLayout({
   const allowedKeys = useMemo(() => navItems.map((item) => item.key), [navItems]);
   const [current, navigate] = useHashRoute(allowedKeys, navItems[0]?.key ?? "svc-api-gateway");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [releaseHistoryOpen, setReleaseHistoryOpen] = useState(false);
   const [globalHealth, setGlobalHealth] = useState<"healthy" | "warning" | "critical" | "unknown">("unknown");
   const [globalHealthText, setGlobalHealthText] = useState<string>("--");
   const [density, setDensity] = useState<UiDensity>(() => {
@@ -109,6 +111,21 @@ export function BackofficeLayout({
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [mobileMenuOpen]);
+
+  useEffect(() => {
+    if (!releaseHistoryOpen) {
+      return;
+    }
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setReleaseHistoryOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [releaseHistoryOpen]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -316,6 +333,56 @@ export function BackofficeLayout({
                         : t("layout.header.semaphore.unknown")}
                 </span>
                 <span className="text-xs text-[var(--md-sys-color-on-surface-variant)]">{globalHealthText}</span>
+              </div>
+
+              <div className="mt-4 flex flex-wrap items-start gap-3">
+                <div className="rounded-2xl border border-[var(--md-sys-color-outline-variant)] bg-[color:var(--md-sys-color-surface-container-low)]/80 px-3 py-2">
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--md-sys-color-on-surface-variant)]">
+                    {t("layout.release.environment")} {deploymentHistory.environment.toUpperCase()}
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-[var(--md-sys-color-on-surface)]">
+                    {t("layout.release.version")}: {deploymentHistory.currentVersion}
+                  </p>
+                  <p className="mt-1 text-xs text-[var(--md-sys-color-on-surface-variant)]">
+                    {t("layout.release.deployedAt")}: {deploymentHistory.currentDeployedAt}
+                  </p>
+                </div>
+
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setReleaseHistoryOpen((currentValue) => !currentValue)}
+                    aria-expanded={releaseHistoryOpen}
+                    aria-controls="deployment-history-panel"
+                    className="rounded-full border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container-low)] px-4 py-2 text-xs font-semibold transition hover:bg-[var(--md-sys-color-surface-container)]"
+                  >
+                    {t("layout.release.historyBtn")} ({deploymentHistory.history.length})
+                  </button>
+
+                  {releaseHistoryOpen && (
+                    <div
+                      id="deployment-history-panel"
+                      className="absolute left-0 top-full z-10 mt-2 w-[min(34rem,calc(100vw-3rem))] rounded-2xl border border-[var(--md-sys-color-outline-variant)] bg-[var(--md-sys-color-surface)] p-3 shadow-xl"
+                    >
+                      <p className="text-sm font-semibold text-[var(--md-sys-color-on-surface)]">{t("layout.release.historyTitle")}</p>
+                      <div className="mt-3 space-y-2">
+                        {deploymentHistory.history.map((entry) => (
+                          <article
+                            key={`${entry.version}-${entry.deployedAt}`}
+                            className="rounded-xl border border-[var(--md-sys-color-outline-variant)] bg-[color:var(--md-sys-color-surface-container-low)]/70 px-3 py-2"
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <p className="text-sm font-semibold text-[var(--md-sys-color-on-surface)]">{entry.version}</p>
+                              <p className="text-[11px] text-[var(--md-sys-color-on-surface-variant)]">{entry.deployedAt}</p>
+                            </div>
+                            <p className="mt-1 text-xs text-[var(--md-sys-color-on-surface-variant)]">{entry.summary}</p>
+                            <p className="mt-1 text-[11px] text-[var(--md-sys-color-on-surface-variant)]">{entry.commitSha}</p>
+                          </article>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="mt-4 flex flex-wrap items-center gap-2.5">
