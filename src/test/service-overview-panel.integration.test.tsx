@@ -340,6 +340,96 @@ describe("ServiceOverviewPanel integration", () => {
     });
   });
 
+  it("tolerates legacy ai-engine target and probe payloads without blanking the panel", async () => {
+    fetchJsonMock.mockImplementation((url: string, options?: RequestInit) => {
+      if (url.endsWith("/v1/backoffice/ai-engine/presets") && (!options?.method || options.method === "GET")) {
+        return Promise.resolve({
+          total: 1,
+          presets: [
+            {
+              id: "legacy-public",
+              name: "Legacy public",
+              host: "195.35.48.40",
+              protocol: "http",
+              port: 7002,
+              updatedAt: "2026-04-19T00:00:00.000Z",
+            },
+          ],
+        });
+      }
+
+      if (url.endsWith("/v1/backoffice/ai-engine/target") && (!options?.method || options.method === "GET")) {
+        return Promise.resolve({
+          source: "override",
+          label: "workstation-gpu-vps-relay",
+          host: "195.35.48.40",
+          protocol: "http",
+          apiPort: 27001,
+          statsPort: 27000,
+          apiBaseUrl: "http://195.35.48.40:27001",
+          statsBaseUrl: "http://195.35.48.40:27000",
+          updatedAt: "2026-04-19T21:00:00.000Z",
+        });
+      }
+
+      if (url.endsWith("/v1/backoffice/ai-engine/probe") && options?.method === "POST") {
+        return Promise.resolve({
+          host: "195.35.48.40",
+          protocol: "http",
+          apiPort: 7002,
+          statsPort: 7001,
+          reachable: false,
+          api: {
+            ok: false,
+            status: null,
+            url: "http://195.35.48.40:7002/health",
+            latencyMs: 5,
+            message: "fetch failed",
+          },
+          stats: {
+            ok: false,
+            status: null,
+            url: "http://195.35.48.40:7001/metrics",
+            latencyMs: 4,
+            message: "fetch failed",
+          },
+        });
+      }
+
+      if (url.endsWith("/v1/backoffice/ai-engine/target") && options?.method === "PUT") {
+        return Promise.resolve({
+          source: "override",
+          label: "Legacy public",
+          host: "195.35.48.40",
+          protocol: "http",
+          apiPort: 7002,
+          statsPort: 7001,
+          apiBaseUrl: "http://195.35.48.40:7002",
+          statsBaseUrl: "http://195.35.48.40:7001",
+          updatedAt: "2026-04-19T21:05:00.000Z",
+        });
+      }
+
+      throw new Error(`Unhandled URL: ${url}`);
+    });
+
+    renderPanel();
+
+    await waitFor(() => {
+      expect(screen.getAllByText("workstation-gpu-vps-relay").length).toBeGreaterThan(0);
+      expect(screen.getByText("27001")).toBeInTheDocument();
+      expect(screen.getByText("http://195.35.48.40:27001/v1/completions")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Verificar conectividad" }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Destino con fallos/i)).toBeInTheDocument();
+      expect(screen.getByText(/http:\/\/195.35.48.40:7002\/health fetch failed/i)).toBeInTheDocument();
+      expect(screen.getByText("Destino del servidor llama")).toBeInTheDocument();
+    });
+  });
+
   it("clears ai-target errors after a successful retry", async () => {
     let presetsShouldFail = true;
 

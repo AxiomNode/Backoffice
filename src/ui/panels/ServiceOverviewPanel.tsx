@@ -42,6 +42,67 @@ type AiEngineProbeResult = {
   llama: AiEngineProbeEndpointStatus;
 };
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
+}
+
+function readNullableString(value: unknown): string | null {
+  return typeof value === "string" ? value : null;
+}
+
+function readNullableNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function readProtocol(value: unknown): "http" | "https" | null {
+  return value === "http" || value === "https" ? value : null;
+}
+
+function normalizeAiTargetResponse(payload: unknown): AiEngineTarget {
+  const record = asRecord(payload) ?? {};
+  const apiBaseUrl = readNullableString(record.apiBaseUrl);
+  const statsBaseUrl = readNullableString(record.statsBaseUrl);
+
+  return {
+    source: record.source === "env" ? "env" : "override",
+    label: readNullableString(record.label),
+    host: readNullableString(record.host),
+    protocol: readProtocol(record.protocol),
+    port: readNullableNumber(record.port) ?? readNullableNumber(record.apiPort),
+    llamaBaseUrl: readNullableString(record.llamaBaseUrl) ?? (apiBaseUrl ? `${apiBaseUrl}/v1/completions` : null),
+    envLlamaBaseUrl: readNullableString(record.envLlamaBaseUrl) ?? statsBaseUrl,
+    updatedAt: readNullableString(record.updatedAt),
+  };
+}
+
+function normalizeProbeEndpointStatus(payload: unknown, fallbackUrl: string): AiEngineProbeEndpointStatus {
+  const record = asRecord(payload) ?? {};
+
+  return {
+    ok: record.ok === true,
+    status: readNullableNumber(record.status),
+    url: readNullableString(record.url) ?? fallbackUrl,
+    latencyMs: readNullableNumber(record.latencyMs),
+    message: readNullableString(record.message),
+  };
+}
+
+function normalizeAiProbeResponse(payload: unknown): AiEngineProbeResult {
+  const record = asRecord(payload) ?? {};
+  const protocol = readProtocol(record.protocol) ?? "http";
+  const host = readNullableString(record.host) ?? "";
+  const port = readNullableNumber(record.port) ?? readNullableNumber(record.apiPort) ?? 7002;
+  const fallbackUrl = `${protocol}://${host}:${port}/v1/models`;
+
+  return {
+    host,
+    protocol,
+    port,
+    reachable: record.reachable === true,
+    llama: normalizeProbeEndpointStatus(record.llama ?? record.api, fallbackUrl),
+  };
+}
+
 function KpiCard({ label, value, tone = "neutral" }: KpiCardProps) {
   const toneClass =
     tone === "ok"
@@ -161,10 +222,10 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
     setAiTargetLoading(true);
     setAiTargetError(null);
     try {
-      const nextTarget = await fetchJson<AiEngineTarget>(`${EDGE_API_BASE}/v1/backoffice/ai-engine/target`, {
+      const payload = await fetchJson<unknown>(`${EDGE_API_BASE}/v1/backoffice/ai-engine/target`, {
         headers: authHeaders(),
       });
-      setAiTarget(nextTarget);
+      setAiTarget(normalizeAiTargetResponse(payload));
       setAiTargetError(null);
     } catch (loadError) {
       setAiTargetError(loadError instanceof Error ? loadError.message : t("roles.errorUnknown"));
@@ -261,11 +322,12 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
     setAiProbeLoading(true);
     setAiTargetError(null);
     try {
-      const probe = await fetchJson<AiEngineProbeResult>(`${EDGE_API_BASE}/v1/backoffice/ai-engine/probe`, {
+      const probePayload = await fetchJson<unknown>(`${EDGE_API_BASE}/v1/backoffice/ai-engine/probe`, {
         method: "POST",
         headers: authHeaders(),
         body: JSON.stringify(payload),
       });
+      const probe = normalizeAiProbeResponse(probePayload);
       setAiProbeResult(probe);
       setAiTargetError(null);
       return probe;
@@ -296,7 +358,7 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
         throw new Error(t("overview.aiTarget.probeApplyBlocked"));
       }
 
-      const nextTarget = await fetchJson<AiEngineTarget>(`${EDGE_API_BASE}/v1/backoffice/ai-engine/target`, {
+      const payload = await fetchJson<unknown>(`${EDGE_API_BASE}/v1/backoffice/ai-engine/target`, {
         method: "PUT",
         headers: authHeaders(),
         body: JSON.stringify({
@@ -306,7 +368,7 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
           label: activePreset.name,
         }),
       });
-      setAiTarget(nextTarget);
+      setAiTarget(normalizeAiTargetResponse(payload));
       setAiTargetError(null);
     } catch (saveError) {
       setAiTargetError(saveError instanceof Error ? saveError.message : t("roles.errorUnknown"));
