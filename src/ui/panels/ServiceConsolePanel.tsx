@@ -139,6 +139,8 @@ type ServiceConsolePanelProps = {
   density: UiDensity;
 };
 
+type ServiceConsoleSection = "observability" | "data" | "manual";
+
 /** Console panel for an individual service showing metrics, logs, data tables, and manual CRUD. */
 export function ServiceConsolePanel({ navKey, context, density }: ServiceConsolePanelProps) {
   const { t } = useI18n();
@@ -155,6 +157,7 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
   const compact = density === "dense";
   const [quizDraft, setQuizDraft] = useState<QuizManualDraft>(EMPTY_QUIZ_MANUAL_DRAFT);
   const [wordpassDraft, setWordpassDraft] = useState<WordpassManualDraft>(EMPTY_WORDPASS_MANUAL_DRAFT);
+  const [activeSection, setActiveSection] = useState<ServiceConsoleSection>("observability");
 
   const isQuizHistoryDataset = serviceConfig?.service === "microservice-quiz" && state.dataset === "history";
   const isWordpassHistoryDataset = serviceConfig?.service === "microservice-wordpass" && state.dataset === "history";
@@ -164,6 +167,16 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
   }
 
   const isGameHistoryDataset = isQuizHistoryDataset || isWordpassHistoryDataset;
+
+  useEffect(() => {
+    setActiveSection(isGameHistoryDataset ? "data" : "observability");
+  }, [isGameHistoryDataset, navKey]);
+
+  useEffect(() => {
+    if (activeSection === "manual" && !isGameHistoryDataset) {
+      setActiveSection("data");
+    }
+  }, [activeSection, isGameHistoryDataset]);
 
   useEffect(() => {
     if (serviceConfig.service === "microservice-quiz") {
@@ -318,6 +331,14 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
     ];
   }, [isGameHistoryDataset, state, t]);
 
+  const sectionOptions: Array<{ key: ServiceConsoleSection; label: string; visible: boolean }> = [
+    { key: "observability", label: t("service.section.observability"), visible: true },
+    { key: "data", label: t("service.section.data"), visible: true },
+    { key: "manual", label: t("service.section.manual"), visible: isGameHistoryDataset },
+  ];
+
+  const visibleSections = sectionOptions.filter((section) => section.visible);
+
   return (
     <section className={`m3-card ui-fade-in ${compact ? "p-3 sm:p-4 xl:p-5 space-y-3" : "p-4 sm:p-5 xl:p-6 space-y-4 xl:space-y-5"}`}>
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -389,48 +410,74 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
 
       {state.error && <p className="ui-feedback ui-feedback--error">{state.error}</p>}
 
-      <section className="grid min-w-0 gap-3">
-        <article className="ui-surface-raised min-w-0 rounded-2xl p-4 space-y-2">
-          <div className="flex items-center justify-between gap-3">
+      <div className="ui-surface-soft rounded-2xl p-2">
+        <div className="flex flex-wrap gap-2" role="tablist" aria-label={t("service.section.navigation")}>
+          {visibleSections.map((section) => {
+            const isActive = activeSection === section.key;
+            return (
+              <button
+                key={section.key}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                onClick={() => setActiveSection(section.key)}
+                className={`rounded-xl px-3 py-2 text-sm font-semibold transition ${
+                  isActive
+                    ? "bg-[var(--md-sys-color-primary)] text-[var(--md-sys-color-on-primary)] shadow-sm"
+                    : "border border-[var(--md-sys-color-outline-variant)] bg-[var(--md-sys-color-surface)] text-[var(--md-sys-color-on-surface-variant)] hover:bg-[var(--md-sys-color-surface-container)]"
+                }`}
+              >
+                {section.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {activeSection === "observability" && (
+        <section className="grid min-w-0 gap-3" aria-label={t("service.section.observability")}>
+          <article className="ui-surface-raised min-w-0 rounded-2xl p-4 space-y-2">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h3 className={`m3-title ${compact ? "text-base" : "text-lg"}`}>{t("service.metrics.title")}</h3>
+                <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">Observabilidad viva: auto refresh permitido porque no toca la capa editorial.</p>
+              </div>
+              <button type="button" onClick={() => void state.loadOverview()} className="rounded-lg border border-[var(--md-sys-color-outline-variant)] px-3 py-1.5 text-xs font-semibold">
+                {state.overviewLoading ? t("service.button.updating") : t("service.button.update")}
+              </button>
+            </div>
+            {state.metricsError ? (
+              <p className="ui-feedback ui-feedback--error">{state.metricsError}</p>
+            ) : state.metricsRows.length ? (
+              <PaginatedFilterableTable rows={state.metricsRows} defaultPageSize={10} density={density} />
+            ) : (
+              <div className="rounded-xl border border-dashed border-[var(--md-sys-color-outline)] px-4 py-3 text-sm">
+                <p className="font-medium">{t("service.metrics.none")}</p>
+                <p className="mt-1 text-xs text-[var(--md-sys-color-on-surface-variant)]">{t("service.metrics.emptyHint")}</p>
+              </div>
+            )}
+          </article>
+
+          <article className="ui-surface-raised min-w-0 rounded-2xl p-4 space-y-2">
             <div>
-              <h3 className={`m3-title ${compact ? "text-base" : "text-lg"}`}>{t("service.metrics.title")}</h3>
-              <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">Observabilidad viva: auto refresh permitido porque no toca la capa editorial.</p>
+              <h3 className={`m3-title ${compact ? "text-base" : "text-lg"}`}>{t("service.logs.title")}</h3>
+              <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">Lectura operativa: comparte ciclo con métricas para no abrir otro temporizador innecesario.</p>
             </div>
-            <button type="button" onClick={() => void state.loadOverview()} className="rounded-lg border border-[var(--md-sys-color-outline-variant)] px-3 py-1.5 text-xs font-semibold">
-              {state.overviewLoading ? t("service.button.updating") : t("service.button.update")}
-            </button>
-          </div>
-          {state.metricsError ? (
-            <p className="ui-feedback ui-feedback--error">{state.metricsError}</p>
-          ) : state.metricsRows.length ? (
-            <PaginatedFilterableTable rows={state.metricsRows} defaultPageSize={10} density={density} />
-          ) : (
-            <div className="rounded-xl border border-dashed border-[var(--md-sys-color-outline)] px-4 py-3 text-sm">
-              <p className="font-medium">{t("service.metrics.none")}</p>
-              <p className="mt-1 text-xs text-[var(--md-sys-color-on-surface-variant)]">{t("service.metrics.emptyHint")}</p>
-            </div>
-          )}
-        </article>
+            {state.logsError ? (
+              <p className="ui-feedback ui-feedback--error">{state.logsError}</p>
+            ) : state.logsRows.length ? (
+              <PaginatedFilterableTable rows={state.logsRows} defaultPageSize={20} density={density} />
+            ) : (
+              <div className="rounded-xl border border-dashed border-[var(--md-sys-color-outline)] px-4 py-3 text-sm">
+                <p className="font-medium">{t("service.logs.none")}</p>
+                <p className="mt-1 text-xs text-[var(--md-sys-color-on-surface-variant)]">{t("service.logs.emptyHint")}</p>
+              </div>
+            )}
+          </article>
+        </section>
+      )}
 
-        <article className="ui-surface-raised min-w-0 rounded-2xl p-4 space-y-2">
-          <div>
-            <h3 className={`m3-title ${compact ? "text-base" : "text-lg"}`}>{t("service.logs.title")}</h3>
-            <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">Lectura operativa: comparte ciclo con métricas para no abrir otro temporizador innecesario.</p>
-          </div>
-          {state.logsError ? (
-            <p className="ui-feedback ui-feedback--error">{state.logsError}</p>
-          ) : state.logsRows.length ? (
-            <PaginatedFilterableTable rows={state.logsRows} defaultPageSize={20} density={density} />
-          ) : (
-            <div className="rounded-xl border border-dashed border-[var(--md-sys-color-outline)] px-4 py-3 text-sm">
-              <p className="font-medium">{t("service.logs.none")}</p>
-              <p className="mt-1 text-xs text-[var(--md-sys-color-on-surface-variant)]">{t("service.logs.emptyHint")}</p>
-            </div>
-          )}
-        </article>
-      </section>
-
-      {serviceConfig.datasets && serviceConfig.datasets.length > 0 && (
+      {activeSection === "data" && serviceConfig.datasets && serviceConfig.datasets.length > 0 && (
         <article className="min-w-0 space-y-3 ui-surface-raised rounded-2xl p-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -748,6 +795,179 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
               <p className="mt-1 text-xs text-[var(--md-sys-color-on-surface-variant)]">{t("service.data.emptyHint")}</p>
             </div>
           )}
+        </article>
+      )}
+
+      {activeSection === "manual" && isGameHistoryDataset && (
+        <article className="min-w-0 space-y-3 ui-surface-raised rounded-2xl p-4" aria-label={t("service.section.manual")}>
+          <div>
+            <h3 className={`m3-title ${compact ? "text-base" : "text-lg"}`}>{t("service.data.manual.title")}</h3>
+            <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">Edicion puntual: las escrituras refrescan solo el dataset actual para no degradar el resto del panel.</p>
+          </div>
+
+          <div className={`ui-surface-soft space-y-3 rounded-xl ${compact ? "p-3" : "p-4"}`}>
+            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+              <label className="text-xs">
+                {t("service.data.manual.categoryId")}
+                {state.manualCatalogs.categories.length > 0 ? (
+                  <select value={state.manualCategoryId} onChange={(event) => state.setManualCategoryId(event.target.value)} className="control-input mt-1 w-full px-2 py-1.5 text-sm">
+                    {state.manualCatalogs.categories.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input value={state.manualCategoryId} onChange={(event) => state.setManualCategoryId(event.target.value)} className="control-input mt-1 w-full px-2 py-1.5 text-sm" />
+                )}
+              </label>
+              <label className="text-xs">
+                {t("service.data.manual.language")}
+                {state.manualCatalogs.languages.length > 0 ? (
+                  <select value={state.manualLanguage} onChange={(event) => state.setManualLanguage(event.target.value)} className="control-input mt-1 w-full px-2 py-1.5 text-sm">
+                    {state.manualCatalogs.languages.map((item) => (
+                      <option key={item.code} value={item.code}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input value={state.manualLanguage} onChange={(event) => state.setManualLanguage(event.target.value)} className="control-input mt-1 w-full px-2 py-1.5 text-sm" />
+                )}
+              </label>
+              <label className="text-xs">
+                {t("service.data.manual.difficulty")}
+                <input type="number" min={0} max={100} value={state.manualDifficulty} onChange={(event) => state.setManualDifficulty(Number(event.target.value || 0))} className="control-input mt-1 w-full px-2 py-1.5 text-sm" />
+              </label>
+              <label className="text-xs">
+                {t("service.data.manual.status")}
+                <select value={state.manualStatus} onChange={(event) => state.setManualStatus(event.target.value as "manual" | "validated" | "pending_review")} className="control-input mt-1 w-full px-2 py-1.5 text-sm">
+                  <option value="manual">manual</option>
+                  <option value="validated">validated</option>
+                  <option value="pending_review">pending_review</option>
+                </select>
+              </label>
+            </div>
+
+            {isQuizHistoryDataset && (
+              <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                <label className="text-xs md:col-span-2 xl:col-span-3">
+                  {t("service.data.manual.quizQuestion")}
+                  <input
+                    value={quizDraft.question}
+                    onChange={(event) => setQuizDraft((current) => ({ ...current, question: event.target.value }))}
+                    className="control-input mt-1 w-full px-2 py-1.5 text-sm"
+                  />
+                </label>
+                <label className="text-xs">
+                  {t("service.data.manual.quizOptionA")}
+                  <input
+                    value={quizDraft.optionA}
+                    onChange={(event) => setQuizDraft((current) => ({ ...current, optionA: event.target.value }))}
+                    className="control-input mt-1 w-full px-2 py-1.5 text-sm"
+                  />
+                </label>
+                <label className="text-xs">
+                  {t("service.data.manual.quizOptionB")}
+                  <input
+                    value={quizDraft.optionB}
+                    onChange={(event) => setQuizDraft((current) => ({ ...current, optionB: event.target.value }))}
+                    className="control-input mt-1 w-full px-2 py-1.5 text-sm"
+                  />
+                </label>
+                <label className="text-xs">
+                  {t("service.data.manual.quizOptionC")}
+                  <input
+                    value={quizDraft.optionC}
+                    onChange={(event) => setQuizDraft((current) => ({ ...current, optionC: event.target.value }))}
+                    className="control-input mt-1 w-full px-2 py-1.5 text-sm"
+                  />
+                </label>
+                <label className="text-xs">
+                  {t("service.data.manual.quizOptionD")}
+                  <input
+                    value={quizDraft.optionD}
+                    onChange={(event) => setQuizDraft((current) => ({ ...current, optionD: event.target.value }))}
+                    className="control-input mt-1 w-full px-2 py-1.5 text-sm"
+                  />
+                </label>
+                <label className="text-xs">
+                  {t("service.data.manual.quizCorrectOption")}
+                  <select
+                    value={quizDraft.correctOption}
+                    onChange={(event) => setQuizDraft((current) => ({ ...current, correctOption: event.target.value as "0" | "1" | "2" | "3" }))}
+                    className="control-input mt-1 w-full px-2 py-1.5 text-sm"
+                  >
+                    <option value="0">A</option>
+                    <option value="1">B</option>
+                    <option value="2">C</option>
+                    <option value="3">D</option>
+                  </select>
+                </label>
+              </div>
+            )}
+
+            {isWordpassHistoryDataset && (
+              <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                <label className="text-xs">
+                  {t("service.data.manual.wordLetter")}
+                  <input
+                    value={wordpassDraft.letter}
+                    onChange={(event) => setWordpassDraft((current) => ({ ...current, letter: event.target.value }))}
+                    className="control-input mt-1 w-full px-2 py-1.5 text-sm"
+                  />
+                </label>
+                <label className="text-xs xl:col-span-2">
+                  {t("service.data.manual.wordHint")}
+                  <input
+                    value={wordpassDraft.hint}
+                    onChange={(event) => setWordpassDraft((current) => ({ ...current, hint: event.target.value }))}
+                    className="control-input mt-1 w-full px-2 py-1.5 text-sm"
+                  />
+                </label>
+                <label className="text-xs md:col-span-2 xl:col-span-3">
+                  {t("service.data.manual.wordAnswer")}
+                  <input
+                    value={wordpassDraft.answer}
+                    onChange={(event) => setWordpassDraft((current) => ({ ...current, answer: event.target.value }))}
+                    className="control-input mt-1 w-full px-2 py-1.5 text-sm"
+                  />
+                </label>
+              </div>
+            )}
+
+            <label className="text-xs">
+              {t("service.data.manual.contentJson")}
+              <textarea value={state.manualContentJson} onChange={(event) => state.setManualContentJson(event.target.value)} rows={5} className="control-input mt-1 w-full px-2 py-2 text-xs sm:text-sm" />
+            </label>
+
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => void state.insertManualEntry(state.manualContentJson, state.manualCategoryId, state.manualLanguage, state.manualDifficulty, state.manualStatus)} disabled={state.dataMutationLoading} className="rounded-lg bg-[var(--md-sys-color-primary)] px-3 py-2 text-sm font-semibold text-[var(--md-sys-color-on-primary)] disabled:cursor-not-allowed disabled:opacity-60">
+                {state.dataMutationLoading ? t("service.button.updating") : t("service.data.manual.insert")}
+              </button>
+              <label className="min-w-[14rem] flex-1 text-xs">
+                {t("service.data.manual.updateId")}
+                <input value={state.editEntryId} onChange={(event) => state.setEditEntryId(event.target.value)} className="control-input mt-1 w-full px-2 py-1.5 text-sm" placeholder={t("service.data.manual.updatePlaceholder")} />
+              </label>
+              <button type="button" onClick={() => void state.updateManualEntry(state.editEntryId, state.manualContentJson, state.manualCategoryId, state.manualLanguage, state.manualDifficulty, state.manualStatus)} disabled={state.dataMutationLoading} className="rounded-lg bg-[var(--md-sys-color-secondary)] px-3 py-2 text-sm font-semibold text-[var(--md-sys-color-on-secondary)] disabled:cursor-not-allowed disabled:opacity-60">
+                {state.dataMutationLoading ? t("service.button.updating") : t("service.data.manual.update")}
+              </button>
+            </div>
+
+            <div className="grid gap-2 md:grid-cols-[1fr_auto]">
+              <label className="text-xs">
+                {t("service.data.manual.deleteId")}
+                <input value={state.deleteEntryId} onChange={(event) => state.setDeleteEntryId(event.target.value)} className="control-input mt-1 w-full px-2 py-1.5 text-sm" placeholder={t("service.data.manual.deletePlaceholder")} />
+              </label>
+              <button type="button" onClick={() => void state.deleteManualEntry(state.deleteEntryId)} disabled={state.dataMutationLoading} className="self-end rounded-lg bg-[var(--md-sys-color-error)] px-3 py-2 text-sm font-semibold text-[var(--md-sys-color-on-error)] disabled:cursor-not-allowed disabled:opacity-60">
+                {t("service.data.manual.delete")}
+              </button>
+            </div>
+
+            {state.dataMutationError && <p className="ui-feedback ui-feedback--error p-2 text-xs">{state.dataMutationError}</p>}
+            {state.manualCatalogError && <p className="ui-feedback ui-feedback--warn p-2 text-xs">{state.manualCatalogError}</p>}
+            {state.dataMutationMessage && <p className="ui-feedback ui-feedback--ok p-2 text-xs">{state.dataMutationMessage}</p>}
+          </div>
         </article>
       )}
     </section>

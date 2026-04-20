@@ -84,6 +84,7 @@ export function BackofficeLayout({
   const [current, navigate] = useHashRoute(allowedKeys, navItems[0]?.key ?? "svc-api-gateway");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [releaseHistoryOpen, setReleaseHistoryOpen] = useState(false);
+  const [preferencesOpen, setPreferencesOpen] = useState(false);
   const [globalHealth, setGlobalHealth] = useState<"healthy" | "warning" | "critical" | "unknown">("unknown");
   const [globalHealthText, setGlobalHealthText] = useState<string>("--");
   const [density, setDensity] = useState<UiDensity>(() => {
@@ -97,6 +98,8 @@ export function BackofficeLayout({
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
   const summaryBaselineRef = useRef<Record<string, { requestsTotal: number | null; fetchedAt: number }>>({});
+  const releaseHistoryRef = useRef<HTMLDivElement | null>(null);
+  const preferencesRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!mobileMenuOpen) {
@@ -126,6 +129,41 @@ export function BackofficeLayout({
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [releaseHistoryOpen]);
+
+  useEffect(() => {
+    if (!preferencesOpen) {
+      return;
+    }
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setPreferencesOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [preferencesOpen]);
+
+  useEffect(() => {
+    const onPointerDown = (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) {
+        return;
+      }
+
+      if (releaseHistoryOpen && releaseHistoryRef.current && !releaseHistoryRef.current.contains(target)) {
+        setReleaseHistoryOpen(false);
+      }
+
+      if (preferencesOpen && preferencesRef.current && !preferencesRef.current.contains(target)) {
+        setPreferencesOpen(false);
+      }
+    };
+
+    window.addEventListener("mousedown", onPointerDown);
+    return () => window.removeEventListener("mousedown", onPointerDown);
+  }, [preferencesOpen, releaseHistoryOpen]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -196,6 +234,8 @@ export function BackofficeLayout({
       navigate(key);
     }
     setMobileMenuOpen(false);
+    setReleaseHistoryOpen(false);
+    setPreferencesOpen(false);
   };
 
   const onTouchStart = (event: TouchEvent) => {
@@ -301,9 +341,11 @@ export function BackofficeLayout({
         </div>
       </div>
 
-      <Sidebar current={current} onChange={onNavigate} items={navItems} className="hidden h-fit lg:block lg:sticky lg:top-4" />
+      <div className="relative z-30 min-w-0">
+        <Sidebar current={current} onChange={onNavigate} items={navItems} className="hidden h-fit lg:block lg:sticky lg:top-4" />
+      </div>
 
-      <main className="relative z-0 min-w-0 space-y-3 overflow-visible sm:space-y-4 xl:space-y-5">
+      <main className="relative z-10 min-w-0 space-y-3 overflow-visible sm:space-y-4 xl:space-y-5">
         <header className="m3-card ui-fade-in relative z-20 overflow-visible bg-[linear-gradient(120deg,color-mix(in_srgb,var(--md-sys-color-primary-container)_78%,var(--md-sys-color-surface)_22%)_0%,color-mix(in_srgb,var(--md-sys-color-surface)_88%,transparent_12%)_46%,color-mix(in_srgb,var(--md-sys-color-tertiary-container)_75%,var(--md-sys-color-surface)_25%)_100%)] p-4 xl:p-6">
           <div className="grid gap-4 xl:grid-cols-[1fr_auto] xl:items-start">
             <div className="min-w-0">
@@ -335,7 +377,7 @@ export function BackofficeLayout({
                 <span className="text-xs text-[var(--md-sys-color-on-surface-variant)]">{globalHealthText}</span>
               </div>
 
-              <div className="mt-4 flex flex-wrap items-start gap-3">
+              <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
                 <div className="rounded-2xl border border-[var(--md-sys-color-outline-variant)] bg-[color:var(--md-sys-color-surface-container-low)]/80 px-3 py-2">
                   <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--md-sys-color-on-surface-variant)]">
                     {t("layout.release.environment")} {deploymentHistory.environment.toUpperCase()}
@@ -348,85 +390,113 @@ export function BackofficeLayout({
                   </p>
                 </div>
 
-                <div className="relative z-30">
-                  <button
-                    type="button"
-                    onClick={() => setReleaseHistoryOpen((currentValue) => !currentValue)}
-                    aria-expanded={releaseHistoryOpen}
-                    aria-controls="deployment-history-panel"
-                    className="rounded-full border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container-low)] px-4 py-2 text-xs font-semibold transition hover:bg-[var(--md-sys-color-surface-container)]"
-                  >
-                    {t("layout.release.historyBtn")} ({deploymentHistory.history.length})
-                  </button>
-
-                  {releaseHistoryOpen && (
-                    <div
-                      id="deployment-history-panel"
-                      className="absolute left-0 top-full z-40 mt-2 w-[min(34rem,calc(100vw-3rem))] rounded-2xl border border-[var(--md-sys-color-outline-variant)] bg-[var(--md-sys-color-surface)] p-3 shadow-xl"
+                <div className="flex flex-wrap items-center justify-start gap-2 lg:justify-end">
+                  <div ref={releaseHistoryRef} className="relative z-30">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setReleaseHistoryOpen((currentValue) => !currentValue);
+                        setPreferencesOpen(false);
+                      }}
+                      aria-expanded={releaseHistoryOpen}
+                      aria-controls="deployment-history-panel"
+                      className="rounded-full border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container-low)] px-4 py-2 text-xs font-semibold transition hover:bg-[var(--md-sys-color-surface-container)]"
                     >
-                      <p className="text-sm font-semibold text-[var(--md-sys-color-on-surface)]">{t("layout.release.historyTitle")}</p>
-                      <div className="mt-3 space-y-2">
-                        {deploymentHistory.history.map((entry) => (
-                          <article
-                            key={`${entry.version}-${entry.deployedAt}`}
-                            className="rounded-xl border border-[var(--md-sys-color-outline-variant)] bg-[color:var(--md-sys-color-surface-container-low)]/70 px-3 py-2"
-                          >
-                            <div className="flex flex-wrap items-center justify-between gap-2">
-                              <p className="text-sm font-semibold text-[var(--md-sys-color-on-surface)]">{entry.version}</p>
-                              <p className="text-[11px] text-[var(--md-sys-color-on-surface-variant)]">{entry.deployedAt}</p>
-                            </div>
-                            <p className="mt-1 text-xs text-[var(--md-sys-color-on-surface-variant)]">{entry.summary}</p>
-                            <p className="mt-1 text-[11px] text-[var(--md-sys-color-on-surface-variant)]">{entry.commitSha}</p>
-                          </article>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
+                      {t("layout.release.historyBtn")} ({deploymentHistory.history.length})
+                    </button>
 
-              <div className="mt-4 flex flex-wrap items-center gap-2.5">
-                <label className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
-                  {t("login.accent")}
-                  <select value={accent} onChange={(event) => onAccentChange(event.target.value as UiAccent)} className="control-input ml-2 py-1.5">
-                    {ACCENT_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {t(ACCENT_LABEL_KEYS[option.value])}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
-                  {t("language.selectorLabel")}
-                  <select value={language} onChange={(event) => setLanguage(event.target.value as typeof language)} className="control-input ml-2 py-1.5">
-                    {LANGUAGE_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
-                  {t("layout.header.typography")}
-                  <select value={typography} onChange={(event) => onTypographyChange(event.target.value as UiTypography)} className="control-input ml-2 py-1.5">
-                    {TYPOGRAPHY_OPTIONS.map((size) => (
-                      <option key={size} value={size}>{t(TYPOGRAPHY_LABEL_KEYS[size])}</option>
-                    ))}
-                  </select>
-                </label>
-                <button type="button" onClick={onToggleTheme} className="ui-switch" role="switch" aria-checked={theme === "dark"} aria-label={t("layout.header.themeSwitch")}>
-                  <span className={`ui-switch-track ${theme === "dark" ? "is-on" : ""}`}>
-                    <span className="ui-switch-thumb" />
-                  </span>
-                  <span className="text-xs font-semibold text-[var(--md-sys-color-on-surface-variant)]">{theme === "dark" ? t("layout.header.themeDark") : t("layout.header.themeLight")}</span>
-                </button>
-                <button type="button" onClick={toggleDensity} className="ui-switch" role="switch" aria-checked={density === "dense"} aria-label={t("layout.header.densitySwitch")}>
-                  <span className={`ui-switch-track ${density === "dense" ? "is-on" : ""}`}>
-                    <span className="ui-switch-thumb" />
-                  </span>
-                  <span className="text-xs font-semibold text-[var(--md-sys-color-on-surface-variant)]">{density === "dense" ? t("layout.header.densityDense") : t("layout.header.densityComfortable")}</span>
-                </button>
-                <button type="button" onClick={onSignOut} className="rounded-full border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container-low)] px-4 py-2 text-sm font-semibold transition hover:bg-[var(--md-sys-color-surface-container)]">{t("layout.header.signOut")}</button>
+                    {releaseHistoryOpen && (
+                      <div
+                        id="deployment-history-panel"
+                        className="absolute left-0 top-full z-40 mt-2 w-[min(34rem,calc(100vw-3rem))] rounded-2xl border border-[var(--md-sys-color-outline-variant)] bg-[var(--md-sys-color-surface)] p-3 shadow-xl lg:right-0 lg:left-auto"
+                      >
+                        <p className="text-sm font-semibold text-[var(--md-sys-color-on-surface)]">{t("layout.release.historyTitle")}</p>
+                        <div className="mt-3 space-y-2">
+                          {deploymentHistory.history.map((entry) => (
+                            <article
+                              key={`${entry.version}-${entry.deployedAt}`}
+                              className="rounded-xl border border-[var(--md-sys-color-outline-variant)] bg-[color:var(--md-sys-color-surface-container-low)]/70 px-3 py-2"
+                            >
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <p className="text-sm font-semibold text-[var(--md-sys-color-on-surface)]">{entry.version}</p>
+                                <p className="text-[11px] text-[var(--md-sys-color-on-surface-variant)]">{entry.deployedAt}</p>
+                              </div>
+                              <p className="mt-1 text-xs text-[var(--md-sys-color-on-surface-variant)]">{entry.summary}</p>
+                              <p className="mt-1 text-[11px] text-[var(--md-sys-color-on-surface-variant)]">{entry.commitSha}</p>
+                            </article>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div ref={preferencesRef} className="relative z-30">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPreferencesOpen((currentValue) => !currentValue);
+                        setReleaseHistoryOpen(false);
+                      }}
+                      aria-expanded={preferencesOpen}
+                      aria-controls="layout-preferences-panel"
+                      className="rounded-full border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container-low)] px-4 py-2 text-xs font-semibold transition hover:bg-[var(--md-sys-color-surface-container)]"
+                    >
+                      UI
+                    </button>
+
+                    {preferencesOpen && (
+                      <div
+                        id="layout-preferences-panel"
+                        className="absolute left-0 top-full z-40 mt-2 w-[min(30rem,calc(100vw-3rem))] rounded-2xl border border-[var(--md-sys-color-outline-variant)] bg-[var(--md-sys-color-surface)] p-3 shadow-xl lg:right-0 lg:left-auto"
+                      >
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <label className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
+                            {t("login.accent")}
+                            <select value={accent} onChange={(event) => onAccentChange(event.target.value as UiAccent)} className="control-input mt-1 w-full py-1.5">
+                              {ACCENT_OPTIONS.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                  {t(ACCENT_LABEL_KEYS[option.value])}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <label className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
+                            {t("language.selectorLabel")}
+                            <select value={language} onChange={(event) => setLanguage(event.target.value as typeof language)} className="control-input mt-1 w-full py-1.5">
+                              {LANGUAGE_OPTIONS.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <label className="text-xs text-[var(--md-sys-color-on-surface-variant)] sm:col-span-2">
+                            {t("layout.header.typography")}
+                            <select value={typography} onChange={(event) => onTypographyChange(event.target.value as UiTypography)} className="control-input mt-1 w-full py-1.5">
+                              {TYPOGRAPHY_OPTIONS.map((size) => (
+                                <option key={size} value={size}>{t(TYPOGRAPHY_LABEL_KEYS[size])}</option>
+                              ))}
+                            </select>
+                          </label>
+                          <button type="button" onClick={onToggleTheme} className="ui-switch justify-between rounded-xl border border-[var(--md-sys-color-outline-variant)] px-3 py-2" role="switch" aria-checked={theme === "dark"} aria-label={t("layout.header.themeSwitch")}>
+                            <span className={`ui-switch-track ${theme === "dark" ? "is-on" : ""}`}>
+                              <span className="ui-switch-thumb" />
+                            </span>
+                            <span className="text-xs font-semibold text-[var(--md-sys-color-on-surface-variant)]">{theme === "dark" ? t("layout.header.themeDark") : t("layout.header.themeLight")}</span>
+                          </button>
+                          <button type="button" onClick={toggleDensity} className="ui-switch justify-between rounded-xl border border-[var(--md-sys-color-outline-variant)] px-3 py-2" role="switch" aria-checked={density === "dense"} aria-label={t("layout.header.densitySwitch")}>
+                            <span className={`ui-switch-track ${density === "dense" ? "is-on" : ""}`}>
+                              <span className="ui-switch-thumb" />
+                            </span>
+                            <span className="text-xs font-semibold text-[var(--md-sys-color-on-surface-variant)]">{density === "dense" ? t("layout.header.densityDense") : t("layout.header.densityComfortable")}</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <button type="button" onClick={onSignOut} className="rounded-full border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container-low)] px-4 py-2 text-sm font-semibold transition hover:bg-[var(--md-sys-color-surface-container)]">{t("layout.header.signOut")}</button>
+                </div>
               </div>
             </div>
             <div className="flex items-start justify-end xl:pt-1">

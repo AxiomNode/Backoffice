@@ -208,4 +208,43 @@ describe("BackofficeLayout integration", () => {
       expect(screen.getByText("28f3fd9")).toBeInTheDocument();
     });
   });
+
+  it("opens the UI preferences panel without overloading the main header", async () => {
+    fetchServiceOperationalSummaryMock.mockResolvedValue({
+      rows: [],
+      totals: { total: 1, onlineCount: 1, accessIssues: 0, connectionErrors: 0 },
+    });
+
+    renderLayout();
+
+    fireEvent.click(screen.getByRole("button", { name: "UI" }));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Tamano texto")).toBeInTheDocument();
+      expect(screen.getAllByLabelText("Idioma").length).toBeGreaterThan(0);
+    });
+  });
+
+  it("closes floating header panels when navigating from the sidebar", async () => {
+    fetchServiceOperationalSummaryMock.mockResolvedValue({
+      rows: [],
+      totals: { total: 1, onlineCount: 1, accessIssues: 0, connectionErrors: 0 },
+    });
+
+    renderLayout();
+
+    fireEvent.click(screen.getByRole("button", { name: /Historico de versiones/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Versiones desplegadas")).toBeInTheDocument();
+    });
+
+    const gatewayButtons = screen.getAllByRole("button", { name: /Entrada publica/i });
+    fireEvent.click(gatewayButtons[0]);
+
+    await waitFor(() => {
+      expect(screen.queryByText("Versiones desplegadas")).not.toBeInTheDocument();
+      expect(screen.getByTestId("service-console-panel")).toHaveTextContent("console-panel:svc-api-gateway");
+    });
+  });
 });

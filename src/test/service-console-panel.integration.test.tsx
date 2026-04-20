@@ -88,8 +88,13 @@ describe("ServiceConsolePanel integration", () => {
 
     await waitFor(() => {
       expect(screen.getByText("metrics down")).toBeInTheDocument();
-      expect(screen.getByText("data down")).toBeInTheDocument();
       expect(screen.getByTestId("paginated-table")).toHaveTextContent("rows:1");
+    });
+
+    fireEvent.click(screen.getByRole("tab", { name: "Datos" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("data down")).toBeInTheDocument();
     });
 
     expect(storeServiceLastErrorMock).toHaveBeenCalledTimes(2);
@@ -123,6 +128,8 @@ describe("ServiceConsolePanel integration", () => {
     await waitFor(() => {
       expect(fetchJsonMock).toHaveBeenCalled();
     });
+
+    fireEvent.click(screen.getByRole("tab", { name: "Datos" }));
 
     expect((screen.getByLabelText("Pagina") as HTMLInputElement).value).toBe("1");
     expect((screen.getByLabelText("Tamano pagina") as HTMLInputElement).value).toBe("20");
@@ -167,6 +174,8 @@ describe("ServiceConsolePanel integration", () => {
       await Promise.resolve();
     });
 
+    fireEvent.click(screen.getByRole("tab", { name: "Datos" }));
+
     const initialDataCalls = fetchJsonMock.mock.calls.filter(([url]) => String(url).includes("/data?")).length;
     const initialMetricCalls = fetchJsonMock.mock.calls.filter(([url]) => String(url).includes("/metrics")).length;
     const initialLogCalls = fetchJsonMock.mock.calls.filter(([url]) => String(url).includes("/logs")).length;
@@ -210,6 +219,8 @@ describe("ServiceConsolePanel integration", () => {
     await waitFor(() => {
       expect(fetchJsonMock).toHaveBeenCalled();
     });
+
+    fireEvent.click(screen.getByRole("tab", { name: "Datos" }));
 
     const initialDataCalls = fetchJsonMock.mock.calls.filter(([url]) => String(url).includes("/data?")).length;
     const initialMetricCalls = fetchJsonMock.mock.calls.filter(([url]) => String(url).includes("/metrics")).length;
@@ -310,9 +321,7 @@ describe("ServiceConsolePanel integration", () => {
     renderPanel("svc-quiz");
 
     await waitFor(() => {
-      expect(screen.getByText("Alta/baja manual de datos")).toBeInTheDocument();
-      expect((screen.getByLabelText("Categoria") as HTMLSelectElement).value).toBe("22");
-      expect((screen.getByLabelText("Lenguaje") as HTMLSelectElement).value).toBe("en");
+      expect(screen.getByRole("tab", { name: "Edicion manual" })).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Validar" }));
@@ -322,6 +331,14 @@ describe("ServiceConsolePanel integration", () => {
         expect.stringContaining("/v1/backoffice/services/microservice-quiz/data/entry-1"),
         expect.objectContaining({ method: "PATCH" }),
       );
+    });
+
+    fireEvent.click(screen.getByRole("tab", { name: "Edicion manual" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Alta/baja manual de datos")).toBeInTheDocument();
+      expect((screen.getByLabelText("Categoria") as HTMLSelectElement).value).toBe("22");
+      expect((screen.getByLabelText("Lenguaje") as HTMLSelectElement).value).toBe("en");
     });
 
     fireEvent.change(screen.getByLabelText("Pregunta"), {
@@ -336,6 +353,7 @@ describe("ServiceConsolePanel integration", () => {
     fireEvent.change(screen.getByLabelText("Opcion correcta"), {
       target: { value: "1" },
     });
+
     fireEvent.click(screen.getByRole("button", { name: "Insertar entrada" }));
 
     await waitFor(() => {
@@ -426,8 +444,10 @@ describe("ServiceConsolePanel integration", () => {
     renderPanel("svc-wordpass");
 
     await waitFor(() => {
-      expect(screen.getByText("Alta/baja manual de datos")).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: "Edicion manual" })).toBeInTheDocument();
     });
+
+    fireEvent.click(screen.getByRole("tab", { name: "Edicion manual" }));
 
     fireEvent.change(screen.getByLabelText("Contenido JSON"), {
       target: { value: "[]" },
@@ -486,15 +506,64 @@ describe("ServiceConsolePanel integration", () => {
     renderPanel("svc-wordpass");
 
     await waitFor(() => {
-      expect(screen.getAllByTestId("first-row")[1]).toHaveTextContent("Atomo");
+      expect(screen.getByTestId("first-row")).toHaveTextContent("Atomo");
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Cargar" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Edicion manual" }));
 
     await waitFor(() => {
       expect((screen.getByLabelText("Letra") as HTMLInputElement).value).toBe("A");
       expect((screen.getByLabelText("Pista") as HTMLInputElement).value).toBe("Primera pista");
       expect((screen.getByLabelText("Respuesta") as HTMLInputElement).value).toBe("Atomo");
+    });
+  });
+
+  it("keeps manual editor state when switching between service sections", async () => {
+    window.location.hash = "#/backoffice/svc-wordpass?dataset=history";
+
+    fetchJsonMock.mockImplementation((url: string) => {
+      if (url.endsWith("/v1/backoffice/services")) {
+        return Promise.resolve({
+          services: [{ key: "microservice-wordpass", title: "Wordpass", domain: "games", supportsData: true }],
+        });
+      }
+      if (url.includes("/metrics")) {
+        return Promise.resolve({ metrics: { traffic: { requestsReceivedTotal: 10 } } });
+      }
+      if (url.includes("/logs")) {
+        return Promise.resolve({ logs: [] });
+      }
+      if (url.includes("/catalogs")) {
+        return Promise.resolve({
+          catalogs: {
+            categories: [{ id: "31", name: "Words" }],
+            languages: [{ code: "es", name: "Español" }],
+          },
+        });
+      }
+      if (url.includes("/data?")) {
+        return Promise.resolve({ rows: [] });
+      }
+      return Promise.reject(new Error(`Unhandled URL: ${url}`));
+    });
+
+    renderPanel("svc-wordpass");
+
+    await waitFor(() => {
+      expect(screen.getByRole("tab", { name: "Edicion manual" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("tab", { name: "Edicion manual" }));
+    fireEvent.change(screen.getByLabelText("Letra"), { target: { value: "B" } });
+    fireEvent.change(screen.getByLabelText("Pista"), { target: { value: "Segunda pista" } });
+
+    fireEvent.click(screen.getByRole("tab", { name: "Observabilidad" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Edicion manual" }));
+
+    await waitFor(() => {
+      expect((screen.getByLabelText("Letra") as HTMLInputElement).value).toBe("B");
+      expect((screen.getByLabelText("Pista") as HTMLInputElement).value).toBe("Segunda pista");
     });
   });
 
@@ -542,6 +611,8 @@ describe("ServiceConsolePanel integration", () => {
     });
 
     renderPanel("svc-quiz");
+
+    fireEvent.click(screen.getByRole("tab", { name: "Datos" }));
 
     await waitFor(() => {
       expect(screen.getByText(/Siguiendo task 11111111-1111-1111-1111-111111111111/i)).toBeInTheDocument();
