@@ -80,6 +80,20 @@ function clampPopoverToViewport(trigger: HTMLElement, preferredWidth: number, pr
   };
 }
 
+function releaseHistoryPreferredWidth(): number {
+  const viewportWidth = window.innerWidth;
+
+  if (viewportWidth >= 1280) {
+    return 544;
+  }
+
+  if (viewportWidth >= 768) {
+    return 468;
+  }
+
+  return 420;
+}
+
 /** Main backoffice layout with sidebar navigation, preferences, and routed panel content. */
 export function BackofficeLayout({
   session,
@@ -213,7 +227,7 @@ export function BackofficeLayout({
       if (!releaseHistoryButtonRef.current) {
         return;
       }
-      setReleaseHistoryStyle(clampPopoverToViewport(releaseHistoryButtonRef.current, 544, 576));
+      setReleaseHistoryStyle(clampPopoverToViewport(releaseHistoryButtonRef.current, releaseHistoryPreferredWidth(), 576));
     };
 
     updatePosition();
