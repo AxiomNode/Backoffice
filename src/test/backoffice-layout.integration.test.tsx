@@ -288,6 +288,27 @@ describe("BackofficeLayout integration", () => {
     });
   });
 
+  it("closes the deployment history popover on page scroll even while the trigger remains visible", async () => {
+    fetchServiceOperationalSummaryMock.mockResolvedValue({
+      rows: [],
+      totals: { total: 1, onlineCount: 1, accessIssues: 0, connectionErrors: 0 },
+    });
+
+    renderLayout();
+
+    fireEvent.click(screen.getByRole("button", { name: /Historico de versiones/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Versiones desplegadas")).toBeInTheDocument();
+    });
+
+    fireEvent.scroll(window);
+
+    await waitFor(() => {
+      expect(screen.queryByText("Versiones desplegadas")).not.toBeInTheDocument();
+    });
+  });
+
   it("closes floating header panels when navigating from the sidebar", async () => {
     fetchServiceOperationalSummaryMock.mockResolvedValue({
       rows: [],

@@ -249,12 +249,20 @@ export function BackofficeLayout({
       setReleaseHistoryStyle(nextStyle);
     };
 
+    const onScroll = (event: Event) => {
+      const target = event.target;
+      if (target instanceof Node && releaseHistoryRef.current?.contains(target)) {
+        return;
+      }
+      setReleaseHistoryOpen(false);
+    };
+
     updatePosition();
     window.addEventListener("resize", updatePosition);
-    window.addEventListener("scroll", updatePosition, true);
+    window.addEventListener("scroll", onScroll, true);
     return () => {
       window.removeEventListener("resize", updatePosition);
-      window.removeEventListener("scroll", updatePosition, true);
+      window.removeEventListener("scroll", onScroll, true);
     };
   }, [releaseHistoryOpen]);
 
@@ -276,12 +284,20 @@ export function BackofficeLayout({
       setPreferencesStyle(nextStyle);
     };
 
+    const onScroll = (event: Event) => {
+      const target = event.target;
+      if (target instanceof Node && preferencesRef.current?.contains(target)) {
+        return;
+      }
+      setPreferencesOpen(false);
+    };
+
     updatePosition();
     window.addEventListener("resize", updatePosition);
-    window.addEventListener("scroll", updatePosition, true);
+    window.addEventListener("scroll", onScroll, true);
     return () => {
       window.removeEventListener("resize", updatePosition);
-      window.removeEventListener("scroll", updatePosition, true);
+      window.removeEventListener("scroll", onScroll, true);
     };
   }, [preferencesOpen]);
 
