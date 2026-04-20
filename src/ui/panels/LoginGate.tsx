@@ -73,6 +73,8 @@ export function LoginGate({
   const [devUid, setDevUid] = useState(ADMIN_DEV_UID);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [authResolved, setAuthResolved] = useState(mode !== "firebase");
+  const [restoringSession, setRestoringSession] = useState(mode === "firebase");
 
   const bootstrapSession = useCallback(
     async (context: SessionContext) => {
@@ -115,6 +117,8 @@ export function LoginGate({
 
     const unsubscribe = backofficeAuth.onSessionChanged(async (runtimeSession) => {
       if (!runtimeSession?.idToken) {
+        setRestoringSession(false);
+        setAuthResolved(true);
         return;
       }
 
@@ -122,6 +126,9 @@ export function LoginGate({
         await bootstrapSession({ mode: "firebase", idToken: runtimeSession.idToken });
       } catch (err) {
         setError(err instanceof Error ? err.message : t("login.errorAuth"));
+      } finally {
+        setRestoringSession(false);
+        setAuthResolved(true);
       }
     });
 
@@ -152,6 +159,36 @@ export function LoginGate({
       setLoading(false);
     }
   };
+
+  if (mode === "firebase" && !authResolved) {
+    return (
+      <div className="mx-auto flex min-h-screen w-full max-w-xl items-center p-4 sm:p-6 xl:max-w-3xl">
+        <section className="m3-card ui-fade-in relative w-full overflow-hidden p-6 xl:p-10">
+          <div className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-[color:var(--md-sys-color-primary-container)]/65 blur-3xl" aria-hidden="true" />
+          <div className="pointer-events-none absolute -bottom-16 -left-12 h-56 w-56 rounded-full bg-[color:var(--md-sys-color-tertiary-container)]/65 blur-3xl" aria-hidden="true" />
+
+          <div className="relative mb-5 flex flex-col items-center text-center">
+            <span className="brand-orb brand-orb-hero h-56 w-56 sm:h-72 sm:w-72 xl:h-80 xl:w-80">
+              <img src="/axiomnode-mark.svg" alt="AxiomNode mark" className="h-[82%] w-[82%] object-contain" />
+            </span>
+          </div>
+
+          <div className="relative text-center">
+            <h1 className="m3-title text-2xl xl:text-4xl">{t("login.restoringSession")}</h1>
+            <p className="mt-2 text-sm xl:text-base text-[var(--md-sys-color-on-surface-variant)]">
+              {t("login.restoringSessionHint")}
+            </p>
+          </div>
+
+          <div className="relative mx-auto mt-6 h-1.5 w-full max-w-xs overflow-hidden rounded-full bg-[var(--md-sys-color-surface-container-high)]">
+            <div className="h-full w-1/3 animate-[pulse_1.1s_ease-in-out_infinite] rounded-full bg-[var(--md-sys-color-primary)]" />
+          </div>
+
+          {restoringSession && error && <p className="ui-feedback ui-feedback--error relative mt-4">{error}</p>}
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-xl items-center p-4 sm:p-6 xl:max-w-3xl">
