@@ -10,6 +10,7 @@ import { compareCells, renderCellValue, stringifyCell } from "../utils/table";
 type PaginatedFilterableTableProps = {
   rows: Array<Record<string, unknown>>;
   defaultPageSize?: number;
+  defaultSortDirection?: "asc" | "desc";
   density?: UiDensity;
   iconOnlyColumns?: string[];
   remoteState?: {
@@ -25,7 +26,7 @@ type PaginatedFilterableTableProps = {
 };
 
 /** Memoized data table with client-side filtering, sorting, pagination, and cell detail dialog. */
-export const PaginatedFilterableTable = memo(function PaginatedFilterableTable({ rows, defaultPageSize = 10, density = "comfortable", iconOnlyColumns = [], remoteState, rowActions = [] }: PaginatedFilterableTableProps) {
+export const PaginatedFilterableTable = memo(function PaginatedFilterableTable({ rows, defaultPageSize = 10, defaultSortDirection = "asc", density = "comfortable", iconOnlyColumns = [], remoteState, rowActions = [] }: PaginatedFilterableTableProps) {
   const { t } = useI18n();
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const columns = useMemo(() => {
@@ -38,7 +39,7 @@ export const PaginatedFilterableTable = memo(function PaginatedFilterableTable({
 
   const [filterText, setFilterText] = useState("");
   const [sortBy, setSortBy] = useState<string>("");
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">(defaultSortDirection);
   const [pageSize, setPageSize] = useState(defaultPageSize);
   const [page, setPage] = useState(1);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -62,12 +63,18 @@ export const PaginatedFilterableTable = memo(function PaginatedFilterableTable({
   }, [columns]);
 
   useEffect(() => {
+    setSortDirection(defaultSortDirection);
+  }, [defaultSortDirection]);
+
+  useEffect(() => {
     setPage(1);
   }, [deferredFilterText, sortBy, sortDirection, pageSize, rows]);
 
   useEffect(() => {
     setScrollTop(0);
-    scrollContainerRef.current?.scrollTo({ top: 0 });
+    if (typeof scrollContainerRef.current?.scrollTo === "function") {
+      scrollContainerRef.current.scrollTo({ top: 0 });
+    }
   }, [page, deferredFilterText, pageSize, rows, sortBy, sortDirection, remoteState?.page]);
 
   const filteredRows = useMemo(() => {

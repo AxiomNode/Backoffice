@@ -237,6 +237,7 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
   const refreshButtonText = compact ? "text-xs" : "text-sm";
 
   const serviceMeta = state.catalog.find((item) => item.key === serviceConfig.service);
+  const hasDataSection = (serviceMeta ? serviceMeta.supportsData : Boolean(serviceConfig.datasets?.length)) && Boolean(serviceConfig.datasets?.length);
   const historyRowActions = useMemo(() => {
     if (!isGameHistoryDataset) {
       return [];
@@ -331,9 +332,24 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
     ];
   }, [isGameHistoryDataset, state, t]);
 
+  useEffect(() => {
+    setActiveSection(isGameHistoryDataset && hasDataSection ? "data" : "observability");
+  }, [hasDataSection, isGameHistoryDataset, navKey]);
+
+  useEffect(() => {
+    if (activeSection === "manual" && !isGameHistoryDataset) {
+      setActiveSection(hasDataSection ? "data" : "observability");
+      return;
+    }
+
+    if (activeSection === "data" && !hasDataSection) {
+      setActiveSection("observability");
+    }
+  }, [activeSection, hasDataSection, isGameHistoryDataset]);
+
   const sectionOptions: Array<{ key: ServiceConsoleSection; label: string; visible: boolean }> = [
     { key: "observability", label: t("service.section.observability"), visible: true },
-    { key: "data", label: t("service.section.data"), visible: true },
+    { key: "data", label: t("service.section.data"), visible: hasDataSection },
     { key: "manual", label: t("service.section.manual"), visible: isGameHistoryDataset },
   ];
 
@@ -466,7 +482,7 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
             {state.logsError ? (
               <p className="ui-feedback ui-feedback--error">{state.logsError}</p>
             ) : state.logsRows.length ? (
-              <PaginatedFilterableTable rows={state.logsRows} defaultPageSize={20} density={density} />
+              <PaginatedFilterableTable rows={state.logsRows} defaultPageSize={20} defaultSortDirection="desc" density={density} />
             ) : (
               <div className="rounded-xl border border-dashed border-[var(--md-sys-color-outline)] px-4 py-3 text-sm">
                 <p className="font-medium">{t("service.logs.none")}</p>
@@ -477,7 +493,7 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
         </section>
       )}
 
-      {activeSection === "data" && serviceConfig.datasets && serviceConfig.datasets.length > 0 && (
+      {activeSection === "data" && hasDataSection && serviceConfig.datasets && serviceConfig.datasets.length > 0 && (
         <article className="min-w-0 space-y-3 ui-surface-raised rounded-2xl p-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>

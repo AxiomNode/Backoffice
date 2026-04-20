@@ -499,6 +499,9 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
   const loadData = useCallback(async () => {
     if (!serviceConfig) return;
 
+    const catalogEntry = catalog.find((item) => item.key === serviceConfig.service);
+    const supportsTabularData = catalogEntry ? catalogEntry.supportsData : Boolean(serviceConfig.datasets?.length);
+
     const requestVersion = ++dataRequestVersionRef.current;
     dataAbortControllerRef.current?.abort();
     const abortController = new AbortController();
@@ -508,7 +511,7 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
     setDataError(null);
 
     try {
-      if (!serviceConfig.datasets || serviceConfig.datasets.length === 0) {
+      if (!supportsTabularData || !serviceConfig.datasets || serviceConfig.datasets.length === 0) {
         if (requestVersion !== dataRequestVersionRef.current) return;
         setDataRows([]);
         setDataTotal(0);
@@ -607,7 +610,7 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
         setDataLoading(false);
       }
     }
-  }, [context, dataset, debouncedFilter, debouncedSortBy, followTaskId, limit, metric, page, pageSize, serviceConfig, sortDirection, errorLabel]);
+  }, [catalog, context, dataset, debouncedFilter, debouncedSortBy, followTaskId, limit, metric, page, pageSize, serviceConfig, sortDirection, errorLabel]);
 
   // --- loadAll: fetch overview + data ---
   const loadAll = useCallback(async () => {

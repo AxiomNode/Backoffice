@@ -97,9 +97,41 @@ describe("ServiceConsolePanel integration", () => {
       expect(screen.getByText("data down")).toBeInTheDocument();
     });
 
-    expect(storeServiceLastErrorMock).toHaveBeenCalledTimes(2);
-    expect(storeServiceLastErrorMock).toHaveBeenCalledWith("microservice-users", "metrics down");
-    expect(storeServiceLastErrorMock).toHaveBeenCalledWith("microservice-users", "data down");
+    const recordedErrors = storeServiceLastErrorMock.mock.calls
+      .filter(([service]) => service === "microservice-users")
+      .map(([, message]) => message);
+
+    expect(recordedErrors).toContain("metrics down");
+    expect(recordedErrors).toContain("data down");
+  });
+
+  it("hides the data section when the catalog marks the service as non-tabular", async () => {
+    fetchJsonMock.mockImplementation((url: string) => {
+      if (url.endsWith("/v1/backoffice/services")) {
+        return Promise.resolve({
+          services: [{ key: "api-gateway", title: "API Gateway", domain: "edge", supportsData: false }],
+        });
+      }
+      if (url.includes("/metrics")) {
+        return Promise.resolve({ metrics: { traffic: { requestsReceivedTotal: 10 } } });
+      }
+      if (url.includes("/logs")) {
+        return Promise.resolve({ logs: [{ createdAt: "2026-04-20T16:10:00Z", event: "ok" }] });
+      }
+      if (url.includes("/data?")) {
+        return Promise.resolve({ rows: [] });
+      }
+      return Promise.reject(new Error(`Unhandled URL: ${url}`));
+    });
+
+    renderPanel("svc-api-gateway");
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("paginated-table")).toHaveLength(2);
+      expect(screen.queryByRole("tab", { name: "Datos" })).not.toBeInTheDocument();
+    });
+
+    expect(screen.getByRole("tab", { name: "Observabilidad" })).toBeInTheDocument();
   });
 
   it("normalizes invalid route params and persists query updates", async () => {

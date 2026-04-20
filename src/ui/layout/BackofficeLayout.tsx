@@ -170,6 +170,10 @@ export function BackofficeLayout({
     window.localStorage.setItem(UI_DENSITY_STORAGE_KEY, density);
   }, [density]);
 
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [current]);
+
   const updateGlobalHealth = useMemo(() => {
     return async () => {
       try {

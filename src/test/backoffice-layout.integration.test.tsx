@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { I18nProvider } from "../i18n/context";
@@ -244,6 +244,29 @@ describe("BackofficeLayout integration", () => {
 
     await waitFor(() => {
       expect(screen.queryByText("Versiones desplegadas")).not.toBeInTheDocument();
+      expect(screen.getByTestId("service-console-panel")).toHaveTextContent("console-panel:svc-api-gateway");
+    });
+  });
+
+  it("closes the mobile drawer after sidebar navigation", async () => {
+    fetchServiceOperationalSummaryMock.mockResolvedValue({
+      rows: [],
+      totals: { total: 1, onlineCount: 1, accessIssues: 0, connectionErrors: 0 },
+    });
+
+    renderLayout();
+
+    const drawer = screen.getByRole("dialog");
+    fireEvent.click(screen.getByRole("button", { name: "Menu" }));
+
+    await waitFor(() => {
+      expect(drawer.className).toContain("pointer-events-auto");
+    });
+
+    fireEvent.click(within(drawer).getByRole("button", { name: /Entrada publica/i }));
+
+    await waitFor(() => {
+      expect(drawer.className).toContain("pointer-events-none");
       expect(screen.getByTestId("service-console-panel")).toHaveTextContent("console-panel:svc-api-gateway");
     });
   });
