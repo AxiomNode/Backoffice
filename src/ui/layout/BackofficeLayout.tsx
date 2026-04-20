@@ -347,12 +347,12 @@ export function BackofficeLayout({
         </div>
       )}
 
-      <div className="relative z-30 min-w-0">
+      <div className="relative z-10 min-w-0 lg:z-0">
         <Sidebar current={current} onChange={onNavigate} items={navItems} className="hidden h-fit lg:block lg:sticky lg:top-4" />
       </div>
 
-      <main className="relative z-10 min-w-0 space-y-3 overflow-visible sm:space-y-4 xl:space-y-5">
-        <header className="m3-card ui-fade-in relative z-20 overflow-visible bg-[linear-gradient(125deg,color-mix(in_srgb,var(--md-sys-color-primary-container)_70%,var(--md-sys-color-surface)_30%)_0%,color-mix(in_srgb,var(--md-sys-color-surface-container-low)_92%,transparent_8%)_56%,color-mix(in_srgb,var(--md-sys-color-surface-container)_86%,var(--md-sys-color-secondary-container)_14%)_100%)] p-4 xl:p-6">
+      <main className="relative z-20 min-w-0 space-y-3 overflow-visible sm:space-y-4 xl:space-y-5">
+        <header className="m3-card ui-fade-in relative z-30 overflow-visible bg-[linear-gradient(125deg,color-mix(in_srgb,var(--md-sys-color-primary-container)_70%,var(--md-sys-color-surface)_30%)_0%,color-mix(in_srgb,var(--md-sys-color-surface-container-low)_92%,transparent_8%)_56%,color-mix(in_srgb,var(--md-sys-color-surface-container)_86%,var(--md-sys-color-secondary-container)_14%)_100%)] p-4 xl:p-6">
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
             <div className="min-w-0 space-y-4">
               <div className="flex flex-wrap items-start justify-between gap-4 xl:gap-6">
