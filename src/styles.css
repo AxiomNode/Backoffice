@@ -262,6 +262,84 @@ body {
     box-shadow: 0 6px 18px color-mix(in srgb, var(--md-sys-color-primary) 12%, transparent 88%);
   }
 
+  .nav-drawer-section {
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 82%, transparent 18%);
+    background: color-mix(in srgb, var(--md-sys-color-surface-container-low) 88%, var(--md-sys-color-surface) 12%);
+    color: var(--md-sys-color-on-surface);
+  }
+
+  .nav-drawer-icon {
+    @apply inline-flex items-center justify-center rounded-2xl border;
+    height: 2.75rem;
+    width: 2.75rem;
+    border-color: var(--md-sys-color-outline-variant);
+    background: color-mix(in srgb, var(--md-sys-color-surface) 76%, transparent 24%);
+    color: var(--md-sys-color-primary);
+    transition: background 180ms ease, border-color 180ms ease, color 180ms ease, transform 180ms ease;
+  }
+
+  .nav-drawer-icon--section {
+    background: color-mix(in srgb, var(--md-sys-color-tertiary-container) 72%, var(--md-sys-color-surface) 28%);
+    color: var(--md-sys-color-on-tertiary-container);
+  }
+
+  .nav-drawer-icon--active {
+    border-color: color-mix(in srgb, var(--md-sys-color-secondary) 32%, transparent 68%);
+    background: color-mix(in srgb, var(--md-sys-color-secondary-container) 84%, var(--md-sys-color-surface) 16%);
+    color: var(--md-sys-color-on-secondary-container);
+  }
+
+  .nav-drawer-item {
+    position: relative;
+    width: 100%;
+    border: 1px solid transparent;
+    border-radius: 1.75rem;
+    background: transparent;
+    color: var(--md-sys-color-on-surface);
+    transition: transform 180ms ease, background 180ms ease, border-color 180ms ease, box-shadow 180ms ease, color 180ms ease;
+  }
+
+  .nav-drawer-item:hover {
+    transform: translateX(2px);
+    background: color-mix(in srgb, var(--md-sys-color-surface-container) 84%, transparent 16%);
+    border-color: color-mix(in srgb, var(--md-sys-color-outline) 35%, transparent 65%);
+  }
+
+  .nav-drawer-item:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--md-sys-color-primary) 70%, transparent 30%);
+    outline-offset: 2px;
+  }
+
+  .nav-drawer-item[aria-current="page"] {
+    border-color: transparent;
+    background: color-mix(in srgb, var(--md-sys-color-secondary-container) 90%, var(--md-sys-color-surface) 10%);
+    color: var(--md-sys-color-on-secondary-container);
+    box-shadow: 0 10px 24px color-mix(in srgb, var(--md-sys-color-secondary) 16%, transparent 84%);
+  }
+
+  .nav-drawer-item[aria-current="page"] .nav-drawer-supporting {
+    color: color-mix(in srgb, var(--md-sys-color-on-secondary-container) 78%, transparent 22%);
+  }
+
+  .nav-drawer-item-indicator {
+    height: 2.5rem;
+    width: 0.3rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--md-sys-color-outline-variant) 85%, transparent 15%);
+    transition: background 180ms ease, opacity 180ms ease, transform 180ms ease;
+    opacity: 0.85;
+  }
+
+  .nav-drawer-item:hover .nav-drawer-item-indicator {
+    background: color-mix(in srgb, var(--md-sys-color-outline) 85%, transparent 15%);
+  }
+
+  .nav-drawer-item[aria-current="page"] .nav-drawer-item-indicator {
+    background: var(--md-sys-color-secondary);
+    opacity: 1;
+    transform: scaleY(1.02);
+  }
+
   .ui-status-chip {
     @apply rounded-full px-2.5 py-1 text-[11px] font-semibold;
     border: 1px solid transparent;

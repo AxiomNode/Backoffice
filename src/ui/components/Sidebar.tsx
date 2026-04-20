@@ -12,9 +12,11 @@ type SidebarProps = {
   className?: string;
 };
 
-function SidebarIcon({ path }: { path: string }) {
+function SidebarIcon({ path, tone = "default" }: { path: string; tone?: "default" | "section" | "active" }) {
+  const toneClass = tone === "section" ? "nav-drawer-icon nav-drawer-icon--section" : tone === "active" ? "nav-drawer-icon nav-drawer-icon--active" : "nav-drawer-icon";
+
   return (
-    <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--md-sys-color-outline-variant)] bg-[var(--md-sys-color-surface)]/80 text-[var(--md-sys-color-primary)]">
+    <span className={toneClass}>
       <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 fill-none stroke-current stroke-[1.8]">
         <path d={path} strokeLinecap="round" strokeLinejoin="round" />
       </svg>
@@ -87,53 +89,53 @@ export function Sidebar({ current, onChange, items, className }: SidebarProps) {
         key={key}
         type="button"
         onClick={() => onChange(key)}
-        className={`group w-full rounded-2xl border px-4 py-3 text-left transition-all duration-200 ${
-          active
-            ? "border-[var(--md-sys-color-primary)] bg-[var(--md-sys-color-primary-container)] text-[var(--md-sys-color-on-primary-container)] shadow-sm ring-1 ring-[var(--md-sys-color-primary)]/30"
-            : "ui-surface-soft hover:-translate-y-[1px] hover:border-[var(--md-sys-color-outline)] hover:bg-[var(--md-sys-color-surface-container)] hover:shadow-sm"
-        }`}
+        aria-current={active ? "page" : undefined}
+        className="nav-drawer-item px-3 py-3 text-left"
       >
-        <div className="mb-1 flex items-center justify-between gap-2">
-          <div className="flex min-w-0 items-center gap-3">
-            <SidebarIcon path={itemIcons[key]} />
-            <p className="text-sm font-semibold">{title}</p>
+        <div className="flex items-start gap-3">
+          <SidebarIcon path={itemIcons[key]} tone={active ? "active" : "default"} />
+          <div className="min-w-0 flex-1 pt-0.5">
+            <p className="text-sm font-semibold leading-5">{title}</p>
+            <p className="nav-drawer-supporting mt-1 text-xs leading-5 text-[var(--md-sys-color-on-surface-variant)]">{subtitle}</p>
           </div>
-          <span className={`h-2 w-2 rounded-full ${active ? "bg-[var(--md-sys-color-primary)]" : "bg-[var(--md-sys-color-outline-variant)] group-hover:bg-[var(--md-sys-color-outline)]"}`} />
+          <span className="nav-drawer-item-indicator mt-1.5 shrink-0" aria-hidden="true" />
         </div>
-        <p className="pl-12 text-xs text-[var(--md-sys-color-on-surface-variant)]">{subtitle}</p>
       </button>
     );
   };
 
   return (
-    <aside className={`m3-card h-fit p-3 sm:p-4 xl:p-5 ${className ?? ""}`}>
-      <div className="mb-4 rounded-2xl border border-[var(--md-sys-color-outline-variant)] bg-[linear-gradient(140deg,color-mix(in_srgb,var(--md-sys-color-primary-container)_78%,transparent_22%)_0%,color-mix(in_srgb,var(--md-sys-color-tertiary-container)_72%,transparent_28%)_100%)] p-4">
+    <aside className={`m3-card h-fit overflow-hidden p-3 sm:p-4 xl:p-5 ${className ?? ""}`}>
+      <div className="mb-4 rounded-[1.75rem] border border-[var(--md-sys-color-outline-variant)] bg-[linear-gradient(155deg,color-mix(in_srgb,var(--md-sys-color-primary-container)_74%,transparent_26%)_0%,color-mix(in_srgb,var(--md-sys-color-surface)_62%,transparent_38%)_52%,color-mix(in_srgb,var(--md-sys-color-tertiary-container)_68%,transparent_32%)_100%)] p-4 sm:p-5">
         <div className="flex items-center gap-3">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--md-sys-color-surface)]/80 shadow-sm">
+          <div className="brand-orb flex h-14 w-14 items-center justify-center rounded-[1.4rem] bg-[var(--md-sys-color-surface)]/80 shadow-sm">
             <img src="/axiomnode-mark.svg" alt={t("sidebar.brandMarkAlt")} className="h-10 w-10 object-contain" />
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-[var(--md-sys-color-on-surface)]">{t("sidebar.title")}</p>
-            <p className="mt-1 text-xs text-[var(--md-sys-color-on-surface-variant)]">{t("sidebar.subtitle")}</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--md-sys-color-on-surface-variant)]">AxiomNode</p>
+            <p className="mt-1 text-base font-semibold text-[var(--md-sys-color-on-surface)]">{t("sidebar.title")}</p>
+            <p className="mt-1 text-xs leading-5 text-[var(--md-sys-color-on-surface-variant)]">{t("sidebar.subtitle")}</p>
           </div>
         </div>
       </div>
-      <div className="space-y-4">
+      <nav aria-label={t("sidebar.title")} className="space-y-3">
         {groupedItems.map(({ section, items: sectionItems }) => (
-          <section key={section} className="space-y-2">
-            <div className="px-1">
-              <div className="flex items-center gap-2">
-                <SidebarIcon path={sectionIcons[section]} />
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--md-sys-color-primary)]">{sectionLabels[section].title}</p>
+          <section key={section} className="nav-drawer-section rounded-[1.75rem] p-2.5">
+            <div className="px-2 pb-2 pt-1">
+              <div className="flex items-start gap-3">
+                <SidebarIcon path={sectionIcons[section]} tone="section" />
+                <div className="min-w-0 pt-1">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--md-sys-color-primary)]">{sectionLabels[section].title}</p>
+                  <p className="mt-1 text-xs leading-5 text-[var(--md-sys-color-on-surface-variant)]">{sectionLabels[section].subtitle}</p>
+                </div>
               </div>
-              <p className="mt-1 text-xs text-[var(--md-sys-color-on-surface-variant)]">{sectionLabels[section].subtitle}</p>
             </div>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-1">
+            <div className="space-y-1">
               {sectionItems.map((navItem) => item(navItem.key, navItem.title, navItem.subtitle))}
             </div>
           </section>
         ))}
-      </div>
+      </nav>
     </aside>
   );
 }

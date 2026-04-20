@@ -125,6 +125,18 @@ describe("BackofficeLayout integration", () => {
     expect(screen.getAllByText("Infra y pasarelas con impacto transversal").length).toBeGreaterThan(0);
   });
 
+  it("marks the current sidebar destination as the active page", async () => {
+    fetchServiceOperationalSummaryMock.mockResolvedValue({
+      rows: [],
+      totals: { total: 0, onlineCount: 0, accessIssues: 0, connectionErrors: 0 },
+    });
+
+    renderLayout();
+
+    const overviewButtons = screen.getAllByRole("button", { name: /Centro de control/i });
+    expect(overviewButtons[0]).toHaveAttribute("aria-current", "page");
+  });
+
   it("does not render the hot modification section in the sidebar", async () => {
     fetchServiceOperationalSummaryMock.mockResolvedValue({
       rows: [],
