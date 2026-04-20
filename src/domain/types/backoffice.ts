@@ -111,8 +111,6 @@ export type SessionContext = {
 export type UiDensity = "comfortable" | "dense";
 /** Color theme preference. */
 export type UiTheme = "light" | "dark";
-/** Color accent variant. */
-export type UiAccent = "ocean" | "sunset" | "emerald";
 /** Typography scale preference. */
 export type UiTypography = "sm" | "normal" | "lg" | "xl" | "xxl";
 /** Supported UI languages. */

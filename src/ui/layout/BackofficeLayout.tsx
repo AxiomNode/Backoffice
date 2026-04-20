@@ -5,10 +5,10 @@ import { fetchServiceOperationalSummary } from "../../application/services/opera
 import deploymentHistory from "../../data/deployment-history.json";
 import { navItemsForRole, roleCanManageUsers, roleCanModify } from "../../application/services/rolePolicies";
 import { SERVICE_NAV_KEYS } from "../../domain/constants/navigation";
-import { ACCENT_OPTIONS, UI_DENSITY_STORAGE_KEY, UI_SERVICE_ROUTE_QUERY_STORAGE_PREFIX } from "../../domain/constants/ui";
-import type { NavKey, SessionContext, UiAccent, UiDensity, UiTheme, UiTypography } from "../../domain/types/backoffice";
+import { UI_DENSITY_STORAGE_KEY, UI_SERVICE_ROUTE_QUERY_STORAGE_PREFIX } from "../../domain/constants/ui";
+import type { NavKey, SessionContext, UiDensity, UiTheme, UiTypography } from "../../domain/types/backoffice";
 import { useI18n } from "../../i18n/context";
-import { ACCENT_LABEL_KEYS, LANGUAGE_OPTIONS, type LabelKey } from "../../i18n/labels";
+import { LANGUAGE_OPTIONS, type LabelKey } from "../../i18n/labels";
 import { useHashRoute, routeFromNavKey } from "../hooks/useHashRoute";
 import { useVisibilityPolling } from "../hooks/useVisibilityPolling";
 import { Sidebar } from "../components/Sidebar";
@@ -39,10 +39,8 @@ type BackofficeLayoutProps = {
   context: SessionContext;
   onSignOut: () => void;
   theme: UiTheme;
-  accent: UiAccent;
   typography: UiTypography;
   onToggleTheme: () => void;
-  onAccentChange: (value: UiAccent) => void;
   onTypographyChange: (value: UiTypography) => void;
 };
 
@@ -61,10 +59,8 @@ export function BackofficeLayout({
   context,
   onSignOut,
   theme,
-  accent,
   typography,
   onToggleTheme,
-  onAccentChange,
   onTypographyChange,
 }: BackofficeLayoutProps) {
   const { language, setLanguage, t } = useI18n();
@@ -216,12 +212,6 @@ export function BackofficeLayout({
   useVisibilityPolling(updateGlobalHealth, 30000);
 
   const toggleDensity = () => setDensity((v) => (v === "comfortable" ? "dense" : "comfortable"));
-  const cycleAccent = () => {
-    const index = ACCENT_OPTIONS.findIndex((item) => item.value === accent);
-    const safeIndex = index >= 0 ? index : 0;
-    const nextAccent = ACCENT_OPTIONS[(safeIndex + 1) % ACCENT_OPTIONS.length].value;
-    onAccentChange(nextAccent);
-  };
 
   const onNavigate = (key: NavKey) => {
     if (typeof window !== "undefined") {
@@ -314,7 +304,6 @@ export function BackofficeLayout({
             <span className="ui-switch-thumb" />
           </span>
         </button>
-        <button type="button" onClick={cycleAccent} className="rounded-lg border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container-low)] px-3 py-2 text-xs font-semibold transition hover:bg-[var(--md-sys-color-surface-container)]">{t("login.accent")}</button>
         <select value={typography} onChange={(event) => onTypographyChange(event.target.value as UiTypography)} className="control-input px-2 py-1 text-xs">
           {TYPOGRAPHY_OPTIONS.map((size) => (
             <option key={size} value={size}>{t(TYPOGRAPHY_LABEL_KEYS[size])}</option>
@@ -363,7 +352,7 @@ export function BackofficeLayout({
       </div>
 
       <main className="relative z-10 min-w-0 space-y-3 overflow-visible sm:space-y-4 xl:space-y-5">
-        <header className="m3-card ui-fade-in relative z-20 overflow-visible bg-[linear-gradient(125deg,color-mix(in_srgb,var(--md-sys-color-primary-container)_78%,var(--md-sys-color-surface)_22%)_0%,color-mix(in_srgb,var(--md-sys-color-surface)_86%,transparent_14%)_44%,color-mix(in_srgb,var(--md-sys-color-tertiary-container)_76%,var(--md-sys-color-surface)_24%)_100%)] p-4 xl:p-6">
+        <header className="m3-card ui-fade-in relative z-20 overflow-visible bg-[linear-gradient(125deg,color-mix(in_srgb,var(--md-sys-color-primary-container)_70%,var(--md-sys-color-surface)_30%)_0%,color-mix(in_srgb,var(--md-sys-color-surface-container-low)_92%,transparent_8%)_56%,color-mix(in_srgb,var(--md-sys-color-surface-container)_86%,var(--md-sys-color-secondary-container)_14%)_100%)] p-4 xl:p-6">
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
             <div className="min-w-0 space-y-4">
               <div className="flex flex-wrap items-start justify-between gap-4 xl:gap-6">
@@ -471,16 +460,6 @@ export function BackofficeLayout({
                         className="ui-popover-panel absolute left-0 top-full z-40 mt-2 w-[min(30rem,calc(100vw-3rem))] rounded-[1.75rem] p-4 lg:right-0 lg:left-auto"
                       >
                         <div className="grid gap-3 sm:grid-cols-2">
-                          <label className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
-                            {t("login.accent")}
-                            <select value={accent} onChange={(event) => onAccentChange(event.target.value as UiAccent)} className="control-input mt-1 w-full py-1.5">
-                              {ACCENT_OPTIONS.map((option) => (
-                                <option key={option.value} value={option.value}>
-                                  {t(ACCENT_LABEL_KEYS[option.value])}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
                           <label className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
                             {t("language.selectorLabel")}
                             <select value={language} onChange={(event) => setLanguage(event.target.value as typeof language)} className="control-input mt-1 w-full py-1.5">

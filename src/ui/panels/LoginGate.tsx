@@ -3,22 +3,19 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import { backofficeAuth, type BackofficeSession } from "../../auth";
 import { ADMIN_DEV_UID } from "../../application/config/runtime";
 import { roleHasBackofficeAccess } from "../../application/services/rolePolicies";
-import { ACCENT_OPTIONS } from "../../domain/constants/ui";
-import type { BackofficeRole, SessionContext, UiAccent, UiTheme, UiTypography } from "../../domain/types/backoffice";
+import type { BackofficeRole, SessionContext, UiTheme, UiTypography } from "../../domain/types/backoffice";
 import { composeAuthHeaders } from "../../infrastructure/backoffice/authHeaders";
 import { EDGE_API_BASE, fetchJson } from "../../infrastructure/http/apiClient";
 import { useI18n } from "../../i18n/context";
-import { ACCENT_LABEL_KEYS, LANGUAGE_OPTIONS, type LabelKey } from "../../i18n/labels";
+import { LANGUAGE_OPTIONS, type LabelKey } from "../../i18n/labels";
 
 /** @module LoginGate - Authentication gate that blocks access until the user signs in. */
 
 type LoginGateProps = {
   onAuthenticated: (session: BackofficeSession, context: SessionContext) => void;
   theme: UiTheme;
-  accent: UiAccent;
   typography: UiTypography;
   onToggleTheme: () => void;
-  onAccentChange: (value: UiAccent) => void;
   onTypographyChange: (value: UiTypography) => void;
 };
 
@@ -58,14 +55,12 @@ function resolveFirebaseLoginError(err: unknown, t: (key: LabelKey) => string): 
   }
 }
 
-/** Login screen handling Firebase and dev-mode authentication with theme/accent pickers. */
+/** Login screen handling Firebase and dev-mode authentication with theme and typography preferences. */
 export function LoginGate({
   onAuthenticated,
   theme,
-  accent,
   typography,
   onToggleTheme,
-  onAccentChange,
   onTypographyChange,
 }: LoginGateProps) {
   const { language, setLanguage, t } = useI18n();
@@ -227,21 +222,6 @@ export function LoginGate({
             >
               {TYPOGRAPHY_OPTIONS.map((size) => (
                 <option key={size} value={size}>{t(TYPOGRAPHY_LABEL_KEYS[size])}</option>
-              ))}
-            </select>
-          </label>
-
-          <label className="text-sm text-[var(--md-sys-color-on-surface)] sm:col-span-2">
-            {t("login.accent")}
-            <select
-              value={accent}
-              onChange={(event) => onAccentChange(event.target.value as UiAccent)}
-              className="control-input mt-1 w-full"
-            >
-              {ACCENT_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {t(ACCENT_LABEL_KEYS[option.value])}
-                </option>
               ))}
             </select>
           </label>

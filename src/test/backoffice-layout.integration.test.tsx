@@ -48,10 +48,8 @@ function renderLayout() {
         context={context}
         onSignOut={vi.fn()}
         theme="light"
-        accent="ocean"
         typography="normal"
         onToggleTheme={vi.fn()}
-        onAccentChange={vi.fn()}
         onTypographyChange={vi.fn()}
       />
     </I18nProvider>,

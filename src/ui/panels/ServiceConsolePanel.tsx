@@ -152,14 +152,14 @@ type CollapsibleSectionProps = {
 
 function CollapsibleSection({ title, expanded, onToggle, actionLabel, compact, children }: CollapsibleSectionProps) {
   return (
-    <section className="ui-surface-soft rounded-xl">
+    <section className="ui-subtle-card overflow-hidden rounded-2xl">
       <div className={`flex flex-wrap items-center justify-between gap-2 ${compact ? "p-2.5" : "p-3"}`}>
         <h4 className="text-sm font-semibold text-[var(--md-sys-color-on-surface)]">{title}</h4>
         <button
           type="button"
           onClick={onToggle}
           aria-expanded={expanded}
-          className="rounded-lg border border-[var(--md-sys-color-outline-variant)] px-3 py-1.5 text-xs font-semibold text-[var(--md-sys-color-on-surface-variant)] transition hover:bg-[var(--md-sys-color-surface-container)]"
+          className="ui-action-pill ui-action-pill--quiet min-h-0 px-3 py-1.5 text-xs"
         >
           {actionLabel}
         </button>
@@ -274,8 +274,10 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
   const refreshCardPadding = compact ? "p-2.5" : "p-3";
   const refreshLabelText = compact ? "text-[11px]" : "text-xs";
   const refreshInputPadding = compact ? "px-2 py-1" : "px-2 py-1.5";
-  const refreshButtonPadding = compact ? "px-3 py-1.5" : "px-4 py-2";
+  const refreshButtonPadding = compact ? "px-3 py-2" : "px-4 py-2.5";
   const refreshButtonText = compact ? "text-xs" : "text-sm";
+  const compactActionClass = compact ? "min-h-0 px-3 py-1.5 text-xs" : "text-sm";
+  const controlClass = `control-input mt-1 w-full ${compact ? "px-2 py-1.5 text-sm" : "px-2 py-2 text-sm"}`;
 
   const serviceMeta = state.catalog.find((item) => item.key === serviceConfig.service);
   const hasDataSection = (serviceMeta ? serviceMeta.supportsData : Boolean(serviceConfig.datasets?.length)) && Boolean(serviceConfig.datasets?.length);
@@ -432,7 +434,7 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
   const renderManualEditorFields = () => (
     <div className="space-y-3">
       <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
-        <label className="text-sm">
+        <label className="text-sm text-[var(--md-sys-color-on-surface-variant)]">
           {t("service.data.manual.categoryId")}
           {state.manualCatalogs.categories.length > 0 ? (
             <select value={state.manualCategoryId} onChange={(event) => state.setManualCategoryId(event.target.value)} className="control-input mt-1 w-full px-2 py-1.5 text-sm">
@@ -446,7 +448,7 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
             <input value={state.manualCategoryId} onChange={(event) => state.setManualCategoryId(event.target.value)} className="control-input mt-1 w-full px-2 py-1.5 text-sm" />
           )}
         </label>
-        <label className="text-sm">
+        <label className="text-sm text-[var(--md-sys-color-on-surface-variant)]">
           {t("service.data.manual.language")}
           {state.manualCatalogs.languages.length > 0 ? (
             <select value={state.manualLanguage} onChange={(event) => state.setManualLanguage(event.target.value)} className="control-input mt-1 w-full px-2 py-1.5 text-sm">
@@ -460,11 +462,11 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
             <input value={state.manualLanguage} onChange={(event) => state.setManualLanguage(event.target.value)} className="control-input mt-1 w-full px-2 py-1.5 text-sm" />
           )}
         </label>
-        <label className="text-sm">
+        <label className="text-sm text-[var(--md-sys-color-on-surface-variant)]">
           {t("service.data.manual.difficulty")}
           <input type="number" min={0} max={100} value={state.manualDifficulty} onChange={(event) => state.setManualDifficulty(Number(event.target.value || 0))} className="control-input mt-1 w-full px-2 py-1.5 text-sm" />
         </label>
-        <label className="text-sm">
+        <label className="text-sm text-[var(--md-sys-color-on-surface-variant)]">
           {t("service.data.manual.status")}
           <select value={state.manualStatus} onChange={(event) => state.setManualStatus(event.target.value as "manual" | "validated" | "pending_review")} className="control-input mt-1 w-full px-2 py-1.5 text-sm">
             <option value="manual">manual</option>
@@ -476,7 +478,7 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
 
       {isQuizHistoryDataset && (
         <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-          <label className="text-sm md:col-span-2 xl:col-span-3">
+          <label className="text-sm text-[var(--md-sys-color-on-surface-variant)] md:col-span-2 xl:col-span-3">
             {t("service.data.manual.quizQuestion")}
             <input
               value={quizDraft.question}
@@ -484,7 +486,7 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
               className="control-input mt-1 w-full px-2 py-1.5 text-sm"
             />
           </label>
-          <label className="text-sm">
+          <label className="text-sm text-[var(--md-sys-color-on-surface-variant)]">
             {t("service.data.manual.quizOptionA")}
             <input
               value={quizDraft.optionA}
@@ -492,7 +494,7 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
               className="control-input mt-1 w-full px-2 py-1.5 text-sm"
             />
           </label>
-          <label className="text-sm">
+          <label className="text-sm text-[var(--md-sys-color-on-surface-variant)]">
             {t("service.data.manual.quizOptionB")}
             <input
               value={quizDraft.optionB}
@@ -500,7 +502,7 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
               className="control-input mt-1 w-full px-2 py-1.5 text-sm"
             />
           </label>
-          <label className="text-sm">
+          <label className="text-sm text-[var(--md-sys-color-on-surface-variant)]">
             {t("service.data.manual.quizOptionC")}
             <input
               value={quizDraft.optionC}
@@ -508,7 +510,7 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
               className="control-input mt-1 w-full px-2 py-1.5 text-sm"
             />
           </label>
-          <label className="text-sm">
+          <label className="text-sm text-[var(--md-sys-color-on-surface-variant)]">
             {t("service.data.manual.quizOptionD")}
             <input
               value={quizDraft.optionD}
@@ -516,7 +518,7 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
               className="control-input mt-1 w-full px-2 py-1.5 text-sm"
             />
           </label>
-          <label className="text-sm">
+          <label className="text-sm text-[var(--md-sys-color-on-surface-variant)]">
             {t("service.data.manual.quizCorrectOption")}
             <select
               value={quizDraft.correctOption}
@@ -534,7 +536,7 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
 
       {isWordpassHistoryDataset && (
         <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-          <label className="text-sm">
+          <label className="text-sm text-[var(--md-sys-color-on-surface-variant)]">
             {t("service.data.manual.wordLetter")}
             <input
               value={wordpassDraft.letter}
@@ -561,30 +563,30 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
         </div>
       )}
 
-      <label className="text-sm">
+      <label className="text-sm text-[var(--md-sys-color-on-surface-variant)]">
         {t("service.data.manual.contentJson")}
         <textarea value={state.manualContentJson} onChange={(event) => state.setManualContentJson(event.target.value)} rows={5} className="control-input mt-1 w-full px-2 py-2 text-sm" />
       </label>
 
       <div className="flex flex-wrap gap-2">
-        <button type="button" onClick={() => void state.insertManualEntry(state.manualContentJson, state.manualCategoryId, state.manualLanguage, state.manualDifficulty, state.manualStatus)} disabled={state.dataMutationLoading} className="rounded-lg bg-[var(--md-sys-color-primary)] px-3 py-2 text-sm font-semibold text-[var(--md-sys-color-on-primary)] disabled:cursor-not-allowed disabled:opacity-60">
+        <button type="button" onClick={() => void state.insertManualEntry(state.manualContentJson, state.manualCategoryId, state.manualLanguage, state.manualDifficulty, state.manualStatus)} disabled={state.dataMutationLoading} className="ui-action-pill ui-action-pill--primary text-sm">
           {state.dataMutationLoading ? t("service.button.updating") : t("service.data.manual.insert")}
         </button>
-        <label className="min-w-[14rem] flex-1 text-sm">
+        <label className="min-w-[14rem] flex-1 text-sm text-[var(--md-sys-color-on-surface-variant)]">
           {t("service.data.manual.updateId")}
           <input value={state.editEntryId} onChange={(event) => state.setEditEntryId(event.target.value)} className="control-input mt-1 w-full px-2 py-1.5 text-sm" placeholder={t("service.data.manual.updatePlaceholder")} />
         </label>
-        <button type="button" onClick={() => void state.updateManualEntry(state.editEntryId, state.manualContentJson, state.manualCategoryId, state.manualLanguage, state.manualDifficulty, state.manualStatus)} disabled={state.dataMutationLoading} className="rounded-lg bg-[var(--md-sys-color-secondary)] px-3 py-2 text-sm font-semibold text-[var(--md-sys-color-on-secondary)] disabled:cursor-not-allowed disabled:opacity-60">
+        <button type="button" onClick={() => void state.updateManualEntry(state.editEntryId, state.manualContentJson, state.manualCategoryId, state.manualLanguage, state.manualDifficulty, state.manualStatus)} disabled={state.dataMutationLoading} className="ui-action-pill ui-action-pill--tonal text-sm">
           {state.dataMutationLoading ? t("service.button.updating") : t("service.data.manual.update")}
         </button>
       </div>
 
       <div className="grid gap-2 md:grid-cols-[1fr_auto]">
-        <label className="text-sm">
+        <label className="text-sm text-[var(--md-sys-color-on-surface-variant)]">
           {t("service.data.manual.deleteId")}
           <input value={state.deleteEntryId} onChange={(event) => state.setDeleteEntryId(event.target.value)} className="control-input mt-1 w-full px-2 py-1.5 text-sm" placeholder={t("service.data.manual.deletePlaceholder")} />
         </label>
-        <button type="button" onClick={() => void state.deleteManualEntry(state.deleteEntryId)} disabled={state.dataMutationLoading} className="self-end rounded-lg bg-[var(--md-sys-color-error)] px-3 py-2 text-sm font-semibold text-[var(--md-sys-color-on-error)] disabled:cursor-not-allowed disabled:opacity-60">
+        <button type="button" onClick={() => void state.deleteManualEntry(state.deleteEntryId)} disabled={state.dataMutationLoading} className="ui-action-pill self-end text-sm">
           {t("service.data.manual.delete")}
         </button>
       </div>
@@ -628,9 +630,9 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
             {serviceMeta ? ` · ${t("service.domain")}: ${serviceMeta.domain}` : ""}
           </p>
         </div>
-        <div className={`w-full max-w-sm rounded-xl border border-[var(--md-sys-color-outline-variant)] bg-[color:var(--md-sys-color-surface-container-low)]/85 ${refreshCardPadding}`}>
+        <div className={`ui-subtle-card w-full max-w-sm rounded-[1.5rem] ${refreshCardPadding}`}>
           <div className="grid gap-2 sm:grid-cols-2">
-            <label className={refreshLabelText}>
+            <label className={`${refreshLabelText} text-[var(--md-sys-color-on-surface-variant)]`}>
               {t("service.refresh.modeLabel")}
               <select
                 value={state.refreshMode}
@@ -642,7 +644,7 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
               </select>
             </label>
 
-            <label className={refreshLabelText}>
+            <label className={`${refreshLabelText} text-[var(--md-sys-color-on-surface-variant)]`}>
               {t("service.refresh.intervalLabel")}
               <select
                 value={state.refreshIntervalSeconds}
@@ -663,7 +665,7 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
             <button
               type="button"
               onClick={() => void state.loadOverview()}
-              className={`mt-3 w-full rounded-xl bg-[var(--md-sys-color-primary)] ${refreshButtonPadding} ${refreshButtonText} font-semibold text-[var(--md-sys-color-on-primary)] transition-all duration-200 hover:-translate-y-[1px] hover:brightness-105`}
+              className={`ui-action-pill ui-action-pill--primary mt-3 w-full justify-center ${refreshButtonPadding} ${refreshButtonText}`}
             >
               {state.overviewLoading ? t("service.button.updating") : t("service.button.update")}
             </button>
@@ -683,7 +685,7 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
 
       <div className={`grid gap-2 ${compact ? "sm:grid-cols-2" : "sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"}`}>
         {serviceContextCards.map((card) => (
-          <article key={`${card.label}-${card.detail}`} className="ui-surface-soft min-w-0 rounded-xl p-3">
+          <article key={`${card.label}-${card.detail}`} className="ui-subtle-card min-w-0 rounded-2xl p-3">
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--md-sys-color-on-surface-variant)]">{card.label}</p>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <span
@@ -703,7 +705,7 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
 
       {state.error && <p className="ui-feedback ui-feedback--error">{state.error}</p>}
 
-      <div className="ui-surface-soft rounded-2xl p-2">
+      <div className="ui-subtle-card rounded-[1.75rem] p-2">
         <div className="flex flex-wrap gap-2" role="tablist" aria-label={t("service.section.navigation")}>
           {visibleSections.map((section) => {
             const isActive = activeSection === section.key;
@@ -714,10 +716,10 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
                 role="tab"
                 aria-selected={isActive}
                 onClick={() => setActiveSection(section.key)}
-                className={`rounded-xl px-3 py-2 text-sm font-semibold transition ${
+                className={`${isActive ? "ui-action-pill ui-action-pill--tonal" : "ui-action-pill ui-action-pill--quiet"} ${compactActionClass} transition ${
                   isActive
-                    ? "bg-[var(--md-sys-color-primary)] text-[var(--md-sys-color-on-primary)] shadow-sm"
-                    : "border border-[var(--md-sys-color-outline-variant)] bg-[var(--md-sys-color-surface)] text-[var(--md-sys-color-on-surface-variant)] hover:bg-[var(--md-sys-color-surface-container)]"
+                    ? "shadow-sm"
+                    : ""
                 }`}
               >
                 {section.label}
@@ -729,7 +731,7 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
 
       {activeSection === "observability" && (
         <section className="grid min-w-0 gap-3" aria-label={t("service.section.observability")}>
-          <article className="ui-surface-raised min-w-0 rounded-2xl p-4 space-y-2">
+          <article className="ui-table-shell min-w-0 rounded-[1.75rem] p-4 space-y-2">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h3 className={`m3-title ${compact ? "text-base" : "text-lg"}`}>{t("service.metrics.title")}</h3>
@@ -740,14 +742,14 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
             ) : state.metricsRows.length ? (
               <PaginatedFilterableTable rows={state.metricsRows} defaultPageSize={10} density={density} />
             ) : (
-              <div className="rounded-xl border border-dashed border-[var(--md-sys-color-outline)] px-4 py-3 text-sm">
+              <div className="ui-subtle-card rounded-2xl border border-dashed px-4 py-3 text-sm">
                 <p className="font-medium">{t("service.metrics.none")}</p>
                 <p className="mt-1 text-xs text-[var(--md-sys-color-on-surface-variant)]">{t("service.metrics.emptyHint")}</p>
               </div>
             )}
           </article>
 
-          <article className="ui-surface-raised min-w-0 rounded-2xl p-4 space-y-2">
+          <article className="ui-table-shell min-w-0 rounded-[1.75rem] p-4 space-y-2">
             <div>
               <h3 className={`m3-title ${compact ? "text-base" : "text-lg"}`}>{t("service.logs.title")}</h3>
             </div>
@@ -756,7 +758,7 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
             ) : state.logsRows.length ? (
               <PaginatedFilterableTable rows={state.logsRows} defaultPageSize={20} defaultSortDirection="desc" density={density} />
             ) : (
-              <div className="rounded-xl border border-dashed border-[var(--md-sys-color-outline)] px-4 py-3 text-sm">
+              <div className="ui-subtle-card rounded-2xl border border-dashed px-4 py-3 text-sm">
                 <p className="font-medium">{t("service.logs.none")}</p>
                 <p className="mt-1 text-xs text-[var(--md-sys-color-on-surface-variant)]">{t("service.logs.emptyHint")}</p>
               </div>
@@ -766,12 +768,12 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
       )}
 
       {activeSection === "data" && hasDataSection && serviceConfig.datasets && serviceConfig.datasets.length > 0 && (
-        <article className="min-w-0 space-y-3 ui-surface-raised rounded-2xl p-4">
+        <article className="ui-table-shell min-w-0 space-y-3 rounded-[1.75rem] p-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h3 className={`m3-title ${compact ? "text-base" : "text-lg"}`}>{t("service.data.title")}</h3>
             </div>
-            <button type="button" onClick={() => void state.loadData()} className="rounded-lg border border-[var(--md-sys-color-outline-variant)] px-3 py-1.5 text-xs font-semibold">
+            <button type="button" onClick={() => void state.loadData()} className={`ui-action-pill ui-action-pill--quiet ${compactActionClass}`}>
               {state.dataLoading ? t("service.button.updating") : t("service.button.update")}
             </button>
           </div>
@@ -785,7 +787,7 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
           >
             <div className="space-y-3">
               {state.dataset === "processes" && state.followTaskId.trim() && (
-                <div className="ui-surface-raised rounded-xl p-3 text-sm">
+                <div className="ui-subtle-card rounded-2xl p-3 text-sm">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p>
                       {t("service.process.following", { taskId: state.followTaskId.trim() })}
@@ -793,7 +795,7 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
                     <button
                       type="button"
                       onClick={() => state.setFollowTaskId("")}
-                      className="rounded-lg border border-[var(--md-sys-color-outline-variant)] px-2 py-1 text-xs"
+                      className="ui-action-pill ui-action-pill--quiet min-h-0 px-2.5 py-1 text-xs"
                     >
                       {t("service.process.following.clear")}
                     </button>
@@ -801,8 +803,8 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
                 </div>
               )}
 
-              <div className={`ui-surface-raised grid gap-2 rounded-xl md:grid-cols-2 2xl:grid-cols-4 ${compact ? "p-2" : "p-3"}`}>
-            <label className="text-sm">
+              <div className={`ui-subtle-card grid gap-2 rounded-2xl md:grid-cols-2 2xl:grid-cols-4 ${compact ? "p-2" : "p-3"}`}>
+            <label className="text-sm text-[var(--md-sys-color-on-surface-variant)]">
               {t("service.filter.dataset")}
               <select
                 value={state.dataset}
@@ -810,7 +812,7 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
                   state.setDataset(event.target.value as DataDataset);
                   state.setPage(1);
                 }}
-                className={`mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] text-sm ${compact ? "px-2 py-1.5" : "px-2 py-2"}`}
+                className={controlClass}
               >
                 {serviceConfig.datasets.map((item) => (
                   <option key={item.value} value={item.value}>
@@ -820,49 +822,49 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
               </select>
             </label>
 
-            <label className="text-sm">
+            <label className="text-sm text-[var(--md-sys-color-on-surface-variant)]">
               {t("service.filter.filter")}
               <input
                 value={state.filter}
                 onChange={(event) => state.setFilter(event.target.value)}
-                className={`mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] text-sm ${compact ? "px-2 py-1.5" : "px-2 py-2"}`}
+                className={controlClass}
               />
             </label>
 
-            <label className="text-sm">
+            <label className="text-sm text-[var(--md-sys-color-on-surface-variant)]">
               {t("service.filter.sortBy")}
               <input
                 value={state.sortBy}
                 onChange={(event) => state.setSortBy(event.target.value)}
-                className={`mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] text-sm ${compact ? "px-2 py-1.5" : "px-2 py-2"}`}
+                className={controlClass}
                 placeholder={t("service.filter.sortPlaceholder")}
               />
             </label>
 
-            <label className="text-sm">
+            <label className="text-sm text-[var(--md-sys-color-on-surface-variant)]">
               {t("service.filter.direction")}
               <select
                 value={state.sortDirection}
                 onChange={(event) => state.setSortDirection(event.target.value as "asc" | "desc")}
-                className={`mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] text-sm ${compact ? "px-2 py-1.5" : "px-2 py-2"}`}
+                className={controlClass}
               >
                 <option value="asc">{t("service.filter.sortAscShort")}</option>
                 <option value="desc">{t("service.filter.sortDescShort")}</option>
               </select>
             </label>
 
-            <label className="text-sm">
+            <label className="text-sm text-[var(--md-sys-color-on-surface-variant)]">
               {t("service.filter.page")}
               <input
                 type="number"
                 min={1}
                 value={state.page}
                 onChange={(event) => state.setPage(Number(event.target.value || 1))}
-                className={`mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] text-sm ${compact ? "px-2 py-1.5" : "px-2 py-2"}`}
+                className={controlClass}
               />
             </label>
 
-            <label className="text-sm">
+            <label className="text-sm text-[var(--md-sys-color-on-surface-variant)]">
               {t("service.filter.pageSize")}
               <input
                 type="number"
@@ -870,11 +872,11 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
                 max={200}
                 value={state.pageSize}
                 onChange={(event) => state.setPageSize(Number(event.target.value || 20))}
-                className={`mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] text-sm ${compact ? "px-2 py-1.5" : "px-2 py-2"}`}
+                className={controlClass}
               />
             </label>
 
-            <label className="text-sm">
+            <label className="text-sm text-[var(--md-sys-color-on-surface-variant)]">
               {t("service.filter.sourceLimit")}
               <input
                 type="number"
@@ -882,16 +884,16 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
                 max={1000}
                 value={state.limit}
                 onChange={(event) => state.setLimit(Number(event.target.value || 200))}
-                className={`mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] text-sm ${compact ? "px-2 py-1.5" : "px-2 py-2"}`}
+                className={controlClass}
               />
             </label>
 
-            <label className="text-sm">
+            <label className="text-sm text-[var(--md-sys-color-on-surface-variant)]">
               {t("service.filter.userMetric")}
               <select
                 value={state.metric}
                 onChange={(event) => state.setMetric(event.target.value as "won" | "score" | "played")}
-                className={`mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] text-sm ${compact ? "px-2 py-1.5" : "px-2 py-2"}`}
+                className={controlClass}
                 disabled={serviceConfig.service !== "microservice-users" || state.dataset !== "leaderboard"}
               >
                 <option value="won">won</option>
@@ -931,7 +933,7 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
               rowActions={historyRowActions}
             />
           ) : (
-            <div className="rounded-xl border border-dashed border-[var(--md-sys-color-outline)] px-4 py-3 text-sm">
+            <div className="ui-subtle-card rounded-2xl border border-dashed px-4 py-3 text-sm">
               <p className="font-medium">{t("service.data.none")}</p>
               <p className="mt-1 text-xs text-[var(--md-sys-color-on-surface-variant)]">{t("service.data.emptyHint")}</p>
             </div>
@@ -940,12 +942,12 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
       )}
 
       {activeSection === "manual" && isGameHistoryDataset && (
-        <article className="min-w-0 space-y-3 ui-surface-raised rounded-2xl p-4" aria-label={t("service.section.manual")}>
+        <article className="ui-table-shell min-w-0 space-y-3 rounded-[1.75rem] p-4" aria-label={t("service.section.manual")}>
           <div>
             <h3 className={`m3-title ${compact ? "text-base" : "text-lg"}`}>{t("service.data.manual.title")}</h3>
           </div>
 
-          <div className={`ui-surface-soft rounded-xl ${compact ? "p-3" : "p-4"}`}>
+          <div className={`ui-subtle-card rounded-2xl ${compact ? "p-3" : "p-4"}`}>
             {renderManualEditorFields()}
           </div>
         </article>

@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { backofficeAuth, type BackofficeSession } from "./auth";
 import { clearPrefixedStorageEntries } from "./application/services/sessionStorage";
 import {
-  UI_ACCENT_STORAGE_KEY,
   UI_LANGUAGE_STORAGE_KEY,
   UI_SERVICE_LAST_ERROR_STORAGE_PREFIX,
   UI_SERVICE_ROUTE_QUERY_STORAGE_PREFIX,
@@ -11,7 +10,7 @@ import {
   UI_TYPOGRAPHY_STORAGE_KEY,
 } from "./domain/constants/ui";
 import type { SessionContext } from "./domain/types/backoffice";
-import type { UiAccent, UiLanguage, UiTheme, UiTypography } from "./domain/types/backoffice";
+import type { UiLanguage, UiTheme, UiTypography } from "./domain/types/backoffice";
 import { I18nProvider } from "./i18n/context";
 import { BackofficeLayout } from "./ui/layout/BackofficeLayout";
 import { LoginGate } from "./ui/panels/LoginGate";
@@ -31,16 +30,6 @@ export function App() {
       return stored;
     }
     return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-  });
-  const [accent, setAccent] = useState<UiAccent>(() => {
-    if (typeof window === "undefined") {
-      return "ocean";
-    }
-    const stored = window.localStorage.getItem(UI_ACCENT_STORAGE_KEY);
-    if (stored === "sunset" || stored === "emerald" || stored === "ocean") {
-      return stored;
-    }
-    return "ocean";
   });
   const [typography, setTypography] = useState<UiTypography>(() => {
     if (typeof window === "undefined") {
@@ -68,12 +57,6 @@ export function App() {
     window.localStorage.setItem(UI_THEME_STORAGE_KEY, theme);
     document.documentElement.setAttribute("data-theme", theme);
   }, [theme]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem(UI_ACCENT_STORAGE_KEY, accent);
-    document.documentElement.setAttribute("data-accent", accent);
-  }, [accent]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -113,10 +96,8 @@ export function App() {
         <LoginGate
           onAuthenticated={handleAuthenticated}
           theme={theme}
-          accent={accent}
           typography={typography}
           onToggleTheme={toggleTheme}
-          onAccentChange={setAccent}
           onTypographyChange={setTypography}
         />
       </I18nProvider>
@@ -130,10 +111,8 @@ export function App() {
         context={context}
         onSignOut={handleSignOut}
         theme={theme}
-        accent={accent}
         typography={typography}
         onToggleTheme={toggleTheme}
-        onAccentChange={setAccent}
         onTypographyChange={setTypography}
       />
     </I18nProvider>

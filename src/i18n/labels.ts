@@ -10,12 +10,6 @@ export const LANGUAGE_OPTIONS: Array<{ value: UiLanguage; label: string }> = [
   { value: "it", label: "Italiano" },
 ];
 
-export const ACCENT_LABEL_KEYS = {
-  ocean: "accent.ocean",
-  sunset: "accent.sunset",
-  emerald: "accent.emerald",
-} as const;
-
 type LabelDictionary = Record<string, string>;
 
 const es: LabelDictionary = {
