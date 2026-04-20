@@ -223,6 +223,7 @@ describe("BackofficeLayout integration", () => {
     expect(historyPanel?.style.left).toBeTruthy();
     expect(historyPanel?.style.top).toBeTruthy();
     expect(historyPanel?.style.maxHeight).toBeTruthy();
+    expect(historyPanel?.style.zIndex).toBeTruthy();
     expect(historyPanel?.className).toContain("overflow-hidden");
   });
 
@@ -246,6 +247,7 @@ describe("BackofficeLayout integration", () => {
     expect(preferencesPanel?.style.left).toBeTruthy();
     expect(preferencesPanel?.style.top).toBeTruthy();
     expect(preferencesPanel?.style.maxHeight).toBeTruthy();
+    expect(preferencesPanel?.style.zIndex).toBeTruthy();
     expect(preferencesPanel?.className).toContain("overflow-y-auto");
   });
 

@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties, type TouchEvent } from "react";
+import { createPortal } from "react-dom";
 
 import type { BackofficeSession } from "../../auth";
 import { fetchServiceOperationalSummary } from "../../application/services/operationalSummary";
@@ -82,8 +83,14 @@ function clampPopoverToViewport(trigger: HTMLElement, preferredWidth: number, pr
     left = margin;
   }
 
-  const top = Math.max(margin, triggerRect.bottom + gap);
-  const maxHeight = Math.max(160, Math.min(preferredMaxHeight, viewportHeight - top - margin));
+  const top = triggerRect.bottom + gap;
+  const availableHeight = viewportHeight - top - margin;
+
+  if (availableHeight <= 0) {
+    return null;
+  }
+
+  const maxHeight = Math.min(preferredMaxHeight, availableHeight);
 
   return {
     left,
@@ -91,6 +98,7 @@ function clampPopoverToViewport(trigger: HTMLElement, preferredWidth: number, pr
     position: "fixed",
     top,
     width,
+    zIndex: 140,
   };
 }
 
@@ -149,10 +157,10 @@ export function BackofficeLayout({
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
   const summaryBaselineRef = useRef<Record<string, { requestsTotal: number | null; fetchedAt: number }>>({});
-  const releaseHistoryRef = useRef<HTMLDivElement | null>(null);
-  const preferencesRef = useRef<HTMLDivElement | null>(null);
   const releaseHistoryButtonRef = useRef<HTMLButtonElement | null>(null);
   const preferencesButtonRef = useRef<HTMLButtonElement | null>(null);
+  const releaseHistoryPopoverRef = useRef<HTMLDivElement | null>(null);
+  const preferencesPopoverRef = useRef<HTMLDivElement | null>(null);
   const [releaseHistoryStyle, setReleaseHistoryStyle] = useState<CSSProperties | undefined>(undefined);
   const [preferencesStyle, setPreferencesStyle] = useState<CSSProperties | undefined>(undefined);
 
@@ -213,11 +221,16 @@ export function BackofficeLayout({
         return;
       }
 
-      if (releaseHistoryOpen && releaseHistoryRef.current && !releaseHistoryRef.current.contains(target)) {
+      const insideReleaseHistory =
+        !!releaseHistoryButtonRef.current?.contains(target) || !!releaseHistoryPopoverRef.current?.contains(target);
+      const insidePreferences =
+        !!preferencesButtonRef.current?.contains(target) || !!preferencesPopoverRef.current?.contains(target);
+
+      if (releaseHistoryOpen && !insideReleaseHistory) {
         setReleaseHistoryOpen(false);
       }
 
-      if (preferencesOpen && preferencesRef.current && !preferencesRef.current.contains(target)) {
+      if (preferencesOpen && !insidePreferences) {
         setPreferencesOpen(false);
       }
     };
@@ -251,7 +264,7 @@ export function BackofficeLayout({
 
     const onScroll = (event: Event) => {
       const target = event.target;
-      if (target instanceof Node && releaseHistoryRef.current?.contains(target)) {
+      if (target instanceof Node && releaseHistoryPopoverRef.current?.contains(target)) {
         return;
       }
       setReleaseHistoryOpen(false);
@@ -286,7 +299,7 @@ export function BackofficeLayout({
 
     const onScroll = (event: Event) => {
       const target = event.target;
-      if (target instanceof Node && preferencesRef.current?.contains(target)) {
+      if (target instanceof Node && preferencesPopoverRef.current?.contains(target)) {
         return;
       }
       setPreferencesOpen(false);
@@ -400,6 +413,8 @@ export function BackofficeLayout({
       setMobileMenuOpen(false);
     }
   };
+
+  const canRenderFloatingPanels = typeof document !== "undefined";
 
   return (
     <div
@@ -530,7 +545,7 @@ export function BackofficeLayout({
               </div>
 
               <div className="flex flex-wrap items-center gap-2.5">
-                  <div ref={releaseHistoryRef} className="relative z-30">
+                  <div className="relative z-30">
                     <button
                       ref={releaseHistoryButtonRef}
                       type="button"
@@ -545,33 +560,38 @@ export function BackofficeLayout({
                       {t("layout.release.historyBtn")} ({deploymentHistory.history.length})
                     </button>
 
-                    {releaseHistoryOpen && (
-                      <div
-                        id="deployment-history-panel"
-                        style={releaseHistoryStyle}
-                        className="ui-popover-panel z-40 overflow-hidden rounded-[1.75rem] p-4"
-                      >
-                        <p className="text-sm font-semibold text-[var(--md-sys-color-on-surface)]">{t("layout.release.historyTitle")}</p>
-                        <div className="mt-3 space-y-2 overflow-y-auto pr-1" style={{ maxHeight: releaseHistoryStyle?.maxHeight ? Math.max(160, Number(releaseHistoryStyle.maxHeight) - 76) : undefined }}>
-                          {deploymentHistory.history.map((entry) => (
-                            <article
-                              key={`${entry.version}-${entry.deployedAt}`}
-                              className="ui-subtle-card rounded-2xl px-3 py-3"
-                            >
-                              <div className="flex flex-wrap items-center justify-between gap-2">
-                                <p className="text-sm font-semibold text-[var(--md-sys-color-on-surface)]">{entry.version}</p>
-                                <p className="text-[11px] text-[var(--md-sys-color-on-surface-variant)]">{entry.deployedAt}</p>
-                              </div>
-                              <p className="mt-1 text-xs text-[var(--md-sys-color-on-surface-variant)]">{entry.summary}</p>
-                              <p className="mt-1 text-[11px] text-[var(--md-sys-color-on-surface-variant)]">{entry.commitSha}</p>
-                            </article>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                    {releaseHistoryOpen &&
+                      releaseHistoryStyle &&
+                      canRenderFloatingPanels &&
+                      createPortal(
+                        <div
+                          id="deployment-history-panel"
+                          ref={releaseHistoryPopoverRef}
+                          style={releaseHistoryStyle}
+                          className="ui-popover-panel overflow-hidden rounded-[1.75rem] p-4"
+                        >
+                          <p className="text-sm font-semibold text-[var(--md-sys-color-on-surface)]">{t("layout.release.historyTitle")}</p>
+                          <div className="mt-3 space-y-2 overflow-y-auto pr-1" style={{ maxHeight: releaseHistoryStyle.maxHeight ? Math.max(120, Number(releaseHistoryStyle.maxHeight) - 76) : undefined }}>
+                            {deploymentHistory.history.map((entry) => (
+                              <article
+                                key={`${entry.version}-${entry.deployedAt}`}
+                                className="ui-subtle-card rounded-2xl px-3 py-3"
+                              >
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <p className="text-sm font-semibold text-[var(--md-sys-color-on-surface)]">{entry.version}</p>
+                                  <p className="text-[11px] text-[var(--md-sys-color-on-surface-variant)]">{entry.deployedAt}</p>
+                                </div>
+                                <p className="mt-1 text-xs text-[var(--md-sys-color-on-surface-variant)]">{entry.summary}</p>
+                                <p className="mt-1 text-[11px] text-[var(--md-sys-color-on-surface-variant)]">{entry.commitSha}</p>
+                              </article>
+                            ))}
+                          </div>
+                        </div>,
+                        document.body,
+                      )}
                   </div>
 
-                  <div ref={preferencesRef} className="relative z-30">
+                  <div className="relative z-30">
                     <button
                       ref={preferencesButtonRef}
                       type="button"
@@ -586,46 +606,51 @@ export function BackofficeLayout({
                       UI
                     </button>
 
-                    {preferencesOpen && (
-                      <div
-                        id="layout-preferences-panel"
-                        style={preferencesStyle}
-                        className="ui-popover-panel z-40 overflow-y-auto rounded-[1.75rem] p-4"
-                      >
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          <label className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
-                            {t("language.selectorLabel")}
-                            <select value={language} onChange={(event) => setLanguage(event.target.value as typeof language)} className="control-input mt-1 w-full py-1.5">
-                              {LANGUAGE_OPTIONS.map((option) => (
-                                <option key={option.value} value={option.value}>
-                                  {option.label}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-                          <label className="text-xs text-[var(--md-sys-color-on-surface-variant)] sm:col-span-2">
-                            {t("layout.header.typography")}
-                            <select value={typography} onChange={(event) => onTypographyChange(event.target.value as UiTypography)} className="control-input mt-1 w-full py-1.5">
-                              {TYPOGRAPHY_OPTIONS.map((size) => (
-                                <option key={size} value={size}>{t(TYPOGRAPHY_LABEL_KEYS[size])}</option>
-                              ))}
-                            </select>
-                          </label>
-                          <button type="button" onClick={onToggleTheme} className="ui-switch justify-between rounded-2xl border border-[var(--md-sys-color-outline-variant)] px-3 py-2.5" role="switch" aria-checked={theme === "dark"} aria-label={t("layout.header.themeSwitch")}>
-                            <span className={`ui-switch-track ${theme === "dark" ? "is-on" : ""}`}>
-                              <span className="ui-switch-thumb" />
-                            </span>
-                            <span className="text-xs font-semibold text-[var(--md-sys-color-on-surface-variant)]">{theme === "dark" ? t("layout.header.themeDark") : t("layout.header.themeLight")}</span>
-                          </button>
-                          <button type="button" onClick={toggleDensity} className="ui-switch justify-between rounded-2xl border border-[var(--md-sys-color-outline-variant)] px-3 py-2.5" role="switch" aria-checked={density === "dense"} aria-label={t("layout.header.densitySwitch")}>
-                            <span className={`ui-switch-track ${density === "dense" ? "is-on" : ""}`}>
-                              <span className="ui-switch-thumb" />
-                            </span>
-                            <span className="text-xs font-semibold text-[var(--md-sys-color-on-surface-variant)]">{density === "dense" ? t("layout.header.densityDense") : t("layout.header.densityComfortable")}</span>
-                          </button>
-                        </div>
-                      </div>
-                    )}
+                    {preferencesOpen &&
+                      preferencesStyle &&
+                      canRenderFloatingPanels &&
+                      createPortal(
+                        <div
+                          id="layout-preferences-panel"
+                          ref={preferencesPopoverRef}
+                          style={preferencesStyle}
+                          className="ui-popover-panel overflow-y-auto rounded-[1.75rem] p-4"
+                        >
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <label className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
+                              {t("language.selectorLabel")}
+                              <select value={language} onChange={(event) => setLanguage(event.target.value as typeof language)} className="control-input mt-1 w-full py-1.5">
+                                {LANGUAGE_OPTIONS.map((option) => (
+                                  <option key={option.value} value={option.value}>
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                            <label className="text-xs text-[var(--md-sys-color-on-surface-variant)] sm:col-span-2">
+                              {t("layout.header.typography")}
+                              <select value={typography} onChange={(event) => onTypographyChange(event.target.value as UiTypography)} className="control-input mt-1 w-full py-1.5">
+                                {TYPOGRAPHY_OPTIONS.map((size) => (
+                                  <option key={size} value={size}>{t(TYPOGRAPHY_LABEL_KEYS[size])}</option>
+                                ))}
+                              </select>
+                            </label>
+                            <button type="button" onClick={onToggleTheme} className="ui-switch justify-between rounded-2xl border border-[var(--md-sys-color-outline-variant)] px-3 py-2.5" role="switch" aria-checked={theme === "dark"} aria-label={t("layout.header.themeSwitch")}>
+                              <span className={`ui-switch-track ${theme === "dark" ? "is-on" : ""}`}>
+                                <span className="ui-switch-thumb" />
+                              </span>
+                              <span className="text-xs font-semibold text-[var(--md-sys-color-on-surface-variant)]">{theme === "dark" ? t("layout.header.themeDark") : t("layout.header.themeLight")}</span>
+                            </button>
+                            <button type="button" onClick={toggleDensity} className="ui-switch justify-between rounded-2xl border border-[var(--md-sys-color-outline-variant)] px-3 py-2.5" role="switch" aria-checked={density === "dense"} aria-label={t("layout.header.densitySwitch")}>
+                              <span className={`ui-switch-track ${density === "dense" ? "is-on" : ""}`}>
+                                <span className="ui-switch-thumb" />
+                              </span>
+                              <span className="text-xs font-semibold text-[var(--md-sys-color-on-surface-variant)]">{density === "dense" ? t("layout.header.densityDense") : t("layout.header.densityComfortable")}</span>
+                            </button>
+                          </div>
+                        </div>,
+                        document.body,
+                      )}
                   </div>
 
                   <button type="button" onClick={onSignOut} className="ui-action-pill ui-action-pill--quiet text-sm">{t("layout.header.signOut")}</button>
