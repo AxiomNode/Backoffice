@@ -278,8 +278,8 @@ export function BackofficeLayout({
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
     >
-      {!mobileMenuOpen && <div className="fixed left-0 top-0 z-30 h-screen w-3 lg:hidden" aria-hidden="true" />}
-      <div className="m3-card sticky top-2 z-20 flex items-center justify-between gap-2 p-3 lg:hidden">
+      {!mobileMenuOpen && <div className="fixed left-0 top-0 z-30 h-screen w-3 xl:hidden" aria-hidden="true" />}
+      <div className="m3-card sticky top-2 z-20 flex items-center justify-between gap-2 p-3 xl:hidden">
         <button
           type="button"
           onClick={() => setMobileMenuOpen(true)}
@@ -327,7 +327,7 @@ export function BackofficeLayout({
 
       {mobileMenuOpen && (
         <div
-          className="fixed inset-0 z-[70] lg:hidden"
+          className="fixed inset-0 z-[70] xl:hidden"
           role="dialog"
           aria-modal="true"
         >
@@ -347,8 +347,8 @@ export function BackofficeLayout({
         </div>
       )}
 
-      <div className="relative z-10 min-w-0 lg:z-0">
-        <Sidebar current={current} onChange={onNavigate} items={navItems} className="hidden h-fit lg:block lg:sticky lg:top-4" />
+      <div className="relative z-10 min-w-0 xl:z-0">
+        <Sidebar current={current} onChange={onNavigate} items={navItems} className="hidden h-fit xl:block xl:sticky xl:top-4" />
       </div>
 
       <main className="relative z-20 min-w-0 space-y-3 overflow-visible sm:space-y-4 xl:space-y-5">
