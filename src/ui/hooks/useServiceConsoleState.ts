@@ -171,6 +171,8 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
   const [refreshIntervalSeconds, setRefreshIntervalSeconds] = useState(10);
   const [refreshCycleVersion, setRefreshCycleVersion] = useState(0);
   const [followTaskId, setFollowTaskId] = useState("");
+  const [lastOverviewSyncAt, setLastOverviewSyncAt] = useState<number | null>(null);
+  const [lastDataSyncAt, setLastDataSyncAt] = useState<number | null>(null);
 
   // --- Loading / error state ---
   const [overviewLoading, setOverviewLoading] = useState(false);
@@ -219,6 +221,8 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
     setRefreshMode("manual");
     setRefreshIntervalSeconds(10);
     setFollowTaskId("");
+    setLastOverviewSyncAt(null);
+    setLastDataSyncAt(null);
     setManualCategoryId("23");
     setManualLanguage("es");
     setManualDifficulty(55);
@@ -475,6 +479,8 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
         setLogsError(logsResult.error);
         storeServiceLastError(serviceConfig.service, logsResult.error);
       }
+
+      setLastOverviewSyncAt(Date.now());
     } catch (err) {
       if (isAbortError(err)) {
         return;
@@ -517,6 +523,7 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
         setDataTotal(0);
         setDataPage(page);
         setDataPageSize(pageSize);
+        setLastDataSyncAt(null);
         return;
       }
 
@@ -586,6 +593,7 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
         }
       }
 
+      setLastDataSyncAt(Date.now());
       setDataRows(nextRows);
       setDataTotal(nextTotal);
       setDataPage(nextPage);
@@ -772,6 +780,8 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
     refreshIntervalSeconds, setRefreshIntervalSeconds,
     refreshCycleVersion,
     followTaskId, setFollowTaskId,
+    lastOverviewSyncAt,
+    lastDataSyncAt,
     // Loading / errors
     loading: overviewLoading || dataLoading,
     overviewLoading,

@@ -134,6 +134,36 @@ describe("ServiceConsolePanel integration", () => {
     expect(screen.getByRole("tab", { name: "Observabilidad" })).toBeInTheDocument();
   });
 
+  it("shows a service context summary with refresh and dataset state", async () => {
+    fetchJsonMock.mockImplementation((url: string) => {
+      if (url.endsWith("/v1/backoffice/services")) {
+        return Promise.resolve({
+          services: [{ key: "microservice-users", title: "Users", domain: "core", supportsData: true }],
+        });
+      }
+      if (url.includes("/metrics")) {
+        return Promise.resolve({ metrics: { traffic: { requestsReceivedTotal: 10 } } });
+      }
+      if (url.includes("/logs")) {
+        return Promise.resolve({ logs: [{ createdAt: "2026-04-20T16:10:00Z", event: "ok" }] });
+      }
+      if (url.includes("/data?")) {
+        return Promise.resolve({ rows: [{ id: "u1" }, { id: "u2" }], total: 8, page: 1, pageSize: 20 });
+      }
+      return Promise.reject(new Error(`Unhandled URL: ${url}`));
+    });
+
+    renderPanel("svc-users");
+
+    await waitFor(() => {
+      expect(screen.getByText("Users")).toBeInTheDocument();
+      expect(screen.getByText("Dataset")).toBeInTheDocument();
+      expect(screen.getByText("Roles")).toBeInTheDocument();
+      expect(screen.getByText("2/8")).toBeInTheDocument();
+      expect(screen.getAllByText("Manual").length).toBeGreaterThan(0);
+    });
+  });
+
   it("normalizes invalid route params and persists query updates", async () => {
     window.location.hash = "#/backoffice/svc-users?page=0&pageSize=999&limit=0&refreshInterval=1&refreshMode=auto&dataset=invalid&filter=abc";
 

@@ -143,7 +143,7 @@ type ServiceConsoleSection = "observability" | "data" | "manual";
 
 /** Console panel for an individual service showing metrics, logs, data tables, and manual CRUD. */
 export function ServiceConsolePanel({ navKey, context, density }: ServiceConsolePanelProps) {
-  const { t } = useI18n();
+  const { language, t } = useI18n();
   const messages: ServiceConsoleMessages = useMemo(() => ({
     insertOk: t("service.data.manual.insertOk"),
     updateOk: t("service.data.manual.updateOk"),
@@ -238,6 +238,62 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
 
   const serviceMeta = state.catalog.find((item) => item.key === serviceConfig.service);
   const hasDataSection = (serviceMeta ? serviceMeta.supportsData : Boolean(serviceConfig.datasets?.length)) && Boolean(serviceConfig.datasets?.length);
+  const syncTimeFormatter = useMemo(
+    () => new Intl.DateTimeFormat(language, { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+    [language],
+  );
+  const formatSyncTime = (value: number | null) => (value ? syncTimeFormatter.format(value) : "--");
+  const serviceContextCards = [
+    {
+      label: t("service.meta.service"),
+      value: serviceMeta?.title ?? serviceTitle,
+      detail: serviceConfig.service,
+      tone: "neutral" as const,
+    },
+    {
+      label: t("service.domain"),
+      value: serviceMeta?.domain ?? "--",
+      detail: serviceSubtitle,
+      tone: "neutral" as const,
+    },
+    {
+      label: t("service.meta.tabularData"),
+      value: serviceMeta?.supportsData ? t("service.meta.yes") : t("service.meta.no"),
+      detail: hasDataSection ? t("service.section.data") : t("service.section.observability"),
+      tone: serviceMeta?.supportsData ? "ok" as const : "neutral" as const,
+    },
+    {
+      label: t("service.refresh.modeLabel"),
+      value: state.refreshMode === "auto" ? t("service.refresh.auto") : t("service.refresh.manual"),
+      detail:
+        state.refreshMode === "auto"
+          ? t("service.refresh.nextSync", { seconds: state.refreshIntervalSeconds })
+          : t("service.button.update"),
+      tone: state.refreshMode === "auto" ? "ok" as const : "neutral" as const,
+    },
+    {
+      label: t("service.section.observability"),
+      value: formatSyncTime(state.lastOverviewSyncAt),
+      detail: t("overview.metric.lastUpdate"),
+      tone: state.lastOverviewSyncAt ? "ok" as const : "neutral" as const,
+    },
+    ...(hasDataSection
+      ? [
+          {
+            label: t("service.filter.dataset"),
+            value: localizedDatasetLabel(state.dataset, state.dataset),
+            detail: `${state.dataRows.length}/${Math.max(state.dataTotal, state.dataRows.length)}`,
+            tone: "neutral" as const,
+          },
+          {
+            label: t("service.data.title"),
+            value: formatSyncTime(state.lastDataSyncAt),
+            detail: t("overview.metric.lastUpdate"),
+            tone: state.lastDataSyncAt ? "ok" as const : "neutral" as const,
+          },
+        ]
+      : []),
+  ];
   const historyRowActions = useMemo(() => {
     if (!isGameHistoryDataset) {
       return [];
@@ -418,11 +474,25 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
         </div>
       </div>
 
-      {serviceMeta && (
-        <div className="ui-surface-soft rounded-xl px-3 py-2 text-xs sm:text-sm">
-          <span className="font-semibold">{t("service.meta.service")}:</span> {serviceMeta.title} · <span className="font-semibold">{t("service.domain")}:</span> {serviceMeta.domain} · <span className="font-semibold">{t("service.meta.tabularData")}:</span> {serviceMeta.supportsData ? t("service.meta.yes") : t("service.meta.no")}
-        </div>
-      )}
+      <div className={`grid gap-2 ${compact ? "sm:grid-cols-2" : "sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"}`}>
+        {serviceContextCards.map((card) => (
+          <article key={`${card.label}-${card.detail}`} className="ui-surface-soft min-w-0 rounded-xl p-3">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--md-sys-color-on-surface-variant)]">{card.label}</p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <span
+                className={`ui-status-chip ${
+                  card.tone === "ok"
+                    ? "ui-status-chip--ok"
+                    : "ui-status-chip--neutral"
+                }`}
+              >
+                {card.value}
+              </span>
+            </div>
+            <p className="mt-2 truncate text-xs text-[var(--md-sys-color-on-surface-variant)]">{card.detail}</p>
+          </article>
+        ))}
+      </div>
 
       {state.error && <p className="ui-feedback ui-feedback--error">{state.error}</p>}
 
