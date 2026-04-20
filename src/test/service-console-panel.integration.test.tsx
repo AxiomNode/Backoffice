@@ -192,6 +192,7 @@ describe("ServiceConsolePanel integration", () => {
     });
 
     fireEvent.click(screen.getByRole("tab", { name: "Datos" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar" }));
 
     expect((screen.getByLabelText("Pagina") as HTMLInputElement).value).toBe("1");
     expect((screen.getByLabelText("Tamano pagina") as HTMLInputElement).value).toBe("20");
@@ -237,6 +238,7 @@ describe("ServiceConsolePanel integration", () => {
     });
 
     fireEvent.click(screen.getByRole("tab", { name: "Datos" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar" }));
 
     const initialDataCalls = fetchJsonMock.mock.calls.filter(([url]) => String(url).includes("/data?")).length;
     const initialMetricCalls = fetchJsonMock.mock.calls.filter(([url]) => String(url).includes("/metrics")).length;
@@ -283,6 +285,7 @@ describe("ServiceConsolePanel integration", () => {
     });
 
     fireEvent.click(screen.getByRole("tab", { name: "Datos" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar" }));
 
     const initialDataCalls = fetchJsonMock.mock.calls.filter(([url]) => String(url).includes("/data?")).length;
     const initialMetricCalls = fetchJsonMock.mock.calls.filter(([url]) => String(url).includes("/metrics")).length;
@@ -675,6 +678,7 @@ describe("ServiceConsolePanel integration", () => {
     renderPanel("svc-quiz");
 
     fireEvent.click(screen.getByRole("tab", { name: "Datos" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar" }));
 
     await waitFor(() => {
       expect(screen.getByText(/Siguiendo task 11111111-1111-1111-1111-111111111111/i)).toBeInTheDocument();
