@@ -219,8 +219,10 @@ describe("BackofficeLayout integration", () => {
     });
 
     const historyPanel = document.getElementById("deployment-history-panel");
-    expect(historyPanel?.className).toContain("fixed inset-x-3 top-24");
-    expect(historyPanel?.className).toContain("max-h-[min(78vh,36rem)]");
+    expect(historyPanel).toHaveStyle({ position: "fixed" });
+    expect(historyPanel?.style.left).toBeTruthy();
+    expect(historyPanel?.style.top).toBeTruthy();
+    expect(historyPanel?.style.maxHeight).toBeTruthy();
     expect(historyPanel?.className).toContain("overflow-hidden");
   });
 
@@ -240,8 +242,10 @@ describe("BackofficeLayout integration", () => {
     });
 
     const preferencesPanel = document.getElementById("layout-preferences-panel");
-    expect(preferencesPanel?.className).toContain("fixed inset-x-3 top-24");
-    expect(preferencesPanel?.className).toContain("max-h-[min(72vh,30rem)]");
+    expect(preferencesPanel).toHaveStyle({ position: "fixed" });
+    expect(preferencesPanel?.style.left).toBeTruthy();
+    expect(preferencesPanel?.style.top).toBeTruthy();
+    expect(preferencesPanel?.style.maxHeight).toBeTruthy();
     expect(preferencesPanel?.className).toContain("overflow-y-auto");
   });
 

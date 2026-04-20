@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties, type TouchEvent } from "react";
 
 import type { BackofficeSession } from "../../auth";
 import { fetchServiceOperationalSummary } from "../../application/services/operationalSummary";
@@ -53,6 +53,38 @@ const TYPOGRAPHY_LABEL_KEYS: Record<UiTypography, LabelKey> = {
   xxl: "typography.xxl",
 };
 
+function clampPopoverToViewport(trigger: HTMLElement, preferredWidth: number, preferredMaxHeight: number): CSSProperties {
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  const margin = 12;
+  const gap = 8;
+  const minUsableHeight = 240;
+  const triggerRect = trigger.getBoundingClientRect();
+  const width = Math.min(preferredWidth, Math.max(280, viewportWidth - margin * 2));
+
+  let left = triggerRect.left;
+  if (left + width > viewportWidth - margin) {
+    left = viewportWidth - margin - width;
+  }
+  if (left < margin) {
+    left = margin;
+  }
+
+  const preferredTop = triggerRect.bottom + gap;
+  const availableBelow = viewportHeight - preferredTop - margin;
+  const useFallbackTop = availableBelow < minUsableHeight;
+  const top = useFallbackTop ? margin : preferredTop;
+  const maxHeight = Math.max(minUsableHeight, Math.min(preferredMaxHeight, viewportHeight - top - margin));
+
+  return {
+    left,
+    maxHeight,
+    position: "fixed",
+    top,
+    width,
+  };
+}
+
 /** Main backoffice layout with sidebar navigation, preferences, and routed panel content. */
 export function BackofficeLayout({
   session,
@@ -96,6 +128,10 @@ export function BackofficeLayout({
   const summaryBaselineRef = useRef<Record<string, { requestsTotal: number | null; fetchedAt: number }>>({});
   const releaseHistoryRef = useRef<HTMLDivElement | null>(null);
   const preferencesRef = useRef<HTMLDivElement | null>(null);
+  const releaseHistoryButtonRef = useRef<HTMLButtonElement | null>(null);
+  const preferencesButtonRef = useRef<HTMLButtonElement | null>(null);
+  const [releaseHistoryStyle, setReleaseHistoryStyle] = useState<CSSProperties | undefined>(undefined);
+  const [preferencesStyle, setPreferencesStyle] = useState<CSSProperties | undefined>(undefined);
 
   useEffect(() => {
     if (!mobileMenuOpen) {
@@ -171,6 +207,50 @@ export function BackofficeLayout({
     if (typeof window === "undefined") return;
     window.localStorage.setItem(UI_DENSITY_STORAGE_KEY, density);
   }, [density]);
+
+  useEffect(() => {
+    if (!releaseHistoryOpen || !releaseHistoryButtonRef.current) {
+      setReleaseHistoryStyle(undefined);
+      return;
+    }
+
+    const updatePosition = () => {
+      if (!releaseHistoryButtonRef.current) {
+        return;
+      }
+      setReleaseHistoryStyle(clampPopoverToViewport(releaseHistoryButtonRef.current, 544, 576));
+    };
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [releaseHistoryOpen]);
+
+  useEffect(() => {
+    if (!preferencesOpen || !preferencesButtonRef.current) {
+      setPreferencesStyle(undefined);
+      return;
+    }
+
+    const updatePosition = () => {
+      if (!preferencesButtonRef.current) {
+        return;
+      }
+      setPreferencesStyle(clampPopoverToViewport(preferencesButtonRef.current, 480, 480));
+    };
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [preferencesOpen]);
 
   useEffect(() => {
     setMobileMenuOpen(false);
@@ -403,6 +483,7 @@ export function BackofficeLayout({
               <div className="flex flex-wrap items-center gap-2.5">
                   <div ref={releaseHistoryRef} className="relative z-30">
                     <button
+                      ref={releaseHistoryButtonRef}
                       type="button"
                       onClick={() => {
                         setReleaseHistoryOpen((currentValue) => !currentValue);
@@ -418,10 +499,11 @@ export function BackofficeLayout({
                     {releaseHistoryOpen && (
                       <div
                         id="deployment-history-panel"
-                        className="ui-popover-panel fixed inset-x-3 top-24 z-40 max-h-[min(78vh,36rem)] overflow-hidden rounded-[1.75rem] p-4 sm:absolute sm:left-0 sm:right-auto sm:top-full sm:mt-2 sm:w-[min(34rem,calc(100vw-3rem))] sm:max-h-[min(70vh,36rem)] lg:left-auto lg:right-0"
+                        style={releaseHistoryStyle}
+                        className="ui-popover-panel z-40 overflow-hidden rounded-[1.75rem] p-4"
                       >
                         <p className="text-sm font-semibold text-[var(--md-sys-color-on-surface)]">{t("layout.release.historyTitle")}</p>
-                        <div className="mt-3 max-h-[calc(min(78vh,36rem)-4.75rem)] space-y-2 overflow-y-auto pr-1 sm:max-h-[calc(min(70vh,36rem)-4.75rem)]">
+                        <div className="mt-3 space-y-2 overflow-y-auto pr-1" style={{ maxHeight: releaseHistoryStyle?.maxHeight ? Math.max(160, Number(releaseHistoryStyle.maxHeight) - 76) : undefined }}>
                           {deploymentHistory.history.map((entry) => (
                             <article
                               key={`${entry.version}-${entry.deployedAt}`}
@@ -442,6 +524,7 @@ export function BackofficeLayout({
 
                   <div ref={preferencesRef} className="relative z-30">
                     <button
+                      ref={preferencesButtonRef}
                       type="button"
                       onClick={() => {
                         setPreferencesOpen((currentValue) => !currentValue);
@@ -457,7 +540,8 @@ export function BackofficeLayout({
                     {preferencesOpen && (
                       <div
                         id="layout-preferences-panel"
-                        className="ui-popover-panel fixed inset-x-3 top-24 z-40 max-h-[min(72vh,30rem)] overflow-y-auto rounded-[1.75rem] p-4 sm:absolute sm:left-0 sm:right-auto sm:top-full sm:mt-2 sm:w-[min(30rem,calc(100vw-3rem))] sm:max-h-[min(68vh,30rem)] lg:left-auto lg:right-0"
+                        style={preferencesStyle}
+                        className="ui-popover-panel z-40 overflow-y-auto rounded-[1.75rem] p-4"
                       >
                         <div className="grid gap-3 sm:grid-cols-2">
                           <label className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
