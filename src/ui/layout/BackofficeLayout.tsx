@@ -57,8 +57,6 @@ function clampPopoverToViewport(trigger: HTMLElement, preferredWidth: number, pr
   const viewportWidth = window.innerWidth;
   const viewportHeight = window.innerHeight;
   const margin = 12;
-  const gap = 8;
-  const minUsableHeight = 240;
   const triggerRect = trigger.getBoundingClientRect();
   const width = Math.min(preferredWidth, Math.max(280, viewportWidth - margin * 2));
 
@@ -70,11 +68,8 @@ function clampPopoverToViewport(trigger: HTMLElement, preferredWidth: number, pr
     left = margin;
   }
 
-  const preferredTop = triggerRect.bottom + gap;
-  const availableBelow = viewportHeight - preferredTop - margin;
-  const useFallbackTop = availableBelow < minUsableHeight;
-  const top = useFallbackTop ? margin : preferredTop;
-  const maxHeight = Math.max(minUsableHeight, Math.min(preferredMaxHeight, viewportHeight - top - margin));
+  const top = margin;
+  const maxHeight = Math.max(240, Math.min(preferredMaxHeight, viewportHeight - margin * 2));
 
   return {
     left,
