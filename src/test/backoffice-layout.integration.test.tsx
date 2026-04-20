@@ -256,18 +256,37 @@ describe("BackofficeLayout integration", () => {
 
     renderLayout();
 
-    const drawer = screen.getByRole("dialog");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
     fireEvent.click(screen.getByRole("button", { name: "Menu" }));
 
-    await waitFor(() => {
-      expect(drawer.className).toContain("pointer-events-auto");
-    });
+    const drawer = await screen.findByRole("dialog");
+
+    expect(drawer).toBeInTheDocument();
 
     fireEvent.click(within(drawer).getByRole("button", { name: /Entrada publica/i }));
 
     await waitFor(() => {
-      expect(drawer.className).toContain("pointer-events-none");
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
       expect(screen.getByTestId("service-console-panel")).toHaveTextContent("console-panel:svc-api-gateway");
+    });
+  });
+
+  it("closes the mobile drawer when the backdrop is pressed", async () => {
+    fetchServiceOperationalSummaryMock.mockResolvedValue({
+      rows: [],
+      totals: { total: 1, onlineCount: 1, accessIssues: 0, connectionErrors: 0 },
+    });
+
+    renderLayout();
+
+    fireEvent.click(screen.getByRole("button", { name: "Menu" }));
+
+    const drawer = await screen.findByRole("dialog");
+    fireEvent.click(within(drawer).getByRole("button", { name: /Cerrar menu/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
   });
 });

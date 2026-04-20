@@ -106,13 +106,19 @@ export function BackofficeLayout({
       return;
     }
 
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setMobileMenuOpen(false);
       }
     };
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
   }, [mobileMenuOpen]);
 
   useEffect(() => {
@@ -330,20 +336,27 @@ export function BackofficeLayout({
         </label>
       </div>
 
-      <div
-        className={`fixed inset-0 z-40 transition-opacity duration-200 lg:hidden ${mobileMenuOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"}`}
-        role="dialog"
-        aria-modal="true"
-      >
-        <button type="button" onClick={() => setMobileMenuOpen(false)} className="absolute inset-0 bg-black/35" aria-label={t("layout.mobile.closeMenuAria")} />
+      {mobileMenuOpen && (
         <div
-          className={`absolute left-0 top-0 h-full w-[88vw] max-w-sm p-3 transition-transform duration-200 ${mobileMenuOpen ? "translate-x-0" : "-translate-x-full"}`}
-          onTouchStart={onTouchStart}
-          onTouchEnd={onTouchEnd}
+          className="fixed inset-0 z-[70] lg:hidden"
+          role="dialog"
+          aria-modal="true"
         >
-          <Sidebar current={current} onChange={onNavigate} items={navItems} className="h-full overflow-y-auto" />
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen(false)}
+            className="absolute inset-0 z-0 bg-black/35"
+            aria-label={t("layout.mobile.closeMenuAria")}
+          />
+          <div
+            className="absolute left-0 top-0 z-10 h-full w-[88vw] max-w-sm p-3 transition-transform duration-200 translate-x-0"
+            onTouchStart={onTouchStart}
+            onTouchEnd={onTouchEnd}
+          >
+            <Sidebar current={current} onChange={onNavigate} items={navItems} className="h-full overflow-y-auto" />
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="relative z-30 min-w-0">
         <Sidebar current={current} onChange={onNavigate} items={navItems} className="hidden h-fit lg:block lg:sticky lg:top-4" />
