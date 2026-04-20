@@ -249,6 +249,45 @@ describe("BackofficeLayout integration", () => {
     expect(preferencesPanel?.className).toContain("overflow-y-auto");
   });
 
+  it("closes floating header panels when their trigger leaves the viewport on scroll", async () => {
+    fetchServiceOperationalSummaryMock.mockResolvedValue({
+      rows: [],
+      totals: { total: 1, onlineCount: 1, accessIssues: 0, connectionErrors: 0 },
+    });
+
+    renderLayout();
+
+    const historyButton = screen.getByRole("button", { name: /Historico de versiones/i });
+    const originalGetBoundingClientRect = historyButton.getBoundingClientRect.bind(historyButton);
+
+    fireEvent.click(historyButton);
+
+    await waitFor(() => {
+      expect(screen.getByText("Versiones desplegadas")).toBeInTheDocument();
+    });
+
+    historyButton.getBoundingClientRect = vi
+      .fn<() => DOMRect>()
+      .mockImplementation(
+        () =>
+          ({
+            ...originalGetBoundingClientRect(),
+            bottom: -24,
+            height: 40,
+            left: 24,
+            right: 210,
+            top: -64,
+            width: 186,
+          }) as DOMRect,
+      );
+
+    fireEvent.scroll(window);
+
+    await waitFor(() => {
+      expect(screen.queryByText("Versiones desplegadas")).not.toBeInTheDocument();
+    });
+  });
+
   it("closes floating header panels when navigating from the sidebar", async () => {
     fetchServiceOperationalSummaryMock.mockResolvedValue({
       rows: [],

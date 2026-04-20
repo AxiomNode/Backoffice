@@ -53,12 +53,25 @@ const TYPOGRAPHY_LABEL_KEYS: Record<UiTypography, LabelKey> = {
   xxl: "typography.xxl",
 };
 
-function clampPopoverToViewport(trigger: HTMLElement, preferredWidth: number, preferredMaxHeight: number): CSSProperties {
+function clampPopoverToViewport(trigger: HTMLElement, preferredWidth: number, preferredMaxHeight: number): CSSProperties | null {
   const viewportWidth = window.innerWidth;
   const viewportHeight = window.innerHeight;
   const margin = 12;
   const gap = 8;
   const triggerRect = trigger.getBoundingClientRect();
+  const hasMeasurableBounds = triggerRect.width > 0 || triggerRect.height > 0;
+
+  const triggerIsVisible =
+    !hasMeasurableBounds ||
+    (triggerRect.bottom > margin &&
+      triggerRect.top < viewportHeight - margin &&
+      triggerRect.right > margin &&
+      triggerRect.left < viewportWidth - margin);
+
+  if (!triggerIsVisible) {
+    return null;
+  }
+
   const width = Math.min(preferredWidth, Math.max(280, viewportWidth - margin * 2));
 
   let left = triggerRect.left;
@@ -228,7 +241,12 @@ export function BackofficeLayout({
       if (!releaseHistoryButtonRef.current) {
         return;
       }
-      setReleaseHistoryStyle(clampPopoverToViewport(releaseHistoryButtonRef.current, releaseHistoryPreferredWidth(), 576));
+      const nextStyle = clampPopoverToViewport(releaseHistoryButtonRef.current, releaseHistoryPreferredWidth(), 576);
+      if (!nextStyle) {
+        setReleaseHistoryOpen(false);
+        return;
+      }
+      setReleaseHistoryStyle(nextStyle);
     };
 
     updatePosition();
@@ -250,7 +268,12 @@ export function BackofficeLayout({
       if (!preferencesButtonRef.current) {
         return;
       }
-      setPreferencesStyle(clampPopoverToViewport(preferencesButtonRef.current, 480, 480));
+      const nextStyle = clampPopoverToViewport(preferencesButtonRef.current, 480, 480);
+      if (!nextStyle) {
+        setPreferencesOpen(false);
+        return;
+      }
+      setPreferencesStyle(nextStyle);
     };
 
     updatePosition();
