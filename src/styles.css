@@ -340,6 +340,91 @@ body {
     transform: scaleY(1.02);
   }
 
+  .ui-subtle-card {
+    border: 1px solid var(--md-sys-color-outline-variant);
+    background: color-mix(in srgb, var(--md-sys-color-surface-container-low) 84%, var(--md-sys-color-surface) 16%);
+    color: var(--md-sys-color-on-surface);
+  }
+
+  .ui-popover-panel {
+    border: 1px solid var(--md-sys-color-outline-variant);
+    background: color-mix(in srgb, var(--md-sys-color-surface) 92%, var(--md-sys-color-surface-container-low) 8%);
+    color: var(--md-sys-color-on-surface);
+    box-shadow:
+      0 18px 44px color-mix(in srgb, var(--md-sys-color-shadow, #0f172a) 18%, transparent 82%),
+      0 4px 18px color-mix(in srgb, var(--md-sys-color-primary) 10%, transparent 90%);
+    backdrop-filter: blur(10px);
+  }
+
+  .ui-action-pill {
+    @apply inline-flex items-center justify-center rounded-full border font-semibold;
+    min-height: 2.5rem;
+    padding: 0.625rem 1rem;
+    border-color: var(--md-sys-color-outline);
+    background: color-mix(in srgb, var(--md-sys-color-surface-container-low) 82%, var(--md-sys-color-surface) 18%);
+    color: var(--md-sys-color-on-surface);
+    transition: transform 180ms ease, background 180ms ease, border-color 180ms ease, box-shadow 180ms ease, color 180ms ease;
+  }
+
+  .ui-action-pill:hover {
+    transform: translateY(-1px);
+    background: color-mix(in srgb, var(--md-sys-color-surface-container) 86%, var(--md-sys-color-surface) 14%);
+    border-color: color-mix(in srgb, var(--md-sys-color-outline) 84%, transparent 16%);
+    box-shadow: 0 8px 18px color-mix(in srgb, var(--md-sys-color-primary) 10%, transparent 90%);
+  }
+
+  .ui-action-pill:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+
+  .ui-action-pill--tonal {
+    border-color: color-mix(in srgb, var(--md-sys-color-secondary) 22%, transparent 78%);
+    background: color-mix(in srgb, var(--md-sys-color-secondary-container) 86%, var(--md-sys-color-surface) 14%);
+    color: var(--md-sys-color-on-secondary-container);
+  }
+
+  .ui-action-pill--primary {
+    border-color: transparent;
+    background: linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--md-sys-color-primary) 92%, #ffffff 8%) 0%,
+      color-mix(in srgb, var(--md-sys-color-tertiary) 30%, var(--md-sys-color-primary) 70%) 100%
+    );
+    color: var(--md-sys-color-on-primary);
+    box-shadow: 0 10px 22px color-mix(in srgb, var(--md-sys-color-primary) 22%, transparent 78%);
+  }
+
+  .ui-action-pill--primary:hover {
+    background: linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--md-sys-color-primary) 96%, #ffffff 4%) 0%,
+      color-mix(in srgb, var(--md-sys-color-tertiary) 36%, var(--md-sys-color-primary) 64%) 100%
+    );
+  }
+
+  .ui-action-pill--quiet {
+    border-color: var(--md-sys-color-outline-variant);
+    background: transparent;
+    color: var(--md-sys-color-on-surface-variant);
+  }
+
+  .ui-table-shell {
+    border: 1px solid var(--md-sys-color-outline-variant);
+    background: color-mix(in srgb, var(--md-sys-color-surface) 92%, var(--md-sys-color-surface-container-low) 8%);
+    color: var(--md-sys-color-on-surface);
+  }
+
+  .ui-table-shell table tbody tr {
+    transition: background 160ms ease;
+  }
+
+  .ui-table-shell table tbody tr:hover {
+    background: color-mix(in srgb, var(--md-sys-color-surface-container-low) 88%, transparent 12%);
+  }
+
   .ui-status-chip {
     @apply rounded-full px-2.5 py-1 text-[11px] font-semibold;
     border: 1px solid transparent;

@@ -363,15 +363,32 @@ export function BackofficeLayout({
       </div>
 
       <main className="relative z-10 min-w-0 space-y-3 overflow-visible sm:space-y-4 xl:space-y-5">
-        <header className="m3-card ui-fade-in relative z-20 overflow-visible bg-[linear-gradient(120deg,color-mix(in_srgb,var(--md-sys-color-primary-container)_78%,var(--md-sys-color-surface)_22%)_0%,color-mix(in_srgb,var(--md-sys-color-surface)_88%,transparent_12%)_46%,color-mix(in_srgb,var(--md-sys-color-tertiary-container)_75%,var(--md-sys-color-surface)_25%)_100%)] p-4 xl:p-6">
-          <div className="grid gap-4 xl:grid-cols-[1fr_auto] xl:items-start">
-            <div className="min-w-0">
-              <p className="text-xs uppercase tracking-[0.22em] text-[var(--md-sys-color-on-surface-variant)]">{t("layout.header.adminConsole")}</p>
-              <h1 className="m3-title text-xl sm:text-2xl xl:text-4xl">{t("layout.header.title")}</h1>
-              <p className="mt-1 text-xs sm:text-sm text-[var(--md-sys-color-on-surface-variant)]">
-                {t("layout.header.session")}: {session.displayName} ({session.role})
-              </p>
-              <div className="mt-2 flex items-center gap-2">
+        <header className="m3-card ui-fade-in relative z-20 overflow-visible bg-[linear-gradient(125deg,color-mix(in_srgb,var(--md-sys-color-primary-container)_78%,var(--md-sys-color-surface)_22%)_0%,color-mix(in_srgb,var(--md-sys-color-surface)_86%,transparent_14%)_44%,color-mix(in_srgb,var(--md-sys-color-tertiary-container)_76%,var(--md-sys-color-surface)_24%)_100%)] p-4 xl:p-6">
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
+            <div className="min-w-0 space-y-4">
+              <div className="flex flex-wrap items-start justify-between gap-4 xl:gap-6">
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] uppercase tracking-[0.24em] text-[var(--md-sys-color-on-surface-variant)]">{t("layout.header.adminConsole")}</p>
+                  <h1 className="m3-title mt-2 text-xl sm:text-2xl xl:text-4xl">{t("layout.header.title")}</h1>
+                  <p className="mt-2 max-w-3xl text-xs sm:text-sm xl:text-base text-[var(--md-sys-color-on-surface-variant)]">
+                    {t("layout.header.session")}: {session.displayName} ({session.role})
+                  </p>
+                </div>
+
+                <div className="ui-subtle-card flex min-w-[11rem] flex-col items-start rounded-[1.75rem] p-3 sm:p-4 xl:min-w-[13rem]">
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--md-sys-color-on-surface-variant)]">
+                    {t("layout.release.environment")} {deploymentHistory.environment.toUpperCase()}
+                  </p>
+                  <p className="mt-2 text-sm font-semibold text-[var(--md-sys-color-on-surface)] sm:text-base">
+                    {t("layout.release.version")}: {deploymentHistory.currentVersion}
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-[var(--md-sys-color-on-surface-variant)]">
+                    {t("layout.release.deployedAt")}: {deploymentHistory.currentDeployedAt}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2.5">
                 <span
                   className={`ui-status-chip ${
                     globalHealth === "healthy"
@@ -391,23 +408,10 @@ export function BackofficeLayout({
                         ? t("layout.header.semaphore.critical")
                         : t("layout.header.semaphore.unknown")}
                 </span>
-                <span className="text-xs text-[var(--md-sys-color-on-surface-variant)]">{globalHealthText}</span>
+                <span className="text-xs sm:text-sm text-[var(--md-sys-color-on-surface-variant)]">{globalHealthText}</span>
               </div>
 
-              <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
-                <div className="rounded-2xl border border-[var(--md-sys-color-outline-variant)] bg-[color:var(--md-sys-color-surface-container-low)]/80 px-3 py-2">
-                  <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--md-sys-color-on-surface-variant)]">
-                    {t("layout.release.environment")} {deploymentHistory.environment.toUpperCase()}
-                  </p>
-                  <p className="mt-1 text-sm font-semibold text-[var(--md-sys-color-on-surface)]">
-                    {t("layout.release.version")}: {deploymentHistory.currentVersion}
-                  </p>
-                  <p className="mt-1 text-xs text-[var(--md-sys-color-on-surface-variant)]">
-                    {t("layout.release.deployedAt")}: {deploymentHistory.currentDeployedAt}
-                  </p>
-                </div>
-
-                <div className="flex flex-wrap items-center justify-start gap-2 lg:justify-end">
+              <div className="flex flex-wrap items-center gap-2.5">
                   <div ref={releaseHistoryRef} className="relative z-30">
                     <button
                       type="button"
@@ -417,7 +421,7 @@ export function BackofficeLayout({
                       }}
                       aria-expanded={releaseHistoryOpen}
                       aria-controls="deployment-history-panel"
-                      className="rounded-full border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container-low)] px-4 py-2 text-xs font-semibold transition hover:bg-[var(--md-sys-color-surface-container)]"
+                      className="ui-action-pill ui-action-pill--tonal text-xs"
                     >
                       {t("layout.release.historyBtn")} ({deploymentHistory.history.length})
                     </button>
@@ -425,14 +429,14 @@ export function BackofficeLayout({
                     {releaseHistoryOpen && (
                       <div
                         id="deployment-history-panel"
-                        className="absolute left-0 top-full z-40 mt-2 w-[min(34rem,calc(100vw-3rem))] rounded-2xl border border-[var(--md-sys-color-outline-variant)] bg-[var(--md-sys-color-surface)] p-3 shadow-xl lg:right-0 lg:left-auto"
+                        className="ui-popover-panel absolute left-0 top-full z-40 mt-2 w-[min(34rem,calc(100vw-3rem))] rounded-[1.75rem] p-4 lg:right-0 lg:left-auto"
                       >
                         <p className="text-sm font-semibold text-[var(--md-sys-color-on-surface)]">{t("layout.release.historyTitle")}</p>
                         <div className="mt-3 space-y-2">
                           {deploymentHistory.history.map((entry) => (
                             <article
                               key={`${entry.version}-${entry.deployedAt}`}
-                              className="rounded-xl border border-[var(--md-sys-color-outline-variant)] bg-[color:var(--md-sys-color-surface-container-low)]/70 px-3 py-2"
+                              className="ui-subtle-card rounded-2xl px-3 py-3"
                             >
                               <div className="flex flex-wrap items-center justify-between gap-2">
                                 <p className="text-sm font-semibold text-[var(--md-sys-color-on-surface)]">{entry.version}</p>
@@ -456,7 +460,7 @@ export function BackofficeLayout({
                       }}
                       aria-expanded={preferencesOpen}
                       aria-controls="layout-preferences-panel"
-                      className="rounded-full border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container-low)] px-4 py-2 text-xs font-semibold transition hover:bg-[var(--md-sys-color-surface-container)]"
+                      className="ui-action-pill ui-action-pill--tonal text-xs"
                     >
                       UI
                     </button>
@@ -464,7 +468,7 @@ export function BackofficeLayout({
                     {preferencesOpen && (
                       <div
                         id="layout-preferences-panel"
-                        className="absolute left-0 top-full z-40 mt-2 w-[min(30rem,calc(100vw-3rem))] rounded-2xl border border-[var(--md-sys-color-outline-variant)] bg-[var(--md-sys-color-surface)] p-3 shadow-xl lg:right-0 lg:left-auto"
+                        className="ui-popover-panel absolute left-0 top-full z-40 mt-2 w-[min(30rem,calc(100vw-3rem))] rounded-[1.75rem] p-4 lg:right-0 lg:left-auto"
                       >
                         <div className="grid gap-3 sm:grid-cols-2">
                           <label className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
@@ -495,13 +499,13 @@ export function BackofficeLayout({
                               ))}
                             </select>
                           </label>
-                          <button type="button" onClick={onToggleTheme} className="ui-switch justify-between rounded-xl border border-[var(--md-sys-color-outline-variant)] px-3 py-2" role="switch" aria-checked={theme === "dark"} aria-label={t("layout.header.themeSwitch")}>
+                          <button type="button" onClick={onToggleTheme} className="ui-switch justify-between rounded-2xl border border-[var(--md-sys-color-outline-variant)] px-3 py-2.5" role="switch" aria-checked={theme === "dark"} aria-label={t("layout.header.themeSwitch")}>
                             <span className={`ui-switch-track ${theme === "dark" ? "is-on" : ""}`}>
                               <span className="ui-switch-thumb" />
                             </span>
                             <span className="text-xs font-semibold text-[var(--md-sys-color-on-surface-variant)]">{theme === "dark" ? t("layout.header.themeDark") : t("layout.header.themeLight")}</span>
                           </button>
-                          <button type="button" onClick={toggleDensity} className="ui-switch justify-between rounded-xl border border-[var(--md-sys-color-outline-variant)] px-3 py-2" role="switch" aria-checked={density === "dense"} aria-label={t("layout.header.densitySwitch")}>
+                          <button type="button" onClick={toggleDensity} className="ui-switch justify-between rounded-2xl border border-[var(--md-sys-color-outline-variant)] px-3 py-2.5" role="switch" aria-checked={density === "dense"} aria-label={t("layout.header.densitySwitch")}>
                             <span className={`ui-switch-track ${density === "dense" ? "is-on" : ""}`}>
                               <span className="ui-switch-thumb" />
                             </span>
@@ -512,12 +516,13 @@ export function BackofficeLayout({
                     )}
                   </div>
 
-                  <button type="button" onClick={onSignOut} className="rounded-full border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container-low)] px-4 py-2 text-sm font-semibold transition hover:bg-[var(--md-sys-color-surface-container)]">{t("layout.header.signOut")}</button>
-                </div>
+                  <button type="button" onClick={onSignOut} className="ui-action-pill ui-action-pill--quiet text-sm">{t("layout.header.signOut")}</button>
               </div>
             </div>
             <div className="flex items-start justify-end xl:pt-1">
-              <img src="/axiomnode-logo.svg" alt="AxiomNode" className="h-16 w-auto object-contain sm:h-20 xl:h-24" />
+              <div className="ui-subtle-card flex items-center justify-center rounded-[2rem] px-4 py-4 sm:px-5 xl:px-6">
+                <img src="/axiomnode-logo.svg" alt="AxiomNode" className="h-14 w-auto object-contain sm:h-18 xl:h-20" />
+              </div>
             </div>
           </div>
         </header>

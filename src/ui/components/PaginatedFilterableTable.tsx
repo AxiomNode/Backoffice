@@ -129,17 +129,20 @@ export const PaginatedFilterableTable = memo(function PaginatedFilterableTable({
   const visiblePageRows = shouldVirtualizeRows ? pageRows.slice(virtualStartIndex, virtualEndIndex) : pageRows;
   const topSpacerHeight = shouldVirtualizeRows ? virtualStartIndex * estimatedRowHeight : 0;
   const bottomSpacerHeight = shouldVirtualizeRows ? Math.max(0, (pageRows.length - virtualEndIndex) * estimatedRowHeight) : 0;
+  const controlLabelClass = compact ? "text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--md-sys-color-on-surface-variant)]" : "text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--md-sys-color-on-surface-variant)]";
+  const secondaryPillClass = compact ? "ui-action-pill text-[11px] px-3 py-1.5" : "ui-action-pill text-xs";
+  const quietPillClass = compact ? "ui-action-pill ui-action-pill--quiet text-[11px] px-3 py-1.5" : "ui-action-pill ui-action-pill--quiet text-xs";
 
   const actionToneClass = (tone: "neutral" | "primary" | "success" | "warn" = "neutral") => {
     switch (tone) {
       case "primary":
-        return "border-[var(--md-sys-color-primary)] text-[var(--md-sys-color-primary)]";
+        return "ui-action-pill ui-action-pill--tonal";
       case "success":
-        return "border-emerald-600 text-emerald-700";
+        return "ui-action-pill border-emerald-600 text-emerald-700";
       case "warn":
-        return "border-amber-600 text-amber-700";
+        return "ui-action-pill border-amber-600 text-amber-700";
       default:
-        return "border-[var(--md-sys-color-outline-variant)] text-[var(--md-sys-color-on-surface)]";
+        return "ui-action-pill";
     }
   };
 
@@ -270,23 +273,23 @@ export const PaginatedFilterableTable = memo(function PaginatedFilterableTable({
   return (
     <div className="space-y-3">
       {!isRemoteMode && (
-      <div className={`ui-surface-raised grid gap-2 rounded-xl md:grid-cols-2 xl:grid-cols-4 ${controlsPadding}`}>
-        <label className="text-xs">
+      <div className={`ui-subtle-card grid gap-2 rounded-2xl md:grid-cols-2 xl:grid-cols-4 ${controlsPadding}`}>
+        <label className={controlLabelClass}>
           {t("table.filter")}
           <input
             value={filterText}
             onChange={(event) => setFilterText(event.target.value)}
             placeholder={t("table.filterPlaceholder")}
-            className={`mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] text-sm ${controlInputPadding}`}
+            className={`control-input mt-1 w-full ${controlInputPadding}`}
           />
         </label>
 
-        <label className="text-xs">
+        <label className={controlLabelClass}>
           {t("table.sortBy")}
           <select
             value={sortBy}
             onChange={(event) => setSortBy(event.target.value)}
-            className={`mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] text-sm ${controlInputPadding}`}
+            className={`control-input mt-1 w-full ${controlInputPadding}`}
           >
             {columns.map((column) => (
               <option key={column} value={column}>
@@ -296,24 +299,24 @@ export const PaginatedFilterableTable = memo(function PaginatedFilterableTable({
           </select>
         </label>
 
-        <label className="text-xs">
+        <label className={controlLabelClass}>
           {t("table.direction")}
           <select
             value={sortDirection}
             onChange={(event) => setSortDirection(event.target.value as "asc" | "desc")}
-            className={`mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] text-sm ${controlInputPadding}`}
+            className={`control-input mt-1 w-full ${controlInputPadding}`}
           >
             <option value="asc">{t("table.directionAsc")}</option>
             <option value="desc">{t("table.directionDesc")}</option>
           </select>
         </label>
 
-        <label className="text-xs">
+        <label className={controlLabelClass}>
           {t("table.pageSize")}
           <select
             value={pageSize}
             onChange={(event) => setPageSize(Number(event.target.value))}
-            className={`mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] text-sm ${controlInputPadding}`}
+            className={`control-input mt-1 w-full ${controlInputPadding}`}
           >
             <option value={5}>5</option>
             <option value={10}>10</option>
@@ -327,7 +330,7 @@ export const PaginatedFilterableTable = memo(function PaginatedFilterableTable({
       <div
         ref={scrollContainerRef}
         onScroll={shouldVirtualizeRows ? (event) => setScrollTop(event.currentTarget.scrollTop) : undefined}
-        className={`ui-surface-raised overflow-x-auto rounded-xl ${shouldVirtualizeRows ? "overflow-y-auto" : ""}`}
+        className={`ui-table-shell overflow-x-auto rounded-2xl ${shouldVirtualizeRows ? "overflow-y-auto" : ""}`}
         style={shouldVirtualizeRows ? { maxHeight: `${virtualViewportHeight}px` } : undefined}
       >
         <table className={`min-w-full ${tableTextSize}`}>
@@ -357,7 +360,7 @@ export const PaginatedFilterableTable = memo(function PaginatedFilterableTable({
                       <button
                         type="button"
                         onClick={() => openDialog(column, row[column], true)}
-                        className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-[var(--md-sys-color-outline-variant)]"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[var(--md-sys-color-outline-variant)] bg-[var(--md-sys-color-surface-container-low)] transition hover:bg-[var(--md-sys-color-surface-container)]"
                         aria-label={t("table.expandCell")}
                         title={t("table.expandCell")}
                       >
@@ -370,7 +373,7 @@ export const PaginatedFilterableTable = memo(function PaginatedFilterableTable({
                       <button
                         type="button"
                         onClick={() => openDialog(column, row[column])}
-                        className="rounded-lg border border-[var(--md-sys-color-outline-variant)] px-2 py-1 text-[11px] font-semibold"
+                        className={secondaryPillClass}
                         aria-label={t("table.expandCell")}
                       >
                         {t("table.viewContent")}
@@ -388,7 +391,7 @@ export const PaginatedFilterableTable = memo(function PaginatedFilterableTable({
                           key={action.label}
                           type="button"
                           onClick={() => action.onClick(row)}
-                          className={`rounded-lg border px-2 py-1 text-[11px] font-semibold ${actionToneClass(action.tone)}`}
+                          className={`${compact ? "px-3 py-1.5 text-[11px]" : "text-xs"} ${actionToneClass(action.tone)}`}
                         >
                           {action.label}
                         </button>
@@ -415,7 +418,7 @@ export const PaginatedFilterableTable = memo(function PaginatedFilterableTable({
         </table>
       </div>
 
-      <div className={`ui-surface-soft flex flex-wrap items-center justify-between gap-2 rounded-xl ${footerPadding} ${footerText}`}>
+      <div className={`ui-subtle-card flex flex-wrap items-center justify-between gap-3 rounded-2xl ${footerPadding} ${footerText}`}>
         <p>
           {t("table.showing", {
             from: pageRows.length ? start + 1 : 0,
@@ -433,7 +436,7 @@ export const PaginatedFilterableTable = memo(function PaginatedFilterableTable({
                 type="button"
                 onClick={() => setPage((value) => Math.max(1, value - 1))}
                 disabled={currentPage <= 1}
-                className="rounded-lg border border-[var(--md-sys-color-outline-variant)] px-3 py-1 disabled:cursor-not-allowed disabled:opacity-50"
+                className={quietPillClass}
               >
                 {t("table.previous")}
               </button>
@@ -441,7 +444,7 @@ export const PaginatedFilterableTable = memo(function PaginatedFilterableTable({
                 type="button"
                 onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
                 disabled={currentPage >= totalPages}
-                className="rounded-lg border border-[var(--md-sys-color-outline-variant)] px-3 py-1 disabled:cursor-not-allowed disabled:opacity-50"
+                className={quietPillClass}
               >
                 {t("table.next")}
               </button>
@@ -452,13 +455,13 @@ export const PaginatedFilterableTable = memo(function PaginatedFilterableTable({
 
       {dialogOpen && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-3" role="dialog" aria-modal="true">
-          <div className={`m3-card max-h-[85vh] w-full overflow-hidden p-0 ${dialogCompact ? "max-w-md" : "max-w-3xl"}`}>
+          <div className={`ui-popover-panel max-h-[85vh] w-full overflow-hidden rounded-[1.75rem] p-0 ${dialogCompact ? "max-w-md" : "max-w-3xl"}`}>
             <div className="flex items-center justify-between border-b border-[var(--md-sys-color-outline-variant)] px-4 py-3">
               <div>
                 <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">{t("table.column")}</p>
                 <h4 className="m3-title text-base">{dialogColumn}</h4>
               </div>
-              <button type="button" onClick={closeDialog} className="rounded-lg border border-[var(--md-sys-color-outline-variant)] px-3 py-1.5 text-sm">{t("table.close")}</button>
+              <button type="button" onClick={closeDialog} className="ui-action-pill ui-action-pill--quiet text-sm">{t("table.close")}</button>
             </div>
 
             <div className="flex flex-wrap items-center gap-2 border-b border-[var(--md-sys-color-outline-variant)] px-4 py-2">
