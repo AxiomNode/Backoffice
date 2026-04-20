@@ -217,6 +217,11 @@ describe("BackofficeLayout integration", () => {
       expect(screen.getByText("Compatibilidad con payloads legacy del target/probe de IA")).toBeInTheDocument();
       expect(screen.getByText("28f3fd9")).toBeInTheDocument();
     });
+
+    const historyPanel = document.getElementById("deployment-history-panel");
+    expect(historyPanel?.className).toContain("fixed inset-x-3 top-24");
+    expect(historyPanel?.className).toContain("max-h-[min(78vh,36rem)]");
+    expect(historyPanel?.className).toContain("overflow-hidden");
   });
 
   it("opens the UI preferences panel without overloading the main header", async () => {
@@ -233,6 +238,11 @@ describe("BackofficeLayout integration", () => {
       expect(screen.getByLabelText("Tamano texto")).toBeInTheDocument();
       expect(screen.getAllByLabelText("Idioma").length).toBeGreaterThan(0);
     });
+
+    const preferencesPanel = document.getElementById("layout-preferences-panel");
+    expect(preferencesPanel?.className).toContain("fixed inset-x-3 top-24");
+    expect(preferencesPanel?.className).toContain("max-h-[min(72vh,30rem)]");
+    expect(preferencesPanel?.className).toContain("overflow-y-auto");
   });
 
   it("closes floating header panels when navigating from the sidebar", async () => {

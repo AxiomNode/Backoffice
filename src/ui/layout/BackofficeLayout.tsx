@@ -418,10 +418,10 @@ export function BackofficeLayout({
                     {releaseHistoryOpen && (
                       <div
                         id="deployment-history-panel"
-                        className="ui-popover-panel absolute left-0 top-full z-40 mt-2 w-[min(34rem,calc(100vw-3rem))] rounded-[1.75rem] p-4 lg:right-0 lg:left-auto"
+                        className="ui-popover-panel fixed inset-x-3 top-24 z-40 max-h-[min(78vh,36rem)] overflow-hidden rounded-[1.75rem] p-4 sm:absolute sm:left-0 sm:right-auto sm:top-full sm:mt-2 sm:w-[min(34rem,calc(100vw-3rem))] sm:max-h-[min(70vh,36rem)] lg:left-auto lg:right-0"
                       >
                         <p className="text-sm font-semibold text-[var(--md-sys-color-on-surface)]">{t("layout.release.historyTitle")}</p>
-                        <div className="mt-3 space-y-2">
+                        <div className="mt-3 max-h-[calc(min(78vh,36rem)-4.75rem)] space-y-2 overflow-y-auto pr-1 sm:max-h-[calc(min(70vh,36rem)-4.75rem)]">
                           {deploymentHistory.history.map((entry) => (
                             <article
                               key={`${entry.version}-${entry.deployedAt}`}
@@ -457,7 +457,7 @@ export function BackofficeLayout({
                     {preferencesOpen && (
                       <div
                         id="layout-preferences-panel"
-                        className="ui-popover-panel absolute left-0 top-full z-40 mt-2 w-[min(30rem,calc(100vw-3rem))] rounded-[1.75rem] p-4 lg:right-0 lg:left-auto"
+                        className="ui-popover-panel fixed inset-x-3 top-24 z-40 max-h-[min(72vh,30rem)] overflow-y-auto rounded-[1.75rem] p-4 sm:absolute sm:left-0 sm:right-auto sm:top-full sm:mt-2 sm:w-[min(30rem,calc(100vw-3rem))] sm:max-h-[min(68vh,30rem)] lg:left-auto lg:right-0"
                       >
                         <div className="grid gap-3 sm:grid-cols-2">
                           <label className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
