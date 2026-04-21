@@ -437,7 +437,7 @@ export function BackofficeLayout({
       onTouchEnd={onTouchEnd}
     >
       {!mobileMenuOpen && <div className="fixed left-0 top-0 z-30 h-screen w-3 xl:hidden" aria-hidden="true" />}
-      <div className={`m3-card sticky top-2 z-20 overflow-hidden xl:hidden ${narrowViewport ? "space-y-2 p-2.5" : compactViewport ? "space-y-2.5 p-2.5" : "space-y-3 p-3"}`}>
+      <div className={`m3-card sticky top-2 z-40 overflow-hidden xl:hidden ${narrowViewport ? "space-y-2 p-2.5" : compactViewport ? "space-y-2.5 p-2.5" : "space-y-3 p-3"}`}>
         <div className={`flex items-start ${narrowViewport ? "gap-2" : "gap-3"}`}>
           <button
             type="button"
