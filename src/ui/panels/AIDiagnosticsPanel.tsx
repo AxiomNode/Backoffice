@@ -467,7 +467,7 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
   return (
     <div className={`grid gap-4 ${compact ? "gap-3" : "gap-5"}`}>
       {/* Header */}
-      <div className="m3-card ui-surface-raised p-4">
+      <div className="m3-card ui-panel-shell ui-summary-band rounded-[1.75rem] p-4">
         <h2 className="text-lg font-bold text-[var(--md-sys-color-on-surface)]">
           {t("diag.title")}
         </h2>
@@ -476,7 +476,7 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
         </p>
       </div>
 
-      <div className="m3-card ui-surface-raised p-4">
+      <div className="m3-card ui-panel-shell rounded-[1.75rem] p-4">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
             <h3 className="text-base font-semibold text-[var(--md-sys-color-on-surface)]">
@@ -510,27 +510,27 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
         </div>
 
         <div className="mt-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-end">
-          <label className="text-xs">
+          <label className="ui-control-label text-xs">
             {t("diag.edge.baseUrl")}
             <input
               value={edgeApiBaseInput}
               onChange={(event) => setEdgeApiBaseInput(event.target.value)}
               placeholder="http://localhost:7005"
-              className="mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] px-2 py-2 text-sm"
+              className="control-input mt-1 w-full"
             />
           </label>
           <button
             type="button"
             onClick={applyEdgeApiTarget}
             disabled={edgeApiBaseInput.trim().length === 0}
-            className="rounded-full border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-primary-container)] px-4 py-2 text-xs font-bold text-[var(--md-sys-color-on-primary-container)] transition hover:opacity-90 disabled:opacity-50"
+            className="ui-action-pill ui-action-pill--tonal text-xs"
           >
             {t("diag.edge.applyBtn")}
           </button>
           <button
             type="button"
             onClick={resetEdgeApiTarget}
-            className="rounded-full border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container-low)] px-4 py-2 text-xs font-semibold transition hover:bg-[var(--md-sys-color-surface-container)]"
+            className="ui-action-pill ui-action-pill--quiet text-xs"
           >
             {t("diag.edge.resetBtn")}
           </button>
@@ -541,7 +541,7 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
         </p>
       </div>
 
-      <div className="m3-card ui-surface-raised p-4">
+      <div className="m3-card ui-panel-shell rounded-[1.75rem] p-4">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
             <h3 className="text-base font-semibold text-[var(--md-sys-color-on-surface)]">
@@ -555,7 +555,7 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
             type="button"
             onClick={loadServiceTargets}
             disabled={serviceTargetsLoading || serviceTargetsSaving}
-            className="rounded-full border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container-low)] px-3 py-1.5 text-xs font-semibold transition hover:bg-[var(--md-sys-color-surface-container)] disabled:opacity-50"
+            className="ui-action-pill ui-action-pill--quiet min-h-0 px-3 py-1.5 text-xs"
           >
             {serviceTargetsLoading ? "..." : t("diag.services.refreshBtn")}
           </button>
@@ -573,7 +573,7 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
               key={entry.service}
               type="button"
               onClick={() => setSelectedService(entry.service)}
-              className={`rounded-xl border p-3 text-left transition ${selectedService === entry.service ? "border-[var(--md-sys-color-primary)] bg-[var(--md-sys-color-primary-container)]" : "border-[var(--md-sys-color-outline-variant)] bg-[var(--md-sys-color-surface-container-low)] hover:bg-[var(--md-sys-color-surface-container)]"}`}
+              className={`ui-panel-block rounded-[1.25rem] p-3 text-left transition ${selectedService === entry.service ? "border-[var(--md-sys-color-primary)] bg-[var(--md-sys-color-primary-container)]" : "hover:bg-[var(--md-sys-color-surface-container)]"}`}
             >
               <div className="text-sm font-semibold text-[var(--md-sys-color-on-surface)]">{entry.title}</div>
               <div className="mt-1 text-[11px] uppercase tracking-wide text-[var(--md-sys-color-on-surface-variant)]">
@@ -597,23 +597,23 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
             </div>
 
             <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(220px,320px)]">
-              <label className="text-xs">
+              <label className="ui-control-label text-xs">
                 {t("diag.services.baseUrl")}
                 <input
                   value={selectedServiceBaseUrl}
                   onChange={(event) => setSelectedServiceBaseUrl(event.target.value)}
                   placeholder="http://localhost:7102"
-                  className="mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] px-2 py-2 text-sm"
+                  className="control-input mt-1 w-full"
                 />
               </label>
 
-              <label className="text-xs">
+              <label className="ui-control-label text-xs">
                 {t("diag.target.label")}
                 <input
                   value={selectedServiceLabel}
                   onChange={(event) => setSelectedServiceLabel(event.target.value)}
                   placeholder={t("diag.services.labelHint")}
-                  className="mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] px-2 py-2 text-sm"
+                  className="control-input mt-1 w-full"
                 />
               </label>
             </div>
@@ -623,7 +623,7 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
                 type="button"
                 onClick={applyServiceTarget}
                 disabled={serviceTargetsSaving || selectedServiceBaseUrl.trim().length === 0}
-                className="rounded-full border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-primary-container)] px-4 py-2 text-xs font-bold text-[var(--md-sys-color-on-primary-container)] transition hover:opacity-90 disabled:opacity-50"
+                className="ui-action-pill ui-action-pill--tonal text-xs"
               >
                 {serviceTargetsSaving ? t("diag.tests.running") : t("diag.services.applyBtn")}
               </button>
@@ -631,7 +631,7 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
                 type="button"
                 onClick={resetServiceTarget}
                 disabled={serviceTargetsSaving}
-                className="rounded-full border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container-low)] px-4 py-2 text-xs font-semibold transition hover:bg-[var(--md-sys-color-surface-container)] disabled:opacity-50"
+                className="ui-action-pill ui-action-pill--quiet text-xs"
               >
                 {t("diag.services.resetBtn")}
               </button>
@@ -644,7 +644,7 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
         )}
       </div>
 
-      <div className="m3-card ui-surface-raised p-4">
+      <div className="m3-card ui-panel-shell rounded-[1.75rem] p-4">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
             <h3 className="text-base font-semibold text-[var(--md-sys-color-on-surface)]">
@@ -658,7 +658,7 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
             type="button"
             onClick={loadTarget}
             disabled={targetLoading || targetSaving}
-            className="rounded-full border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container-low)] px-3 py-1.5 text-xs font-semibold transition hover:bg-[var(--md-sys-color-surface-container)] disabled:opacity-50"
+            className="ui-action-pill ui-action-pill--quiet min-h-0 px-3 py-1.5 text-xs"
           >
             {targetLoading ? "..." : t("diag.target.refreshBtn")}
           </button>
@@ -683,7 +683,7 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
             </div>
 
             <div className="grid gap-3 md:grid-cols-2">
-              <div className="rounded border border-[var(--md-sys-color-outline-variant)] p-3">
+              <div className="ui-panel-block rounded-[1.2rem] p-3">
                 <div className="text-[11px] font-semibold uppercase tracking-wide text-[var(--md-sys-color-on-surface-variant)]">
                   {t("diag.target.currentApiUrl")}
                 </div>
@@ -691,7 +691,7 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
                   {target.llamaBaseUrl ?? "--"}
                 </div>
               </div>
-              <div className="rounded border border-[var(--md-sys-color-outline-variant)] p-3">
+              <div className="ui-panel-block rounded-[1.2rem] p-3">
                 <div className="text-[11px] font-semibold uppercase tracking-wide text-[var(--md-sys-color-on-surface-variant)]">
                   {t("diag.target.currentStatsUrl")}
                 </div>
@@ -702,45 +702,45 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
             </div>
 
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              <label className="text-xs">
+              <label className="ui-control-label text-xs">
                 {t("diag.target.host")}
                 <input
                   value={targetHost}
                   onChange={(event) => setTargetHost(event.target.value)}
                   placeholder="192.168.1.80"
-                  className="mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] px-2 py-2 text-sm"
+                  className="control-input mt-1 w-full"
                 />
               </label>
 
-              <label className="text-xs">
+              <label className="ui-control-label text-xs">
                 {t("diag.target.protocol")}
                 <select
                   value={targetProtocol}
                   onChange={(event) => setTargetProtocol(event.target.value as "http" | "https")}
-                  className="mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] px-2 py-2 text-sm"
+                  className="control-input mt-1 w-full"
                 >
                   <option value="http">http</option>
                   <option value="https">https</option>
                 </select>
               </label>
 
-              <label className="text-xs">
+              <label className="ui-control-label text-xs">
                 {t("diag.target.apiPort")}
                 <input
                   value={targetPort}
                   onChange={(event) => setTargetPort(event.target.value)}
                   inputMode="numeric"
-                  className="mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] px-2 py-2 text-sm"
+                  className="control-input mt-1 w-full"
                 />
               </label>
 
-              <label className="text-xs">
+              <label className="ui-control-label text-xs">
                 {t("diag.target.label")}
                 <input
                   value={targetLabel}
                   onChange={(event) => setTargetLabel(event.target.value)}
                   placeholder={t("diag.target.labelHint")}
-                  className="mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] px-2 py-2 text-sm"
+                  className="control-input mt-1 w-full"
                 />
               </label>
             </div>
@@ -750,7 +750,7 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
                 type="button"
                 onClick={applyTarget}
                 disabled={targetSaving || targetHost.trim().length === 0}
-                className="rounded-full border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-primary-container)] px-4 py-2 text-xs font-bold text-[var(--md-sys-color-on-primary-container)] transition hover:opacity-90 disabled:opacity-50"
+                className="ui-action-pill ui-action-pill--tonal text-xs"
               >
                 {targetSaving ? t("diag.tests.running") : t("diag.target.applyBtn")}
               </button>
@@ -758,7 +758,7 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
                 type="button"
                 onClick={resetTarget}
                 disabled={targetSaving}
-                className="rounded-full border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container-low)] px-4 py-2 text-xs font-semibold transition hover:bg-[var(--md-sys-color-surface-container)] disabled:opacity-50"
+                className="ui-action-pill ui-action-pill--quiet text-xs"
               >
                 {t("diag.target.resetBtn")}
               </button>
@@ -775,7 +775,7 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
       </div>
 
       {/* RAG Meter */}
-      <div className="m3-card ui-surface-raised p-4">
+      <div className="m3-card ui-panel-shell rounded-[1.75rem] p-4">
         <div className="mb-3 flex items-center justify-between">
           <div>
             <h3 className="text-base font-semibold text-[var(--md-sys-color-on-surface)]">
@@ -789,7 +789,7 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
             type="button"
             onClick={loadRagStats}
             disabled={ragLoading}
-            className="rounded-full border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container-low)] px-3 py-1.5 text-xs font-semibold transition hover:bg-[var(--md-sys-color-surface-container)] disabled:opacity-50"
+            className="ui-action-pill ui-action-pill--quiet min-h-0 px-3 py-1.5 text-xs"
           >
             {ragLoading ? "..." : t("diag.rag.refreshBtn")}
           </button>
@@ -839,7 +839,7 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
 
             {/* Retriever config */}
             {ragStats.retriever_config && (
-              <div className="rounded border border-[var(--md-sys-color-outline-variant)] p-2">
+              <div className="ui-panel-block rounded-[1.1rem] p-2.5">
                 <span className="text-xs font-semibold text-[var(--md-sys-color-on-surface-variant)]">
                   {t("diag.rag.retrieverConfig")}:
                 </span>
@@ -890,7 +890,7 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
       </div>
 
       {/* Test Runner */}
-      <div className="m3-card ui-surface-raised p-4">
+      <div className="m3-card ui-panel-shell rounded-[1.75rem] p-4">
         <div className="mb-3 flex items-center justify-between">
           <div>
             <h3 className="text-base font-semibold text-[var(--md-sys-color-on-surface)]">
@@ -904,7 +904,7 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
             type="button"
             onClick={runTests}
             disabled={testRunning}
-            className="rounded-full border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-primary-container)] px-4 py-1.5 text-xs font-bold text-[var(--md-sys-color-on-primary-container)] transition hover:opacity-90 disabled:opacity-50"
+            className="ui-action-pill ui-action-pill--tonal min-h-0 px-4 py-1.5 text-xs"
           >
             {testRunning ? t("diag.tests.running") : t("diag.tests.runBtn")}
           </button>
@@ -971,23 +971,23 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
 
 function StatCard({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="rounded border border-[var(--md-sys-color-outline-variant)] p-2 text-center">
-      <div className="text-lg font-bold text-[var(--md-sys-color-on-surface)]">{value}</div>
-      <div className="text-[10px] leading-tight text-[var(--md-sys-color-on-surface-variant)]">{label}</div>
+    <div className="ui-metric-tile ui-metric-tile--neutral rounded-[1.2rem] px-3 py-2.5 text-left">
+      <div className="ui-metric-label">{label}</div>
+      <div className="ui-metric-value mt-3 break-all text-[1.2rem]">{value}</div>
     </div>
   );
 }
 
 function StatusBadge({ status, t }: { status: string; t: (key: string) => string }) {
-  const map: Record<string, { bg: string; label: string }> = {
-    running: { bg: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200", label: t("diag.tests.running") },
-    completed: { bg: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200", label: t("diag.tests.completed") },
-    error: { bg: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200", label: "Error" },
-    idle: { bg: "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200", label: t("diag.tests.idle") },
+  const map: Record<string, { klass: string; label: string }> = {
+    running: { klass: "ui-status-chip ui-status-chip--neutral", label: t("diag.tests.running") },
+    completed: { klass: "ui-status-chip ui-status-chip--ok", label: t("diag.tests.completed") },
+    error: { klass: "ui-status-chip ui-status-chip--error", label: "Error" },
+    idle: { klass: "ui-status-chip ui-status-chip--neutral", label: t("diag.tests.idle") },
   };
   const info = map[status] ?? map.idle!;
   return (
-    <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-bold ${info.bg}`}>
+    <span className={info.klass}>
       {info.label}
     </span>
   );
@@ -996,7 +996,7 @@ function StatusBadge({ status, t }: { status: string; t: (key: string) => string
 function SuiteCard({ suite, compact }: { suite: SuiteResult; compact: boolean }) {
   const allPassed = suite.failed === 0;
   return (
-    <div className={`rounded border p-3 ${allPassed ? "border-green-300 dark:border-green-800" : "border-[var(--md-sys-color-error)]/50"}`}>
+    <div className={`ui-panel-block rounded-[1.2rem] p-3 ${allPassed ? "border-[color:var(--ui-state-ok-border)]" : "border-[color:var(--ui-state-error-border)]"}`}>
       <div className="mb-2 flex items-center justify-between">
         <span className="text-sm font-bold text-[var(--md-sys-color-on-surface)]">{suite.suite}</span>
         <span className={`text-xs font-bold ${allPassed ? "text-green-600 dark:text-green-400" : "text-[var(--md-sys-color-error)]"}`}>

@@ -201,14 +201,144 @@ body {
   }
 
   .control-input {
-    @apply rounded-lg border px-2 py-2 text-sm;
+    @apply rounded-lg border px-3 py-2 text-sm;
     border-color: var(--md-sys-color-outline-variant);
+    background: color-mix(in srgb, var(--md-sys-color-surface) 90%, var(--md-sys-color-surface-container-low) 10%);
+    color: var(--md-sys-color-on-surface);
+    min-height: 2.5rem;
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--md-sys-color-surface-bright, #ffffff) 70%, transparent 30%);
+    transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease;
+  }
+
+  .control-input:hover {
+    border-color: color-mix(in srgb, var(--md-sys-color-outline) 76%, transparent 24%);
+    background: color-mix(in srgb, var(--md-sys-color-surface) 84%, var(--md-sys-color-surface-container) 16%);
+  }
+
+  .control-input:focus-visible {
+    outline: none;
+    border-color: color-mix(in srgb, var(--md-sys-color-primary) 56%, transparent 44%);
+    box-shadow:
+      0 0 0 3px color-mix(in srgb, var(--md-sys-color-primary) 16%, transparent 84%),
+      inset 0 1px 0 color-mix(in srgb, var(--md-sys-color-surface-bright, #ffffff) 70%, transparent 30%);
+  }
+
+  .control-input:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+    background: color-mix(in srgb, var(--md-sys-color-surface-container-low) 78%, var(--md-sys-color-surface) 22%);
+  }
+
+  .control-input::placeholder {
+    color: var(--md-sys-color-on-surface-variant);
+  }
+
+  .ui-control-label {
+    @apply block text-sm font-medium;
+    color: var(--md-sys-color-on-surface);
   }
 
   .ui-surface-soft {
     border: 1px solid var(--md-sys-color-outline-variant);
     background: var(--md-sys-color-surface-container-low);
     color: var(--md-sys-color-on-surface);
+  }
+
+  .ui-panel-shell {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 86%, transparent 14%);
+    background:
+      linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--md-sys-color-surface) 90%, var(--md-sys-color-surface-container-low) 10%) 0%,
+        color-mix(in srgb, var(--md-sys-color-surface) 97%, var(--md-sys-color-surface-container-low) 3%) 100%
+      );
+    color: var(--md-sys-color-on-surface);
+    box-shadow:
+      0 12px 28px color-mix(in srgb, var(--md-sys-color-shadow, #000000) 7%, transparent 93%),
+      0 1px 0 color-mix(in srgb, var(--md-sys-color-surface-bright, #ffffff) 75%, transparent 25%) inset;
+  }
+
+  .ui-panel-shell::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      color-mix(in srgb, var(--md-sys-color-outline) 36%, transparent 64%) 18%,
+      color-mix(in srgb, var(--md-sys-color-outline-variant) 80%, transparent 20%) 50%,
+      transparent 100%
+    );
+    pointer-events: none;
+  }
+
+  .ui-panel-block {
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 88%, transparent 12%);
+    background: color-mix(in srgb, var(--md-sys-color-surface-container-low) 36%, var(--md-sys-color-surface) 64%);
+    color: var(--md-sys-color-on-surface);
+  }
+
+  .ui-summary-band {
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 82%, transparent 18%);
+    background:
+      linear-gradient(
+        135deg,
+        color-mix(in srgb, var(--md-sys-color-surface-container-low) 80%, var(--md-sys-color-surface) 20%) 0%,
+        color-mix(in srgb, var(--md-sys-color-surface) 98%, var(--md-sys-color-primary-container) 2%) 100%
+      );
+    color: var(--md-sys-color-on-surface);
+  }
+
+  .ui-metric-tile {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 84%, transparent 16%);
+    background: color-mix(in srgb, var(--md-sys-color-surface) 94%, var(--md-sys-color-surface-container-low) 6%);
+    color: var(--md-sys-color-on-surface);
+  }
+
+  .ui-metric-tile::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 0.28rem;
+    background: var(--ui-metric-accent, var(--md-sys-color-outline-variant));
+  }
+
+  .ui-metric-tile--neutral {
+    --ui-metric-accent: color-mix(in srgb, var(--md-sys-color-outline) 72%, transparent 28%);
+  }
+
+  .ui-metric-tile--ok {
+    --ui-metric-accent: color-mix(in srgb, var(--md-sys-color-primary) 72%, #2f9e44 28%);
+  }
+
+  .ui-metric-tile--warn {
+    --ui-metric-accent: color-mix(in srgb, var(--md-sys-color-tertiary) 64%, #d97706 36%);
+  }
+
+  .ui-metric-tile--error {
+    --ui-metric-accent: color-mix(in srgb, var(--md-sys-color-error) 78%, #dc2626 22%);
+  }
+
+  .ui-metric-label {
+    color: var(--md-sys-color-on-surface-variant);
+    font-size: 0.71rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+
+  .ui-metric-value {
+    color: var(--md-sys-color-on-surface);
+    font-family: var(--ui-font-title);
+    font-weight: 700;
+    line-height: 1;
   }
 
   .ui-surface-raised {
@@ -313,7 +443,7 @@ body {
   }
 
   .ui-action-pill {
-    @apply inline-flex items-center justify-center rounded-full border font-semibold;
+    @apply inline-flex items-center justify-center rounded-xl border font-semibold;
     min-height: 2.5rem;
     padding: 0.625rem 1rem;
     border-color: var(--md-sys-color-outline);
@@ -368,22 +498,42 @@ body {
   }
 
   .ui-table-shell {
-    border: 1px solid var(--md-sys-color-outline-variant);
-    background: color-mix(in srgb, var(--md-sys-color-surface) 92%, var(--md-sys-color-surface-container-low) 8%);
+    border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 88%, transparent 12%);
+    background: color-mix(in srgb, var(--md-sys-color-surface) 95%, var(--md-sys-color-surface-container-low) 5%);
     color: var(--md-sys-color-on-surface);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--md-sys-color-surface-bright, #ffffff) 60%, transparent 40%);
+  }
+
+  .ui-table-shell table thead {
+    background: color-mix(in srgb, var(--md-sys-color-surface-container) 78%, var(--md-sys-color-surface) 22%);
+  }
+
+  .ui-table-shell table thead th {
+    color: var(--md-sys-color-on-surface-variant);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
   }
 
   .ui-table-shell table tbody tr {
-    transition: background 160ms ease;
+    transition: background 160ms ease, box-shadow 160ms ease;
   }
 
   .ui-table-shell table tbody tr:hover {
-    background: color-mix(in srgb, var(--md-sys-color-surface-container-low) 88%, transparent 12%);
+    background: color-mix(in srgb, var(--md-sys-color-surface-container-low) 72%, transparent 28%);
+    box-shadow: inset 3px 0 0 color-mix(in srgb, var(--md-sys-color-primary) 36%, transparent 64%);
+  }
+
+  .ui-table-shell table tbody td {
+    color: var(--md-sys-color-on-surface);
   }
 
   .ui-status-chip {
-    @apply rounded-full px-2.5 py-1 text-[11px] font-semibold;
+    @apply inline-flex items-center rounded-lg px-2.5 py-1 text-[10px] font-semibold;
     border: 1px solid transparent;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
   }
 
   .ui-status-chip--ok {

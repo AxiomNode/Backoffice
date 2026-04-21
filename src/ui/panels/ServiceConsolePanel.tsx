@@ -153,7 +153,7 @@ type CollapsibleSectionProps = {
 
 function CollapsibleSection({ title, expanded, onToggle, actionLabel, compact, children }: CollapsibleSectionProps) {
   return (
-    <section className="ui-subtle-card overflow-hidden rounded-2xl">
+    <section className="ui-panel-block overflow-hidden rounded-[1.35rem]">
       <div className={`flex flex-wrap items-center justify-between gap-2 ${compact ? "p-2.5" : "p-3"}`}>
         <h4 className="text-sm font-semibold text-[var(--md-sys-color-on-surface)]">{title}</h4>
         <button
@@ -649,8 +649,9 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
   const visibleSections = sectionOptions.filter((section) => section.visible);
 
   return (
-    <section className={`m3-card ui-fade-in ${panelPaddingClass}`}>
-      <div className={`flex flex-wrap items-start justify-between ${compactViewport ? "gap-2.5" : "gap-3"}`}>
+    <section className={`m3-card ui-panel-shell ui-fade-in ${panelPaddingClass}`}>
+      <div className={`ui-summary-band rounded-[1.6rem] ${compactViewport ? "p-3" : compactPanel ? "p-3.5" : "p-4"}`}>
+        <div className={`flex flex-wrap items-start justify-between ${compactViewport ? "gap-2.5" : "gap-3"}`}>
         <div>
           <h2 className={`m3-title ${narrowViewport ? "text-base" : compactPanel ? "text-[17px] sm:text-lg" : compact ? "text-base sm:text-lg xl:text-xl" : "text-lg sm:text-xl xl:text-2xl"}`}>{serviceTitle}</h2>
           <p className={`${narrowViewport ? "text-[11px] leading-4" : compactViewport ? "text-xs leading-5" : "text-xs sm:text-sm xl:text-base"} text-[var(--md-sys-color-on-surface-variant)]`}>
@@ -658,7 +659,7 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
             {serviceMeta ? ` · ${t("service.domain")}: ${serviceMeta.domain}` : ""}
           </p>
         </div>
-        <div className={`ui-subtle-card w-full rounded-[1.5rem] ${compactViewport ? "max-w-none" : "max-w-sm"} ${refreshCardPadding}`}>
+        <div className={`ui-panel-block w-full rounded-[1.35rem] ${compactViewport ? "max-w-none" : "max-w-sm"} ${refreshCardPadding}`}>
           {compactViewport && (
             <div className="mb-2 flex items-center justify-between gap-2">
               <div>
@@ -731,10 +732,11 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
           )}
         </div>
       </div>
+      </div>
 
       <div className="space-y-2">
         {compactViewport && (
-          <div className="ui-subtle-card rounded-2xl p-2.5">
+          <div className="ui-panel-block rounded-[1.35rem] p-2.5">
             <div className="flex items-center justify-between gap-2">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--md-sys-color-on-surface-variant)]">{t("service.section.quickContext")}</p>
@@ -755,7 +757,7 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
         {(!compactViewport || contextExpanded) && (
         <div className={`grid gap-2 ${contextGridClass}`}>
           {serviceContextCards.map((card) => (
-            <article key={`${card.label}-${card.detail}`} className={`ui-subtle-card min-w-0 rounded-2xl ${narrowViewport ? "p-2.5" : compactViewport ? "p-2.5" : "p-3"}`}>
+            <article key={`${card.label}-${card.detail}`} className={`ui-metric-tile ui-metric-tile--${card.tone === "ok" ? "ok" : "neutral"} min-w-0 rounded-[1.25rem] ${narrowViewport ? "p-2.5" : compactViewport ? "p-2.5" : "p-3"}`}>
               <p className={`${narrowViewport ? "text-[10px] tracking-[0.12em]" : "text-[11px] tracking-[0.16em]"} font-semibold uppercase text-[var(--md-sys-color-on-surface-variant)]`}>{card.label}</p>
               <div className={`mt-2 flex flex-wrap items-center ${narrowViewport ? "gap-1.5" : "gap-2"}`}>
                 <span
@@ -777,7 +779,7 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
 
       {state.error && <p className="ui-feedback ui-feedback--error">{state.error}</p>}
 
-      <div className={`ui-subtle-card rounded-[1.75rem] ${compactViewport ? "p-1.5" : "p-2"}`}>
+      <div className={`ui-panel-block rounded-[1.5rem] ${compactViewport ? "p-1.5" : "p-2"}`}>
         <div className="flex flex-wrap gap-2" role="tablist" aria-label={t("service.section.navigation")}>
           {visibleSections.map((section) => {
             const isActive = activeSection === section.key;

@@ -437,7 +437,7 @@ export function BackofficeLayout({
       onTouchEnd={onTouchEnd}
     >
       {!mobileMenuOpen && <div className="fixed left-0 top-0 z-30 h-screen w-3 xl:hidden" aria-hidden="true" />}
-      <div className={`m3-card sticky top-2 z-40 overflow-hidden xl:hidden ${narrowViewport ? "space-y-2 p-2.5" : compactViewport ? "space-y-2.5 p-2.5" : "space-y-3 p-3"}`}>
+      <div className={`m3-card sticky top-2 z-40 overflow-hidden xl:hidden ${narrowViewport ? "space-y-2 p-2" : compactViewport ? "space-y-2 p-2.5" : "space-y-2.5 p-2.5"}`}>
         <div className={`flex items-start ${narrowViewport ? "gap-2" : "gap-3"}`}>
           <button
             type="button"
@@ -516,20 +516,20 @@ export function BackofficeLayout({
         <Sidebar current={current} onChange={onNavigate} items={navItems} className="hidden h-fit xl:block xl:sticky xl:top-4" />
       </div>
 
-      <main className={`relative z-20 min-w-0 overflow-visible ${compactViewport ? "space-y-2.5" : "space-y-3 sm:space-y-4 xl:space-y-5"}`}>
-        <header className={`m3-card ui-fade-in relative z-30 overflow-visible bg-[linear-gradient(125deg,color-mix(in_srgb,var(--md-sys-color-primary-container)_70%,var(--md-sys-color-surface)_30%)_0%,color-mix(in_srgb,var(--md-sys-color-surface-container-low)_92%,transparent_8%)_56%,color-mix(in_srgb,var(--md-sys-color-surface-container)_86%,var(--md-sys-color-secondary-container)_14%)_100%)] ${narrowViewport ? "p-3" : compactViewport ? "p-3.5" : "p-4 xl:p-6"}`}>
-          <div className={`grid ${compactViewport ? "gap-3" : "gap-5"} xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start`}>
-            <div className={`min-w-0 ${compactViewport ? "space-y-3" : "space-y-4"}`}>
+      <main className={`relative z-20 min-w-0 overflow-visible ${compactViewport ? "space-y-2.5" : "space-y-3 sm:space-y-4 xl:space-y-4"}`}>
+        <header className={`m3-card ui-fade-in relative z-30 overflow-visible bg-[linear-gradient(125deg,color-mix(in_srgb,var(--md-sys-color-primary-container)_62%,var(--md-sys-color-surface)_38%)_0%,color-mix(in_srgb,var(--md-sys-color-surface-container-low)_95%,transparent_5%)_56%,color-mix(in_srgb,var(--md-sys-color-surface-container)_90%,var(--md-sys-color-secondary-container)_10%)_100%)] ${narrowViewport ? "p-3" : compactViewport ? "p-3.5" : "p-4 xl:p-5"}`}>
+          <div className={`grid ${compactViewport ? "gap-3" : "gap-4"} xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start`}>
+            <div className={`min-w-0 ${compactViewport ? "space-y-3" : "space-y-3.5"}`}>
               <div className={`flex flex-wrap items-start justify-between ${compactViewport ? "gap-3" : "gap-4 xl:gap-6"}`}>
                 <div className="min-w-0 flex-1">
                   <p className={`uppercase text-[var(--md-sys-color-on-surface-variant)] ${narrowViewport ? "text-[10px] tracking-[0.18em]" : "text-[11px] tracking-[0.24em]"}`}>{t("layout.header.adminConsole")}</p>
                   <h1 className={`m3-title mt-2 ${narrowViewport ? "text-lg leading-6" : compactViewport ? "text-xl leading-7" : "text-xl sm:text-2xl xl:text-4xl"}`}>{t("layout.header.title")}</h1>
-                  <p className={`mt-2 max-w-3xl text-[var(--md-sys-color-on-surface-variant)] ${narrowViewport ? "text-[11px] leading-4" : compactViewport ? "text-xs leading-5" : "text-xs sm:text-sm xl:text-base"}`}>
+                  <p className={`mt-1.5 max-w-3xl text-[var(--md-sys-color-on-surface-variant)] ${narrowViewport ? "text-[11px] leading-4" : compactViewport ? "text-xs leading-5" : "text-xs sm:text-sm xl:text-[0.95rem]"}`}>
                     {t("layout.header.session")}: {session.displayName} ({session.role})
                   </p>
                 </div>
 
-                <div className={`ui-subtle-card flex w-full min-w-0 flex-col items-start rounded-[1.75rem] ${narrowViewport ? "p-2.5" : "p-3 sm:p-4"} sm:w-auto sm:min-w-[11rem] xl:min-w-[13rem]`}>
+                <div className={`ui-subtle-card flex w-full min-w-0 flex-col items-start rounded-[1.35rem] ${narrowViewport ? "p-2.5" : "p-3 sm:p-3.5"} sm:w-auto sm:min-w-[10.5rem] xl:min-w-[12rem]`}>
                   <p className={`uppercase tracking-[0.18em] text-[var(--md-sys-color-on-surface-variant)] ${narrowViewport ? "text-[10px]" : "text-[11px]"}`}>
                     {t("layout.release.environment")} {deploymentHistory.environment.toUpperCase()}
                   </p>
@@ -678,8 +678,8 @@ export function BackofficeLayout({
               </div>
             </div>
             <div className={`${compactViewport ? "hidden" : "flex"} items-start justify-start xl:justify-end xl:pt-1`}>
-              <div className="ui-subtle-card flex items-center justify-center rounded-[2rem] px-4 py-4 sm:px-5 xl:px-6">
-                <img src="/axiomnode-logo.svg" alt="AxiomNode" className="h-14 w-auto object-contain sm:h-18 xl:h-20" />
+              <div className="ui-subtle-card flex items-center justify-center rounded-[1.5rem] px-3 py-3 sm:px-4 xl:px-5">
+                <img src="/axiomnode-logo.svg" alt="AxiomNode" className="h-10 w-auto object-contain sm:h-12 xl:h-14" />
               </div>
             </div>
           </div>

@@ -106,20 +106,11 @@ function normalizeAiProbeResponse(payload: unknown): AiEngineProbeResult {
 }
 
 function KpiCard({ label, value, tone = "neutral", compact = false }: KpiCardProps) {
-  const toneClass =
-    tone === "ok"
-      ? "ui-status-chip--ok"
-      : tone === "warn"
-        ? "ui-status-chip--warn"
-        : tone === "error"
-          ? "ui-status-chip--error"
-          : "ui-status-chip--neutral";
-
   return (
-    <div className={`ui-surface-soft rounded-xl ${compact ? "px-2.5 py-2" : "px-3 py-2"}`}>
-      <p className={`ui-status-chip inline-flex ${toneClass}`}>{label}</p>
-      <p className={`mt-1 font-semibold text-[var(--md-sys-color-on-surface)] ${compact ? "text-lg" : "text-xl"}`}>{value}</p>
-    </div>
+    <article className={`ui-metric-tile ui-metric-tile--${tone} rounded-[1.35rem] ${compact ? "px-3 py-2.5" : "px-4 py-3"}`}>
+      <p className="ui-metric-label">{label}</p>
+      <p className={`ui-metric-value mt-3 ${compact ? "text-[1.35rem]" : "text-[1.7rem]"}`}>{value}</p>
+    </article>
   );
 }
 
@@ -444,14 +435,15 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
   }, [syncPresetForm]);
 
   return (
-    <section className={`m3-card ui-fade-in ${narrowViewport ? "p-3 space-y-3" : compactPanel ? "p-3.5 space-y-3" : compact ? "p-3 sm:p-4 xl:p-5 space-y-3" : "p-4 sm:p-5 xl:p-6 space-y-4 xl:space-y-5"}`}>
-      <div className={`flex flex-wrap items-start justify-between ${compactViewport ? "gap-2.5" : "gap-3"}`}>
+    <section className={`m3-card ui-panel-shell ui-fade-in ${narrowViewport ? "p-3 space-y-3" : compactPanel ? "p-3.5 space-y-3.5" : compact ? "p-3 sm:p-4 xl:p-5 space-y-4" : "p-4 sm:p-5 xl:p-6 space-y-5"}`}>
+      <div className={`ui-summary-band rounded-[1.6rem] ${narrowViewport ? "p-3" : compactPanel ? "p-3.5" : "p-4 xl:p-5"}`}>
+        <div className={`flex flex-wrap items-start justify-between ${compactViewport ? "gap-2.5" : "gap-3"}`}>
         <div>
           <h2 className={`m3-title ${narrowViewport ? "text-base" : compactPanel ? "text-[17px] sm:text-lg" : compact ? "text-base sm:text-lg xl:text-xl" : "text-lg sm:text-xl xl:text-2xl"}`}>{t("overview.title")}</h2>
           <p className={`${narrowViewport ? "text-[11px] leading-4" : compactViewport ? "text-xs leading-5" : "text-xs sm:text-sm xl:text-base"} text-[var(--md-sys-color-on-surface-variant)]`}>{t("overview.subtitle")}</p>
         </div>
 
-        <div className={`w-full rounded-xl border border-[var(--md-sys-color-outline-variant)] bg-[color:var(--md-sys-color-surface-container-low)]/85 ${compactViewport ? "max-w-none" : "max-w-sm"} ${narrowViewport ? "p-2" : compactPanel ? "p-2.5" : "p-3"}`}>
+        <div className={`ui-panel-block w-full rounded-[1.35rem] ${compactViewport ? "max-w-none" : "max-w-sm"} ${narrowViewport ? "p-2.5" : compactPanel ? "p-3" : "p-3.5"}`}>
           <div className="grid gap-2 sm:grid-cols-2">
             <label className={compactPanel ? "text-[11px]" : "text-xs"}>
               {t("service.refresh.modeLabel")}
@@ -503,6 +495,7 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
           )}
         </div>
       </div>
+      </div>
 
       <div className={`grid gap-2 ${compactViewport ? "grid-cols-2" : "sm:grid-cols-2 xl:grid-cols-4"}`}>
         <KpiCard label={t("overview.summary.total")} value={totals.total} tone="neutral" compact={compactPanel} />
@@ -511,7 +504,7 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
         <KpiCard label={t("overview.summary.connectionErrors")} value={totals.connectionErrors} tone="error" compact={compactPanel} />
       </div>
 
-      <div className="ui-surface-raised rounded-2xl p-4 space-y-4">
+      <div className="ui-panel-block rounded-[1.6rem] p-4 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="text-sm font-semibold sm:text-base text-[var(--md-sys-color-on-surface)]">{t("overview.aiTarget.title")}</h3>
@@ -521,7 +514,7 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
             <button
               type="button"
               onClick={() => setAiTargetExpanded((current) => !current)}
-              className="rounded-full border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container-low)] px-3 py-1.5 text-xs font-semibold transition hover:bg-[var(--md-sys-color-surface-container)]"
+              className="ui-action-pill ui-action-pill--quiet min-h-0 px-3 py-1.5 text-xs"
               aria-expanded={aiTargetExpanded}
             >
               {aiTargetExpanded ? t("service.section.hide") : t("service.section.show")}
@@ -533,7 +526,7 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
                 void loadPresets();
               }}
               disabled={aiTargetLoading || aiTargetSaving || presetsLoading}
-              className="rounded-full border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container-low)] px-3 py-1.5 text-xs font-semibold transition hover:bg-[var(--md-sys-color-surface-container)] disabled:opacity-50"
+              className="ui-action-pill ui-action-pill--quiet min-h-0 px-3 py-1.5 text-xs"
             >
               {aiTargetLoading || presetsLoading ? "..." : t("overview.aiTarget.refreshBtn")}
             </button>
@@ -541,13 +534,13 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
         </div>
 
         {!aiTargetExpanded ? (
-          <div className="rounded-2xl border border-[var(--md-sys-color-outline-variant)] bg-[var(--md-sys-color-surface-container-low)] p-3 text-xs text-[var(--md-sys-color-on-surface-variant)]">
+          <div className="ui-summary-band rounded-[1.25rem] p-3 text-xs text-[var(--md-sys-color-on-surface-variant)]">
             {t("overview.aiTarget.dayOpsTitle")}: {aiTarget?.label ?? aiTarget?.host ?? "--"}
           </div>
         ) : (
         <>
         <div className="grid gap-3 xl:grid-cols-2">
-          <div className="rounded-2xl border border-[var(--md-sys-color-outline-variant)] bg-[var(--md-sys-color-surface-container-low)] p-3 text-xs text-[var(--md-sys-color-on-surface)]">
+          <div className="ui-summary-band rounded-[1.25rem] p-3 text-xs text-[var(--md-sys-color-on-surface)]">
             <p className="font-semibold">{t("overview.aiTarget.dayOpsTitle")}</p>
             <p className="mt-1 text-[var(--md-sys-color-on-surface-variant)]">{t("overview.aiTarget.dayOpsBody")}</p>
           </div>
@@ -594,24 +587,24 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
           </label>
 
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <label className="text-xs text-[var(--md-sys-color-on-surface)]">
+            <label className="ui-control-label text-xs">
               {t("overview.aiTarget.optionName")}
-              <input value={presetName} onChange={(event) => setPresetName(event.target.value)} className="mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] px-2 py-2 text-sm" />
+              <input value={presetName} onChange={(event) => setPresetName(event.target.value)} className="control-input mt-1 w-full" />
             </label>
-            <label className="text-xs text-[var(--md-sys-color-on-surface)]">
+            <label className="ui-control-label text-xs">
               {t("overview.aiTarget.optionHost")}
-              <input value={presetHost} onChange={(event) => setPresetHost(event.target.value)} className="mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] px-2 py-2 text-sm" />
+              <input value={presetHost} onChange={(event) => setPresetHost(event.target.value)} className="control-input mt-1 w-full" />
             </label>
-            <label className="text-xs text-[var(--md-sys-color-on-surface)]">
+            <label className="ui-control-label text-xs">
               {t("overview.aiTarget.optionProtocol")}
-              <select value={presetProtocol} onChange={(event) => setPresetProtocol(event.target.value as "http" | "https")} className="mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] px-2 py-2 text-sm">
+              <select value={presetProtocol} onChange={(event) => setPresetProtocol(event.target.value as "http" | "https")} className="control-input mt-1 w-full">
                 <option value="http">http</option>
                 <option value="https">https</option>
               </select>
             </label>
-            <label className="text-xs text-[var(--md-sys-color-on-surface)]">
+            <label className="ui-control-label text-xs">
               {t("overview.aiTarget.optionApiPort")}
-              <input value={presetPort} onChange={(event) => setPresetPort(event.target.value)} inputMode="numeric" className="mt-1 w-full rounded-lg border border-[var(--md-sys-color-outline-variant)] px-2 py-2 text-sm" />
+              <input value={presetPort} onChange={(event) => setPresetPort(event.target.value)} inputMode="numeric" className="control-input mt-1 w-full" />
             </label>
           </div>
         </div>
@@ -621,7 +614,7 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
             type="button"
             onClick={() => void probeAiTarget()}
             disabled={aiProbeLoading || presetHost.trim().length === 0}
-            className="rounded-full border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container-low)] px-4 py-2 text-xs font-semibold transition hover:bg-[var(--md-sys-color-surface-container)] disabled:opacity-50"
+            className="ui-action-pill ui-action-pill--quiet text-xs"
           >
             {aiProbeLoading ? t("service.button.updating") : t("overview.aiTarget.probeBtn")}
           </button>
@@ -629,7 +622,7 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
             type="button"
             onClick={applyAiPreset}
             disabled={aiTargetSaving || !activePreset}
-            className="rounded-full border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-primary-container)] px-4 py-2 text-xs font-bold text-[var(--md-sys-color-on-primary-container)] transition hover:opacity-90 disabled:opacity-50"
+            className="ui-action-pill ui-action-pill--tonal text-xs"
           >
             {aiTargetSaving ? t("service.button.updating") : t("overview.aiTarget.applyBtn")}
           </button>
@@ -637,7 +630,7 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
             type="button"
             onClick={startNewPreset}
             disabled={aiTargetSaving}
-            className="rounded-full border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container-low)] px-4 py-2 text-xs font-semibold transition hover:bg-[var(--md-sys-color-surface-container)] disabled:opacity-50"
+            className="ui-action-pill ui-action-pill--quiet text-xs"
           >
             {t("overview.aiTarget.newBtn")}
           </button>
@@ -645,7 +638,7 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
             type="button"
             onClick={() => void savePreset()}
             disabled={presetName.trim().length === 0 || presetHost.trim().length === 0}
-            className="rounded-full border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container-low)] px-4 py-2 text-xs font-semibold transition hover:bg-[var(--md-sys-color-surface-container)] disabled:opacity-50"
+            className="ui-action-pill ui-action-pill--quiet text-xs"
           >
             {activePreset ? t("overview.aiTarget.saveBtn") : t("overview.aiTarget.addBtn")}
           </button>
@@ -653,7 +646,7 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
             type="button"
             onClick={() => void removePreset()}
             disabled={!activePreset}
-            className="rounded-full border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container-low)] px-4 py-2 text-xs font-semibold transition hover:bg-[var(--md-sys-color-surface-container)] disabled:opacity-50"
+            className="ui-action-pill ui-action-pill--quiet text-xs"
           >
             {t("overview.aiTarget.deleteBtn")}
           </button>
@@ -675,7 +668,7 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
 
       <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
         {rows.map((row) => (
-          <article key={row.key} className="ui-surface-raised rounded-2xl p-4 text-[var(--md-sys-color-on-surface)]">
+          <article key={row.key} className="ui-panel-block rounded-[1.35rem] p-4 text-[var(--md-sys-color-on-surface)]">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h3 className="text-sm font-semibold sm:text-base text-[var(--md-sys-color-on-surface)]">{row.title}</h3>

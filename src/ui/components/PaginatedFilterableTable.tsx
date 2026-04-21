@@ -354,11 +354,11 @@ export const PaginatedFilterableTable = memo(function PaginatedFilterableTable({
       <div
         ref={scrollContainerRef}
         onScroll={shouldVirtualizeRows ? (event) => setScrollTop(event.currentTarget.scrollTop) : undefined}
-        className={`ui-table-shell overflow-x-auto rounded-2xl ${shouldVirtualizeRows ? "overflow-y-auto" : ""}`}
+        className={`ui-table-shell overflow-x-auto rounded-[1.2rem] ${shouldVirtualizeRows ? "overflow-y-auto" : ""}`}
         style={shouldVirtualizeRows ? { maxHeight: `${virtualViewportHeight}px` } : undefined}
       >
         <table className={`min-w-full ${tableTextSize}`}>
-          <thead className={`bg-[var(--md-sys-color-surface-container)] text-left ${shouldVirtualizeRows ? "sticky top-0 z-10" : ""}`}>
+          <thead className={`text-left ${shouldVirtualizeRows ? "sticky top-0 z-10" : ""}`}>
             <tr>
               {columns.map((column) => (
                 <th key={column} className={`${tableCellPadding} font-semibold`}>
@@ -377,14 +377,14 @@ export const PaginatedFilterableTable = memo(function PaginatedFilterableTable({
             {visiblePageRows.map((row, rowIndex) => {
               const actualIndex = shouldVirtualizeRows ? virtualStartIndex + rowIndex : rowIndex;
               return (
-              <tr key={`${start + actualIndex}-${stringifyCell(row[columns[0]])}`} className="border-t border-[var(--md-sys-color-outline-variant)]">
+              <tr key={`${start + actualIndex}-${stringifyCell(row[columns[0]])}`} className="border-t border-[color:color-mix(in_srgb,var(--md-sys-color-outline-variant)_82%,transparent_18%)]">
                 {columns.map((column) => (
                   <td key={column} className={`${tableCellPadding} align-top`}>
                     {shouldUseIconOnlyButton(column, row[column]) ? (
                       <button
                         type="button"
                         onClick={() => openDialog(column, row[column], true)}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[var(--md-sys-color-outline-variant)] bg-[var(--md-sys-color-surface-container-low)] transition hover:bg-[var(--md-sys-color-surface-container)]"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--md-sys-color-outline-variant)] bg-[var(--md-sys-color-surface-container-low)] transition hover:bg-[var(--md-sys-color-surface-container)]"
                         aria-label={t("table.expandCell")}
                         title={t("table.expandCell")}
                       >
@@ -442,7 +442,7 @@ export const PaginatedFilterableTable = memo(function PaginatedFilterableTable({
         </table>
       </div>
 
-      <div className={`ui-subtle-card flex flex-wrap items-center justify-between gap-3 rounded-2xl ${footerPadding} ${footerText}`}>
+      <div className={`ui-subtle-card flex flex-wrap items-center justify-between gap-3 rounded-[1.15rem] ${footerPadding} ${footerText}`}>
         <p>
           {t("table.showing", {
             from: pageRows.length ? start + 1 : 0,
