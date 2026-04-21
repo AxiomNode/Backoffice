@@ -11,6 +11,7 @@ import type { NavKey, SessionContext, UiDensity, UiTheme, UiTypography } from ".
 import { useI18n } from "../../i18n/context";
 import { LANGUAGE_OPTIONS, type LabelKey } from "../../i18n/labels";
 import { useHashRoute, routeFromNavKey } from "../hooks/useHashRoute";
+import { useMaxWidth } from "../hooks/useMaxWidth";
 import { useVisibilityPolling } from "../hooks/useVisibilityPolling";
 import { Sidebar } from "../components/Sidebar";
 
@@ -134,6 +135,8 @@ export function BackofficeLayout({
   onTypographyChange,
 }: BackofficeLayoutProps) {
   const { language, setLanguage, t } = useI18n();
+  const compactViewport = useMaxWidth(420);
+  const narrowViewport = useMaxWidth(380);
   const navItems = useMemo(
     () =>
       navItemsForRole(session.role).map((item) => {
@@ -434,29 +437,29 @@ export function BackofficeLayout({
       onTouchEnd={onTouchEnd}
     >
       {!mobileMenuOpen && <div className="fixed left-0 top-0 z-30 h-screen w-3 xl:hidden" aria-hidden="true" />}
-      <div className="m3-card sticky top-2 z-20 space-y-3 overflow-hidden p-3 xl:hidden">
-        <div className="flex items-start gap-3">
+      <div className={`m3-card sticky top-2 z-20 overflow-hidden xl:hidden ${narrowViewport ? "space-y-2 p-2.5" : compactViewport ? "space-y-2.5 p-2.5" : "space-y-3 p-3"}`}>
+        <div className={`flex items-start ${narrowViewport ? "gap-2" : "gap-3"}`}>
           <button
             type="button"
             onClick={() => setMobileMenuOpen(true)}
-            className="shrink-0 rounded-lg border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container-low)] px-3 py-2 text-sm font-semibold transition hover:bg-[var(--md-sys-color-surface-container)]"
+            className={`shrink-0 rounded-lg border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container-low)] font-semibold transition hover:bg-[var(--md-sys-color-surface-container)] ${narrowViewport ? "px-2.5 py-1.5 text-xs" : "px-3 py-2 text-sm"}`}
           >
             {t("layout.mobile.menu")}
           </button>
           <div className="min-w-0 flex-1 text-right">
-            <p className="truncate text-sm font-semibold">{currentNav?.title ?? t("layout.mobile.serviceFallback")}</p>
-            <div className="mt-1 flex items-center justify-end gap-2">
-              <p className="truncate text-xs text-[var(--md-sys-color-on-surface-variant)]">{session.displayName}</p>
+            <p className={`truncate font-semibold ${narrowViewport ? "text-xs" : "text-sm"}`}>{currentNav?.title ?? t("layout.mobile.serviceFallback")}</p>
+            <div className={`mt-1 flex items-center justify-end ${narrowViewport ? "gap-1.5" : "gap-2"}`}>
+              <p className={`truncate text-[var(--md-sys-color-on-surface-variant)] ${narrowViewport ? "text-[11px]" : "text-xs"}`}>{session.displayName}</p>
               {typography === "xl" && (
-                <span className="shrink-0 rounded-full bg-[var(--md-sys-color-primary-container)] px-2 py-0.5 text-[10px] font-semibold text-[var(--md-sys-color-on-primary-container)]">
+                <span className={`shrink-0 rounded-full bg-[var(--md-sys-color-primary-container)] font-semibold text-[var(--md-sys-color-on-primary-container)] ${narrowViewport ? "px-1.5 py-0.5 text-[9px]" : "px-2 py-0.5 text-[10px]"}`}>
                   {t("layout.mobile.typographyXlBadge")}
                 </span>
               )}
             </div>
           </div>
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <button type="button" onClick={toggleDensity} className="rounded-lg border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container-low)] px-3 py-2 text-xs font-semibold transition hover:bg-[var(--md-sys-color-surface-container)]">{density === "dense" ? t("layout.mobile.densityComfortable") : t("layout.mobile.densityDense")}</button>
+        <div className={`flex flex-wrap items-center justify-end ${narrowViewport ? "gap-1.5" : "gap-2"}`}>
+          <button type="button" onClick={toggleDensity} className={`rounded-lg border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container-low)] font-semibold transition hover:bg-[var(--md-sys-color-surface-container)] ${narrowViewport ? "px-2.5 py-1.5 text-[11px]" : "px-3 py-2 text-xs"}`}>{density === "dense" ? t("layout.mobile.densityComfortable") : t("layout.mobile.densityDense")}</button>
           <button type="button" onClick={onToggleTheme} className="ui-switch shrink-0" role="switch" aria-checked={theme === "dark"} aria-label={t("layout.mobile.themeSwitch")}>
             <span className={`ui-switch-track ${theme === "dark" ? "is-on" : ""}`}>
               <span className="ui-switch-thumb" />
@@ -466,7 +469,7 @@ export function BackofficeLayout({
             value={typography}
             onChange={(event) => onTypographyChange(event.target.value as UiTypography)}
             aria-label={t("layout.header.typography")}
-            className="control-input min-w-[4.75rem] px-2 py-1 text-xs"
+            className={`control-input px-2 py-1 ${narrowViewport ? "min-w-[4.25rem] text-[11px]" : "min-w-[4.75rem] text-xs"}`}
           >
             {TYPOGRAPHY_OPTIONS.map((size) => (
               <option key={size} value={size}>{t(TYPOGRAPHY_LABEL_KEYS[size])}</option>
@@ -476,7 +479,7 @@ export function BackofficeLayout({
             value={language}
             onChange={(event) => setLanguage(event.target.value as typeof language)}
             aria-label={t("language.selectorLabel")}
-            className="control-input max-w-[8.5rem] min-w-[5.5rem] px-2 py-1 text-xs"
+            className={`control-input px-2 py-1 ${narrowViewport ? "max-w-[7rem] min-w-[5rem] text-[11px]" : "max-w-[8.5rem] min-w-[5.5rem] text-xs"}`}
           >
             {LANGUAGE_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
@@ -513,33 +516,33 @@ export function BackofficeLayout({
         <Sidebar current={current} onChange={onNavigate} items={navItems} className="hidden h-fit xl:block xl:sticky xl:top-4" />
       </div>
 
-      <main className="relative z-20 min-w-0 space-y-3 overflow-visible sm:space-y-4 xl:space-y-5">
-        <header className="m3-card ui-fade-in relative z-30 overflow-visible bg-[linear-gradient(125deg,color-mix(in_srgb,var(--md-sys-color-primary-container)_70%,var(--md-sys-color-surface)_30%)_0%,color-mix(in_srgb,var(--md-sys-color-surface-container-low)_92%,transparent_8%)_56%,color-mix(in_srgb,var(--md-sys-color-surface-container)_86%,var(--md-sys-color-secondary-container)_14%)_100%)] p-4 xl:p-6">
-          <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
-            <div className="min-w-0 space-y-4">
-              <div className="flex flex-wrap items-start justify-between gap-4 xl:gap-6">
+      <main className={`relative z-20 min-w-0 overflow-visible ${compactViewport ? "space-y-2.5" : "space-y-3 sm:space-y-4 xl:space-y-5"}`}>
+        <header className={`m3-card ui-fade-in relative z-30 overflow-visible bg-[linear-gradient(125deg,color-mix(in_srgb,var(--md-sys-color-primary-container)_70%,var(--md-sys-color-surface)_30%)_0%,color-mix(in_srgb,var(--md-sys-color-surface-container-low)_92%,transparent_8%)_56%,color-mix(in_srgb,var(--md-sys-color-surface-container)_86%,var(--md-sys-color-secondary-container)_14%)_100%)] ${narrowViewport ? "p-3" : compactViewport ? "p-3.5" : "p-4 xl:p-6"}`}>
+          <div className={`grid ${compactViewport ? "gap-3" : "gap-5"} xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start`}>
+            <div className={`min-w-0 ${compactViewport ? "space-y-3" : "space-y-4"}`}>
+              <div className={`flex flex-wrap items-start justify-between ${compactViewport ? "gap-3" : "gap-4 xl:gap-6"}`}>
                 <div className="min-w-0 flex-1">
-                  <p className="text-[11px] uppercase tracking-[0.24em] text-[var(--md-sys-color-on-surface-variant)]">{t("layout.header.adminConsole")}</p>
-                  <h1 className="m3-title mt-2 text-xl sm:text-2xl xl:text-4xl">{t("layout.header.title")}</h1>
-                  <p className="mt-2 max-w-3xl text-xs sm:text-sm xl:text-base text-[var(--md-sys-color-on-surface-variant)]">
+                  <p className={`uppercase text-[var(--md-sys-color-on-surface-variant)] ${narrowViewport ? "text-[10px] tracking-[0.18em]" : "text-[11px] tracking-[0.24em]"}`}>{t("layout.header.adminConsole")}</p>
+                  <h1 className={`m3-title mt-2 ${narrowViewport ? "text-lg leading-6" : compactViewport ? "text-xl leading-7" : "text-xl sm:text-2xl xl:text-4xl"}`}>{t("layout.header.title")}</h1>
+                  <p className={`mt-2 max-w-3xl text-[var(--md-sys-color-on-surface-variant)] ${narrowViewport ? "text-[11px] leading-4" : compactViewport ? "text-xs leading-5" : "text-xs sm:text-sm xl:text-base"}`}>
                     {t("layout.header.session")}: {session.displayName} ({session.role})
                   </p>
                 </div>
 
-                <div className="ui-subtle-card flex w-full min-w-0 flex-col items-start rounded-[1.75rem] p-3 sm:w-auto sm:min-w-[11rem] sm:p-4 xl:min-w-[13rem]">
-                  <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--md-sys-color-on-surface-variant)]">
+                <div className={`ui-subtle-card flex w-full min-w-0 flex-col items-start rounded-[1.75rem] ${narrowViewport ? "p-2.5" : "p-3 sm:p-4"} sm:w-auto sm:min-w-[11rem] xl:min-w-[13rem]`}>
+                  <p className={`uppercase tracking-[0.18em] text-[var(--md-sys-color-on-surface-variant)] ${narrowViewport ? "text-[10px]" : "text-[11px]"}`}>
                     {t("layout.release.environment")} {deploymentHistory.environment.toUpperCase()}
                   </p>
-                  <p className="mt-2 text-sm font-semibold text-[var(--md-sys-color-on-surface)] sm:text-base">
+                  <p className={`mt-2 font-semibold text-[var(--md-sys-color-on-surface)] ${narrowViewport ? "text-xs" : "text-sm sm:text-base"}`}>
                     {t("layout.release.version")}: {deploymentHistory.currentVersion}
                   </p>
-                  <p className="mt-1 text-xs leading-5 text-[var(--md-sys-color-on-surface-variant)]">
+                  <p className={`mt-1 text-[var(--md-sys-color-on-surface-variant)] ${narrowViewport ? "text-[11px] leading-4" : "text-xs leading-5"}`}>
                     {t("layout.release.deployedAt")}: {deploymentHistory.currentDeployedAt}
                   </p>
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2.5">
+              <div className={`flex flex-wrap items-center ${compactViewport ? "gap-2" : "gap-2.5"}`}>
                 <span
                   className={`ui-status-chip ${
                     globalHealth === "healthy"
@@ -559,10 +562,10 @@ export function BackofficeLayout({
                         ? t("layout.header.semaphore.critical")
                         : t("layout.header.semaphore.unknown")}
                 </span>
-                <span className="text-xs sm:text-sm text-[var(--md-sys-color-on-surface-variant)]">{globalHealthText}</span>
+                <span className={`${narrowViewport ? "text-[11px]" : "text-xs sm:text-sm"} text-[var(--md-sys-color-on-surface-variant)]`}>{globalHealthText}</span>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2.5">
+              <div className={`flex flex-wrap items-center ${compactViewport ? "gap-2" : "gap-2.5"}`}>
                   <div className="relative z-30">
                     <button
                       ref={releaseHistoryButtonRef}
@@ -573,7 +576,7 @@ export function BackofficeLayout({
                       }}
                       aria-expanded={releaseHistoryOpen}
                       aria-controls="deployment-history-panel"
-                      className="ui-action-pill ui-action-pill--tonal text-xs"
+                      className={`ui-action-pill ui-action-pill--tonal ${narrowViewport ? "px-3 py-1.5 text-[11px]" : "text-xs"}`}
                     >
                       {t("layout.release.historyBtn")} ({deploymentHistory.history.length})
                     </button>
@@ -619,7 +622,7 @@ export function BackofficeLayout({
                       }}
                       aria-expanded={preferencesOpen}
                       aria-controls="layout-preferences-panel"
-                      className="ui-action-pill ui-action-pill--tonal text-xs"
+                      className={`ui-action-pill ui-action-pill--tonal ${narrowViewport ? "px-3 py-1.5 text-[11px]" : "text-xs"}`}
                     >
                       UI
                     </button>
@@ -671,10 +674,10 @@ export function BackofficeLayout({
                       )}
                   </div>
 
-                  <button type="button" onClick={onSignOut} className="ui-action-pill ui-action-pill--quiet text-sm">{t("layout.header.signOut")}</button>
+                  <button type="button" onClick={onSignOut} className={`ui-action-pill ui-action-pill--quiet ${narrowViewport ? "px-3 py-1.5 text-xs" : "text-sm"}`}>{t("layout.header.signOut")}</button>
               </div>
             </div>
-            <div className="flex items-start justify-start xl:justify-end xl:pt-1">
+            <div className={`${compactViewport ? "hidden" : "flex"} items-start justify-start xl:justify-end xl:pt-1`}>
               <div className="ui-subtle-card flex items-center justify-center rounded-[2rem] px-4 py-4 sm:px-5 xl:px-6">
                 <img src="/axiomnode-logo.svg" alt="AxiomNode" className="h-14 w-auto object-contain sm:h-18 xl:h-20" />
               </div>

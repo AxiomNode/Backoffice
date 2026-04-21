@@ -5,6 +5,7 @@ import { useI18n } from "../../i18n/context";
 import type { LabelKey } from "../../i18n/labels";
 import { AutoRefreshCountdown } from "../components/AutoRefreshCountdown";
 import { PaginatedFilterableTable } from "../components/PaginatedFilterableTable";
+import { useMaxWidth } from "../hooks/useMaxWidth";
 import { useServiceConsoleState, type ServiceConsoleMessages } from "../hooks/useServiceConsoleState";
 
 /** @module ServiceConsolePanel - Per-service console with metrics, logs, data, and CRUD controls. */
@@ -172,6 +173,8 @@ function CollapsibleSection({ title, expanded, onToggle, actionLabel, compact, c
 /** Console panel for an individual service showing metrics, logs, data tables, and manual CRUD. */
 export function ServiceConsolePanel({ navKey, context, density }: ServiceConsolePanelProps) {
   const { language, t } = useI18n();
+  const compactViewport = useMaxWidth(420);
+  const narrowViewport = useMaxWidth(380);
   const messages: ServiceConsoleMessages = useMemo(() => ({
     insertOk: t("service.data.manual.insertOk"),
     updateOk: t("service.data.manual.updateOk"),
@@ -183,6 +186,7 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
   const state = useServiceConsoleState(navKey, context, t("roles.errorUnknown"), messages);
   const { serviceConfig } = state;
   const compact = density === "dense";
+  const compactPanel = compact || compactViewport;
   const [quizDraft, setQuizDraft] = useState<QuizManualDraft>(EMPTY_QUIZ_MANUAL_DRAFT);
   const [wordpassDraft, setWordpassDraft] = useState<WordpassManualDraft>(EMPTY_WORDPASS_MANUAL_DRAFT);
   const [activeSection, setActiveSection] = useState<ServiceConsoleSection>("observability");
@@ -271,13 +275,15 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
   }, [state.dataset, serviceConfig.service]);
 
   const intervalOptions = [5, 10, 15, 30, 60];
-  const refreshCardPadding = compact ? "p-2.5" : "p-3";
-  const refreshLabelText = compact ? "text-[11px]" : "text-xs";
-  const refreshInputPadding = compact ? "px-2 py-1" : "px-2 py-1.5";
-  const refreshButtonPadding = compact ? "px-3 py-2" : "px-4 py-2.5";
-  const refreshButtonText = compact ? "text-xs" : "text-sm";
-  const compactActionClass = compact ? "min-h-0 px-3 py-1.5 text-xs" : "text-sm";
-  const controlClass = `control-input mt-1 w-full ${compact ? "px-2 py-1.5 text-sm" : "px-2 py-2 text-sm"}`;
+  const refreshCardPadding = narrowViewport ? "p-2" : compactPanel ? "p-2.5" : "p-3";
+  const refreshLabelText = compactPanel ? "text-[11px]" : "text-xs";
+  const refreshInputPadding = narrowViewport ? "px-2 py-1 text-xs" : compactPanel ? "px-2 py-1" : "px-2 py-1.5";
+  const refreshButtonPadding = narrowViewport ? "px-3 py-1.5" : compactPanel ? "px-3 py-2" : "px-4 py-2.5";
+  const refreshButtonText = compactPanel ? "text-xs" : "text-sm";
+  const compactActionClass = compactPanel ? `min-h-0 ${narrowViewport ? "px-2.5 py-1.5 text-[11px]" : "px-3 py-1.5 text-xs"}` : "text-sm";
+  const controlClass = `control-input mt-1 w-full ${compactPanel ? "px-2 py-1.5 text-sm" : "px-2 py-2 text-sm"}`;
+  const contextGridClass = compactViewport ? "grid-cols-2" : compact ? "sm:grid-cols-2" : "sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4";
+  const panelPaddingClass = narrowViewport ? "p-3 space-y-3" : compactPanel ? "p-3.5 space-y-3" : compact ? "p-3 sm:p-4 xl:p-5 space-y-3" : "p-4 sm:p-5 xl:p-6 space-y-4 xl:space-y-5";
 
   const serviceMeta = state.catalog.find((item) => item.key === serviceConfig.service);
   const hasDataSection = (serviceMeta ? serviceMeta.supportsData : Boolean(serviceConfig.datasets?.length)) && Boolean(serviceConfig.datasets?.length);
@@ -621,23 +627,23 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
   const visibleSections = sectionOptions.filter((section) => section.visible);
 
   return (
-    <section className={`m3-card ui-fade-in ${compact ? "p-3 sm:p-4 xl:p-5 space-y-3" : "p-4 sm:p-5 xl:p-6 space-y-4 xl:space-y-5"}`}>
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <section className={`m3-card ui-fade-in ${panelPaddingClass}`}>
+      <div className={`flex flex-wrap items-start justify-between ${compactViewport ? "gap-2.5" : "gap-3"}`}>
         <div>
-          <h2 className={`m3-title ${compact ? "text-base sm:text-lg xl:text-xl" : "text-lg sm:text-xl xl:text-2xl"}`}>{serviceTitle}</h2>
-          <p className="text-xs sm:text-sm xl:text-base text-[var(--md-sys-color-on-surface-variant)]">
+          <h2 className={`m3-title ${narrowViewport ? "text-base" : compactPanel ? "text-[17px] sm:text-lg" : compact ? "text-base sm:text-lg xl:text-xl" : "text-lg sm:text-xl xl:text-2xl"}`}>{serviceTitle}</h2>
+          <p className={`${narrowViewport ? "text-[11px] leading-4" : compactViewport ? "text-xs leading-5" : "text-xs sm:text-sm xl:text-base"} text-[var(--md-sys-color-on-surface-variant)]`}>
             {serviceSubtitle}
             {serviceMeta ? ` · ${t("service.domain")}: ${serviceMeta.domain}` : ""}
           </p>
         </div>
-        <div className={`ui-subtle-card w-full max-w-sm rounded-[1.5rem] ${refreshCardPadding}`}>
+        <div className={`ui-subtle-card w-full rounded-[1.5rem] ${compactViewport ? "max-w-none" : "max-w-sm"} ${refreshCardPadding}`}>
           <div className="grid gap-2 sm:grid-cols-2">
             <label className={`${refreshLabelText} text-[var(--md-sys-color-on-surface-variant)]`}>
               {t("service.refresh.modeLabel")}
               <select
                 value={state.refreshMode}
                 onChange={(event) => state.setRefreshMode(event.target.value as "manual" | "auto")}
-                className={`control-input mt-1 w-full ${refreshInputPadding} ${compact ? "text-xs" : "text-sm"}`}
+                className={`control-input mt-1 w-full ${refreshInputPadding} ${compactPanel ? "text-xs" : "text-sm"}`}
               >
                 <option value="manual">{t("service.refresh.manual")}</option>
                 <option value="auto">{t("service.refresh.auto")}</option>
@@ -650,7 +656,7 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
                 value={state.refreshIntervalSeconds}
                 onChange={(event) => state.setRefreshIntervalSeconds(Number(event.target.value))}
                 disabled={state.refreshMode !== "auto"}
-                className={`control-input mt-1 w-full ${refreshInputPadding} ${compact ? "text-xs" : "text-sm"} disabled:cursor-not-allowed disabled:opacity-60`}
+                className={`control-input mt-1 w-full ${refreshInputPadding} ${compactPanel ? "text-xs" : "text-sm"} disabled:cursor-not-allowed disabled:opacity-60`}
               >
                 {intervalOptions.map((seconds) => (
                   <option key={seconds} value={seconds}>
@@ -683,11 +689,11 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
         </div>
       </div>
 
-      <div className={`grid gap-2 ${compact ? "sm:grid-cols-2" : "sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"}`}>
+      <div className={`grid gap-2 ${contextGridClass}`}>
         {serviceContextCards.map((card) => (
-          <article key={`${card.label}-${card.detail}`} className="ui-subtle-card min-w-0 rounded-2xl p-3">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--md-sys-color-on-surface-variant)]">{card.label}</p>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
+          <article key={`${card.label}-${card.detail}`} className={`ui-subtle-card min-w-0 rounded-2xl ${narrowViewport ? "p-2.5" : compactViewport ? "p-2.5" : "p-3"}`}>
+            <p className={`${narrowViewport ? "text-[10px] tracking-[0.12em]" : "text-[11px] tracking-[0.16em]"} font-semibold uppercase text-[var(--md-sys-color-on-surface-variant)]`}>{card.label}</p>
+            <div className={`mt-2 flex flex-wrap items-center ${narrowViewport ? "gap-1.5" : "gap-2"}`}>
               <span
                 className={`ui-status-chip ${
                   card.tone === "ok"
@@ -698,14 +704,14 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
                 {card.value}
               </span>
             </div>
-            <p className="mt-2 truncate text-xs text-[var(--md-sys-color-on-surface-variant)]">{card.detail}</p>
+            <p className={`${narrowViewport ? "mt-1.5 text-[11px] leading-4" : "mt-2 text-xs"} truncate text-[var(--md-sys-color-on-surface-variant)]`}>{card.detail}</p>
           </article>
         ))}
       </div>
 
       {state.error && <p className="ui-feedback ui-feedback--error">{state.error}</p>}
 
-      <div className="ui-subtle-card rounded-[1.75rem] p-2">
+      <div className={`ui-subtle-card rounded-[1.75rem] ${compactViewport ? "p-1.5" : "p-2"}`}>
         <div className="flex flex-wrap gap-2" role="tablist" aria-label={t("service.section.navigation")}>
           {visibleSections.map((section) => {
             const isActive = activeSection === section.key;
@@ -730,8 +736,8 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
       </div>
 
       {activeSection === "observability" && (
-        <section className="grid min-w-0 gap-3" aria-label={t("service.section.observability")}>
-          <article className="ui-table-shell min-w-0 rounded-[1.75rem] p-4 space-y-2">
+        <section className={`grid min-w-0 ${compactViewport ? "gap-2.5" : "gap-3"}`} aria-label={t("service.section.observability")}>
+          <article className={`ui-table-shell min-w-0 rounded-[1.75rem] ${compactViewport ? "p-3" : "p-4"} space-y-2`}>
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h3 className={`m3-title ${compact ? "text-base" : "text-lg"}`}>{t("service.metrics.title")}</h3>
@@ -749,7 +755,7 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
             )}
           </article>
 
-          <article className="ui-table-shell min-w-0 rounded-[1.75rem] p-4 space-y-2">
+          <article className={`ui-table-shell min-w-0 rounded-[1.75rem] ${compactViewport ? "p-3" : "p-4"} space-y-2`}>
             <div>
               <h3 className={`m3-title ${compact ? "text-base" : "text-lg"}`}>{t("service.logs.title")}</h3>
             </div>
@@ -768,7 +774,7 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
       )}
 
       {activeSection === "data" && hasDataSection && serviceConfig.datasets && serviceConfig.datasets.length > 0 && (
-        <article className="ui-table-shell min-w-0 space-y-3 rounded-[1.75rem] p-4">
+        <article className={`ui-table-shell min-w-0 space-y-3 rounded-[1.75rem] ${compactViewport ? "p-3" : "p-4"}`}>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h3 className={`m3-title ${compact ? "text-base" : "text-lg"}`}>{t("service.data.title")}</h3>
@@ -942,7 +948,7 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
       )}
 
       {activeSection === "manual" && isGameHistoryDataset && (
-        <article className="ui-table-shell min-w-0 space-y-3 rounded-[1.75rem] p-4" aria-label={t("service.section.manual")}>
+        <article className={`ui-table-shell min-w-0 space-y-3 rounded-[1.75rem] ${compactViewport ? "p-3" : "p-4"}`} aria-label={t("service.section.manual")}>
           <div>
             <h3 className={`m3-title ${compact ? "text-base" : "text-lg"}`}>{t("service.data.manual.title")}</h3>
           </div>

@@ -6,6 +6,7 @@ import { composeAuthHeaders } from "../../infrastructure/backoffice/authHeaders"
 import { EDGE_API_BASE, fetchJson } from "../../infrastructure/http/apiClient";
 import { useI18n } from "../../i18n/context";
 import { AutoRefreshCountdown } from "../components/AutoRefreshCountdown";
+import { useMaxWidth } from "../hooks/useMaxWidth";
 import { useAutoRefreshScheduler } from "../hooks/useAutoRefreshScheduler";
 
 /** @module ServiceOverviewPanel - Dashboard showing real-time operational status of all services. */
@@ -19,6 +20,7 @@ type KpiCardProps = {
   label: string;
   value: string | number;
   tone?: "neutral" | "ok" | "warn" | "error";
+  compact?: boolean;
 };
 
 type AiEnginePresetListResponse = {
@@ -103,7 +105,7 @@ function normalizeAiProbeResponse(payload: unknown): AiEngineProbeResult {
   };
 }
 
-function KpiCard({ label, value, tone = "neutral" }: KpiCardProps) {
+function KpiCard({ label, value, tone = "neutral", compact = false }: KpiCardProps) {
   const toneClass =
     tone === "ok"
       ? "ui-status-chip--ok"
@@ -114,9 +116,9 @@ function KpiCard({ label, value, tone = "neutral" }: KpiCardProps) {
           : "ui-status-chip--neutral";
 
   return (
-    <div className="ui-surface-soft rounded-xl px-3 py-2">
+    <div className={`ui-surface-soft rounded-xl ${compact ? "px-2.5 py-2" : "px-3 py-2"}`}>
       <p className={`ui-status-chip inline-flex ${toneClass}`}>{label}</p>
-      <p className="mt-1 text-xl font-semibold text-[var(--md-sys-color-on-surface)]">{value}</p>
+      <p className={`mt-1 font-semibold text-[var(--md-sys-color-on-surface)] ${compact ? "text-lg" : "text-xl"}`}>{value}</p>
     </div>
   );
 }
@@ -129,6 +131,9 @@ function formatPercent(value: number): string {
 export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelProps) {
   const { t } = useI18n();
   const compact = density === "dense";
+  const compactViewport = useMaxWidth(420);
+  const narrowViewport = useMaxWidth(380);
+  const compactPanel = compact || compactViewport;
 
   const [rows, setRows] = useState<ServiceOperationalRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -438,34 +443,34 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
   }, [syncPresetForm]);
 
   return (
-    <section className={`m3-card ui-fade-in ${compact ? "p-3 sm:p-4 xl:p-5 space-y-3" : "p-4 sm:p-5 xl:p-6 space-y-4 xl:space-y-5"}`}>
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <section className={`m3-card ui-fade-in ${narrowViewport ? "p-3 space-y-3" : compactPanel ? "p-3.5 space-y-3" : compact ? "p-3 sm:p-4 xl:p-5 space-y-3" : "p-4 sm:p-5 xl:p-6 space-y-4 xl:space-y-5"}`}>
+      <div className={`flex flex-wrap items-start justify-between ${compactViewport ? "gap-2.5" : "gap-3"}`}>
         <div>
-          <h2 className={`m3-title ${compact ? "text-base sm:text-lg xl:text-xl" : "text-lg sm:text-xl xl:text-2xl"}`}>{t("overview.title")}</h2>
-          <p className="text-xs sm:text-sm xl:text-base text-[var(--md-sys-color-on-surface-variant)]">{t("overview.subtitle")}</p>
+          <h2 className={`m3-title ${narrowViewport ? "text-base" : compactPanel ? "text-[17px] sm:text-lg" : compact ? "text-base sm:text-lg xl:text-xl" : "text-lg sm:text-xl xl:text-2xl"}`}>{t("overview.title")}</h2>
+          <p className={`${narrowViewport ? "text-[11px] leading-4" : compactViewport ? "text-xs leading-5" : "text-xs sm:text-sm xl:text-base"} text-[var(--md-sys-color-on-surface-variant)]`}>{t("overview.subtitle")}</p>
         </div>
 
-        <div className={`w-full max-w-sm rounded-xl border border-[var(--md-sys-color-outline-variant)] bg-[color:var(--md-sys-color-surface-container-low)]/85 ${compact ? "p-2.5" : "p-3"}`}>
+        <div className={`w-full rounded-xl border border-[var(--md-sys-color-outline-variant)] bg-[color:var(--md-sys-color-surface-container-low)]/85 ${compactViewport ? "max-w-none" : "max-w-sm"} ${narrowViewport ? "p-2" : compactPanel ? "p-2.5" : "p-3"}`}>
           <div className="grid gap-2 sm:grid-cols-2">
-            <label className={compact ? "text-[11px]" : "text-xs"}>
+            <label className={compactPanel ? "text-[11px]" : "text-xs"}>
               {t("service.refresh.modeLabel")}
               <select
                 value={refreshMode}
                 onChange={(event) => setRefreshMode(event.target.value as "manual" | "auto")}
-                className={`control-input mt-1 w-full ${compact ? "px-2 py-1 text-xs" : "px-2 py-1.5 text-sm"}`}
+                className={`control-input mt-1 w-full ${compactPanel ? "px-2 py-1 text-xs" : "px-2 py-1.5 text-sm"}`}
               >
                 <option value="manual">{t("service.refresh.manual")}</option>
                 <option value="auto">{t("service.refresh.auto")}</option>
               </select>
             </label>
 
-            <label className={compact ? "text-[11px]" : "text-xs"}>
+            <label className={compactPanel ? "text-[11px]" : "text-xs"}>
               {t("service.refresh.intervalLabel")}
               <select
                 value={refreshIntervalSeconds}
                 onChange={(event) => setRefreshIntervalSeconds(Number(event.target.value))}
                 disabled={refreshMode !== "auto"}
-                className={`control-input mt-1 w-full ${compact ? "px-2 py-1 text-xs" : "px-2 py-1.5 text-sm"} disabled:cursor-not-allowed disabled:opacity-60`}
+                className={`control-input mt-1 w-full ${compactPanel ? "px-2 py-1 text-xs" : "px-2 py-1.5 text-sm"} disabled:cursor-not-allowed disabled:opacity-60`}
               >
                 {intervalOptions.map((seconds) => (
                   <option key={seconds} value={seconds}>
@@ -480,7 +485,7 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
             <button
               type="button"
               onClick={() => void loadSummary()}
-              className={`mt-3 w-full rounded-xl bg-[var(--md-sys-color-primary)] ${compact ? "px-3 py-1.5 text-xs" : "px-4 py-2 text-sm"} font-semibold text-[var(--md-sys-color-on-primary)] transition-all duration-200 hover:-translate-y-[1px] hover:brightness-105`}
+              className={`mt-3 w-full rounded-xl bg-[var(--md-sys-color-primary)] ${compactPanel ? "px-3 py-1.5 text-xs" : "px-4 py-2 text-sm"} font-semibold text-[var(--md-sys-color-on-primary)] transition-all duration-200 hover:-translate-y-[1px] hover:brightness-105`}
             >
               {loading ? t("service.button.updating") : t("service.button.update")}
             </button>
@@ -490,7 +495,7 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
               loading={loading}
               intervalSeconds={refreshIntervalSeconds}
               cycleVersion={refreshCycleVersion}
-              compact={compact}
+              compact={compactPanel}
               updatingLabel={t("service.button.updating")}
               getNextSyncLabel={(seconds) => t("service.refresh.nextSync", { seconds })}
             />
@@ -498,11 +503,11 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
         </div>
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiCard label={t("overview.summary.total")} value={totals.total} tone="neutral" />
-        <KpiCard label={t("overview.summary.online")} value={totals.onlineCount} tone="ok" />
-        <KpiCard label={t("overview.summary.accessIssues")} value={totals.accessIssues} tone="warn" />
-        <KpiCard label={t("overview.summary.connectionErrors")} value={totals.connectionErrors} tone="error" />
+      <div className={`grid gap-2 ${compactViewport ? "grid-cols-2" : "sm:grid-cols-2 xl:grid-cols-4"}`}>
+        <KpiCard label={t("overview.summary.total")} value={totals.total} tone="neutral" compact={compactPanel} />
+        <KpiCard label={t("overview.summary.online")} value={totals.onlineCount} tone="ok" compact={compactPanel} />
+        <KpiCard label={t("overview.summary.accessIssues")} value={totals.accessIssues} tone="warn" compact={compactPanel} />
+        <KpiCard label={t("overview.summary.connectionErrors")} value={totals.connectionErrors} tone="error" compact={compactPanel} />
       </div>
 
       <div className="ui-surface-raised rounded-2xl p-4 space-y-4">
