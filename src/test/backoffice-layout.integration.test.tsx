@@ -238,8 +238,10 @@ describe("BackofficeLayout integration", () => {
     fireEvent.click(screen.getByRole("button", { name: "UI" }));
 
     await waitFor(() => {
-      expect(screen.getByLabelText("Tamano texto")).toBeInTheDocument();
-      expect(screen.getAllByLabelText("Idioma").length).toBeGreaterThan(0);
+      const preferencesPanel = document.getElementById("layout-preferences-panel");
+      expect(preferencesPanel).not.toBeNull();
+      expect(within(preferencesPanel as HTMLElement).getByLabelText("Tamano texto")).toBeInTheDocument();
+      expect(within(preferencesPanel as HTMLElement).getByLabelText("Idioma")).toBeInTheDocument();
     });
 
     const preferencesPanel = document.getElementById("layout-preferences-panel");

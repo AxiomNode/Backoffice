@@ -429,47 +429,54 @@ export function BackofficeLayout({
 
   return (
     <div
-      className="mx-auto grid min-h-screen w-full max-w-[1880px] gap-3 p-3 sm:gap-4 sm:p-4 xl:gap-6 xl:p-6 2xl:max-w-[2200px] 2xl:grid-cols-[340px_1fr] xl:grid-cols-[300px_1fr]"
+      className="mx-auto grid min-h-screen w-full max-w-[1880px] overflow-x-clip gap-3 p-3 sm:gap-4 sm:p-4 xl:gap-6 xl:p-6 2xl:max-w-[2200px] 2xl:grid-cols-[340px_1fr] xl:grid-cols-[300px_1fr]"
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
     >
       {!mobileMenuOpen && <div className="fixed left-0 top-0 z-30 h-screen w-3 xl:hidden" aria-hidden="true" />}
-      <div className="m3-card sticky top-2 z-20 flex items-center justify-between gap-2 p-3 xl:hidden">
-        <button
-          type="button"
-          onClick={() => setMobileMenuOpen(true)}
-          className="rounded-lg border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container-low)] px-3 py-2 text-sm font-semibold transition hover:bg-[var(--md-sys-color-surface-container)]"
-        >
-          {t("layout.mobile.menu")}
-        </button>
-        <div className="min-w-0 flex-1 text-right">
-          <p className="truncate text-sm font-semibold">{currentNav?.title ?? t("layout.mobile.serviceFallback")}</p>
-          <div className="flex items-center justify-end gap-2">
-            <p className="truncate text-xs text-[var(--md-sys-color-on-surface-variant)]">{session.displayName}</p>
-            {typography === "xl" && (
-              <span className="rounded-full bg-[var(--md-sys-color-primary-container)] px-2 py-0.5 text-[10px] font-semibold text-[var(--md-sys-color-on-primary-container)]">
-                {t("layout.mobile.typographyXlBadge")}
-              </span>
-            )}
+      <div className="m3-card sticky top-2 z-20 space-y-3 overflow-hidden p-3 xl:hidden">
+        <div className="flex items-start gap-3">
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen(true)}
+            className="shrink-0 rounded-lg border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container-low)] px-3 py-2 text-sm font-semibold transition hover:bg-[var(--md-sys-color-surface-container)]"
+          >
+            {t("layout.mobile.menu")}
+          </button>
+          <div className="min-w-0 flex-1 text-right">
+            <p className="truncate text-sm font-semibold">{currentNav?.title ?? t("layout.mobile.serviceFallback")}</p>
+            <div className="mt-1 flex items-center justify-end gap-2">
+              <p className="truncate text-xs text-[var(--md-sys-color-on-surface-variant)]">{session.displayName}</p>
+              {typography === "xl" && (
+                <span className="shrink-0 rounded-full bg-[var(--md-sys-color-primary-container)] px-2 py-0.5 text-[10px] font-semibold text-[var(--md-sys-color-on-primary-container)]">
+                  {t("layout.mobile.typographyXlBadge")}
+                </span>
+              )}
+            </div>
           </div>
         </div>
-        <button type="button" onClick={toggleDensity} className="rounded-lg border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container-low)] px-3 py-2 text-xs font-semibold transition hover:bg-[var(--md-sys-color-surface-container)]">{density === "dense" ? t("layout.mobile.densityComfortable") : t("layout.mobile.densityDense")}</button>
-        <button type="button" onClick={onToggleTheme} className="ui-switch" role="switch" aria-checked={theme === "dark"} aria-label={t("layout.mobile.themeSwitch")}>
-          <span className={`ui-switch-track ${theme === "dark" ? "is-on" : ""}`}>
-            <span className="ui-switch-thumb" />
-          </span>
-        </button>
-        <select value={typography} onChange={(event) => onTypographyChange(event.target.value as UiTypography)} className="control-input px-2 py-1 text-xs">
-          {TYPOGRAPHY_OPTIONS.map((size) => (
-            <option key={size} value={size}>{t(TYPOGRAPHY_LABEL_KEYS[size])}</option>
-          ))}
-        </select>
-        <label className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
-          {t("language.selectorLabel")}
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <button type="button" onClick={toggleDensity} className="rounded-lg border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container-low)] px-3 py-2 text-xs font-semibold transition hover:bg-[var(--md-sys-color-surface-container)]">{density === "dense" ? t("layout.mobile.densityComfortable") : t("layout.mobile.densityDense")}</button>
+          <button type="button" onClick={onToggleTheme} className="ui-switch shrink-0" role="switch" aria-checked={theme === "dark"} aria-label={t("layout.mobile.themeSwitch")}>
+            <span className={`ui-switch-track ${theme === "dark" ? "is-on" : ""}`}>
+              <span className="ui-switch-thumb" />
+            </span>
+          </button>
+          <select
+            value={typography}
+            onChange={(event) => onTypographyChange(event.target.value as UiTypography)}
+            aria-label={t("layout.header.typography")}
+            className="control-input min-w-[4.75rem] px-2 py-1 text-xs"
+          >
+            {TYPOGRAPHY_OPTIONS.map((size) => (
+              <option key={size} value={size}>{t(TYPOGRAPHY_LABEL_KEYS[size])}</option>
+            ))}
+          </select>
           <select
             value={language}
             onChange={(event) => setLanguage(event.target.value as typeof language)}
-            className="control-input ml-1 py-1"
+            aria-label={t("language.selectorLabel")}
+            className="control-input max-w-[8.5rem] min-w-[5.5rem] px-2 py-1 text-xs"
           >
             {LANGUAGE_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
@@ -477,7 +484,7 @@ export function BackofficeLayout({
               </option>
             ))}
           </select>
-        </label>
+        </div>
       </div>
 
       {mobileMenuOpen && (
@@ -519,7 +526,7 @@ export function BackofficeLayout({
                   </p>
                 </div>
 
-                <div className="ui-subtle-card flex min-w-[11rem] flex-col items-start rounded-[1.75rem] p-3 sm:p-4 xl:min-w-[13rem]">
+                <div className="ui-subtle-card flex w-full min-w-0 flex-col items-start rounded-[1.75rem] p-3 sm:w-auto sm:min-w-[11rem] sm:p-4 xl:min-w-[13rem]">
                   <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--md-sys-color-on-surface-variant)]">
                     {t("layout.release.environment")} {deploymentHistory.environment.toUpperCase()}
                   </p>
@@ -667,7 +674,7 @@ export function BackofficeLayout({
                   <button type="button" onClick={onSignOut} className="ui-action-pill ui-action-pill--quiet text-sm">{t("layout.header.signOut")}</button>
               </div>
             </div>
-            <div className="flex items-start justify-end xl:pt-1">
+            <div className="flex items-start justify-start xl:justify-end xl:pt-1">
               <div className="ui-subtle-card flex items-center justify-center rounded-[2rem] px-4 py-4 sm:px-5 xl:px-6">
                 <img src="/axiomnode-logo.svg" alt="AxiomNode" className="h-14 w-auto object-contain sm:h-18 xl:h-20" />
               </div>
