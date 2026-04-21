@@ -57,8 +57,9 @@ const TYPOGRAPHY_LABEL_KEYS: Record<UiTypography, LabelKey> = {
 function clampPopoverToViewport(trigger: HTMLElement, preferredWidth: number, preferredMaxHeight: number): CSSProperties | null {
   const viewportWidth = window.innerWidth;
   const viewportHeight = window.innerHeight;
-  const margin = 12;
-  const gap = 8;
+  const isCompactViewport = viewportWidth < 640;
+  const margin = isCompactViewport ? 8 : 12;
+  const gap = isCompactViewport ? 6 : 8;
   const triggerRect = trigger.getBoundingClientRect();
   const hasMeasurableBounds = triggerRect.width > 0 || triggerRect.height > 0;
 
@@ -73,7 +74,9 @@ function clampPopoverToViewport(trigger: HTMLElement, preferredWidth: number, pr
     return null;
   }
 
-  const width = Math.min(preferredWidth, Math.max(280, viewportWidth - margin * 2));
+  const maxWidth = viewportWidth - margin * 2;
+  const mobilePreferredWidth = Math.max(280, maxWidth);
+  const width = Math.min(isCompactViewport ? mobilePreferredWidth : preferredWidth, maxWidth);
 
   let left = triggerRect.left;
   if (left + width > viewportWidth - margin) {

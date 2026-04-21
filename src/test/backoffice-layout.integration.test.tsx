@@ -251,6 +251,50 @@ describe("BackofficeLayout integration", () => {
     expect(preferencesPanel?.className).toContain("overflow-y-auto");
   });
 
+  it("adapts the deployment history popover width for compact mobile viewports", async () => {
+    fetchServiceOperationalSummaryMock.mockResolvedValue({
+      rows: [],
+      totals: { total: 1, onlineCount: 1, accessIssues: 0, connectionErrors: 0 },
+    });
+
+    const originalInnerWidth = window.innerWidth;
+    const originalInnerHeight = window.innerHeight;
+
+    try {
+      Object.defineProperty(window, "innerWidth", { configurable: true, value: 390 });
+      Object.defineProperty(window, "innerHeight", { configurable: true, value: 844 });
+
+      renderLayout();
+
+      const historyButton = screen.getByRole("button", { name: /Historico de versiones/i });
+      historyButton.getBoundingClientRect = vi.fn<() => DOMRect>().mockReturnValue({
+        x: 16,
+        y: 280,
+        width: 180,
+        height: 40,
+        top: 280,
+        right: 196,
+        bottom: 320,
+        left: 16,
+        toJSON: () => undefined,
+      } as DOMRect);
+
+      fireEvent.click(historyButton);
+
+      await waitFor(() => {
+        expect(screen.getByText("Versiones desplegadas")).toBeInTheDocument();
+      });
+
+      const historyPanel = document.getElementById("deployment-history-panel");
+      expect(historyPanel?.style.width).toBe("374px");
+      expect(historyPanel?.style.left).toBe("8px");
+      expect(historyPanel?.style.top).toBe("326px");
+    } finally {
+      Object.defineProperty(window, "innerWidth", { configurable: true, value: originalInnerWidth });
+      Object.defineProperty(window, "innerHeight", { configurable: true, value: originalInnerHeight });
+    }
+  });
+
   it("closes floating header panels when their trigger leaves the viewport on scroll", async () => {
     fetchServiceOperationalSummaryMock.mockResolvedValue({
       rows: [],
