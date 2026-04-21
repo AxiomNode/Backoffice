@@ -199,8 +199,8 @@ describe("ServiceConsolePanel integration", () => {
       expect(screen.queryByLabelText("Actualizacion")).not.toBeInTheDocument();
       expect(screen.queryByText("Dataset")).not.toBeInTheDocument();
 
-      const refreshSection = screen.getByText("Ajustes de actualizacion").closest(".ui-subtle-card");
-      const contextSection = screen.getByText("Contexto rapido").closest(".ui-subtle-card");
+      const refreshSection = screen.getByText("Ajustes de actualizacion").closest(".ui-panel-block");
+      const contextSection = screen.getByText("Contexto rapido").closest(".ui-panel-block");
 
       fireEvent.click(within(refreshSection as HTMLElement).getByRole("button", { name: "Mostrar" }));
       fireEvent.click(within(contextSection as HTMLElement).getByRole("button", { name: "Mostrar" }));
