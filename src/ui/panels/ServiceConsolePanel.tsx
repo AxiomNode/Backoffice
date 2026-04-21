@@ -817,7 +817,7 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
               <div className="space-y-3">
                 <PaginatedFilterableTable
                   rows={state.metricsRows}
-                  defaultPageSize={10}
+                  defaultPageSize={5}
                   density={density}
                   collapsibleControls
                   controlsInitiallyExpanded={!compactViewport}
@@ -825,7 +825,7 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
                 {routeMetricsRows.length > 0 && (
                   <PaginatedFilterableTable
                     rows={routeMetricsRows}
-                    defaultPageSize={10}
+                    defaultPageSize={5}
                     defaultSortDirection="desc"
                     density={density}
                     collapsibleControls
@@ -850,7 +850,7 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
             ) : state.logsRows.length ? (
               <PaginatedFilterableTable
                 rows={state.logsRows}
-                defaultPageSize={20}
+                defaultPageSize={5}
                 defaultSortDirection="desc"
                 density={density}
                 collapsibleControls
@@ -970,7 +970,7 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
                 min={1}
                 max={200}
                 value={state.pageSize}
-                onChange={(event) => state.setPageSize(Number(event.target.value || 20))}
+                onChange={(event) => state.setPageSize(Number(event.target.value || 5))}
                 className={controlClass}
               />
             </label>
@@ -1021,13 +1021,18 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
           ) : state.dataRows.length ? (
             <PaginatedFilterableTable
               rows={state.dataRows}
-              defaultPageSize={10}
+              defaultPageSize={5}
               density={density}
               iconOnlyColumns={technicalDialogColumns}
               remoteState={{
                 totalRows: state.dataTotal,
                 page: state.dataPage,
                 pageSize: state.dataPageSize,
+                onPageChange: (nextPage) => state.setPage(nextPage),
+                onPageSizeChange: (nextPageSize) => {
+                  state.setPage(1);
+                  state.setPageSize(nextPageSize);
+                },
               }}
               rowActions={historyRowActions}
             />

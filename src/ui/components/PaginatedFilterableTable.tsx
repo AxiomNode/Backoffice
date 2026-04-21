@@ -19,6 +19,8 @@ type PaginatedFilterableTableProps = {
     totalRows: number;
     page: number;
     pageSize: number;
+    onPageChange?: (page: number) => void;
+    onPageSizeChange?: (pageSize: number) => void;
   };
   rowActions?: Array<{
     label: string;
@@ -28,7 +30,7 @@ type PaginatedFilterableTableProps = {
 };
 
 /** Memoized data table with client-side filtering, sorting, pagination, and cell detail dialog. */
-export const PaginatedFilterableTable = memo(function PaginatedFilterableTable({ rows, defaultPageSize = 10, defaultSortDirection = "asc", density = "comfortable", collapsibleControls = false, controlsInitiallyExpanded = true, iconOnlyColumns = [], remoteState, rowActions = [] }: PaginatedFilterableTableProps) {
+export const PaginatedFilterableTable = memo(function PaginatedFilterableTable({ rows, defaultPageSize = 5, defaultSortDirection = "asc", density = "comfortable", collapsibleControls = false, controlsInitiallyExpanded = true, iconOnlyColumns = [], remoteState, rowActions = [] }: PaginatedFilterableTableProps) {
   const { t } = useI18n();
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const columns = useMemo(() => {
@@ -68,6 +70,10 @@ export const PaginatedFilterableTable = memo(function PaginatedFilterableTable({
   useEffect(() => {
     setSortDirection(defaultSortDirection);
   }, [defaultSortDirection]);
+
+  useEffect(() => {
+    setPageSize(defaultPageSize);
+  }, [defaultPageSize]);
 
   useEffect(() => {
     setControlsExpanded(controlsInitiallyExpanded);
@@ -139,6 +145,41 @@ export const PaginatedFilterableTable = memo(function PaginatedFilterableTable({
   const controlLabelClass = compact ? "text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--md-sys-color-on-surface-variant)]" : "text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--md-sys-color-on-surface-variant)]";
   const secondaryPillClass = compact ? "ui-action-pill text-[11px] px-3 py-1.5" : "ui-action-pill text-xs";
   const quietPillClass = compact ? "ui-action-pill ui-action-pill--quiet text-[11px] px-3 py-1.5" : "ui-action-pill ui-action-pill--quiet text-xs";
+
+  const handlePageSizeChange = (nextPageSize: number) => {
+    if (isRemoteMode) {
+      remoteState.onPageSizeChange?.(nextPageSize);
+      return;
+    }
+
+    setPageSize(nextPageSize);
+  };
+
+  const handlePreviousPage = () => {
+    if (currentPage <= 1) {
+      return;
+    }
+
+    if (isRemoteMode) {
+      remoteState.onPageChange?.(currentPage - 1);
+      return;
+    }
+
+    setPage((value) => Math.max(1, value - 1));
+  };
+
+  const handleNextPage = () => {
+    if (currentPage >= totalPages) {
+      return;
+    }
+
+    if (isRemoteMode) {
+      remoteState.onPageChange?.(currentPage + 1);
+      return;
+    }
+
+    setPage((value) => Math.min(totalPages, value + 1));
+  };
 
   const actionToneClass = (tone: "neutral" | "primary" | "success" | "warn" = "neutral") => {
     switch (tone) {
@@ -279,11 +320,11 @@ export const PaginatedFilterableTable = memo(function PaginatedFilterableTable({
 
   return (
     <div className="space-y-3">
-      {!isRemoteMode && (
+      {(!isRemoteMode || remoteState?.onPageSizeChange) && (
       <div className={`ui-subtle-card rounded-2xl ${controlsPadding}`}>
         {collapsibleControls && (
           <div className="mb-2 flex items-center justify-between gap-2">
-            <p className={controlLabelClass}>{t("table.filter")}</p>
+            <p className={controlLabelClass}>{isRemoteMode ? t("table.pageSize") : t("table.filter")}</p>
             <button
               type="button"
               onClick={() => setControlsExpanded((current) => !current)}
@@ -296,6 +337,8 @@ export const PaginatedFilterableTable = memo(function PaginatedFilterableTable({
         )}
         {(controlsExpanded || !collapsibleControls) && (
         <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+        {!isRemoteMode && (
+        <>
         <label className={controlLabelClass}>
           {t("table.filter")}
           <input
@@ -332,12 +375,14 @@ export const PaginatedFilterableTable = memo(function PaginatedFilterableTable({
             <option value="desc">{t("table.directionDesc")}</option>
           </select>
         </label>
+        </>
+        )}
 
         <label className={controlLabelClass}>
           {t("table.pageSize")}
           <select
-            value={pageSize}
-            onChange={(event) => setPageSize(Number(event.target.value))}
+            value={resolvedPageSize}
+            onChange={(event) => handlePageSizeChange(Number(event.target.value))}
             className={`control-input mt-1 w-full ${controlInputPadding}`}
           >
             <option value={5}>5</option>
@@ -454,26 +499,22 @@ export const PaginatedFilterableTable = memo(function PaginatedFilterableTable({
           <span>
             {t("table.pageOf", { page: currentPage, total: totalPages })}
           </span>
-          {!isRemoteMode && (
-            <>
-              <button
-                type="button"
-                onClick={() => setPage((value) => Math.max(1, value - 1))}
-                disabled={currentPage <= 1}
-                className={quietPillClass}
-              >
-                {t("table.previous")}
-              </button>
-              <button
-                type="button"
-                onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
-                disabled={currentPage >= totalPages}
-                className={quietPillClass}
-              >
-                {t("table.next")}
-              </button>
-            </>
-          )}
+          <button
+            type="button"
+            onClick={handlePreviousPage}
+            disabled={currentPage <= 1}
+            className={quietPillClass}
+          >
+            {t("table.previous")}
+          </button>
+          <button
+            type="button"
+            onClick={handleNextPage}
+            disabled={currentPage >= totalPages}
+            className={quietPillClass}
+          >
+            {t("table.next")}
+          </button>
         </div>
       </div>
 

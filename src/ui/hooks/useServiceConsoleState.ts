@@ -152,7 +152,7 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
   const [dataRows, setDataRows] = useState<Array<Record<string, unknown>>>([]);
   const [dataTotal, setDataTotal] = useState(0);
   const [dataPage, setDataPage] = useState(1);
-  const [dataPageSize, setDataPageSize] = useState(20);
+  const [dataPageSize, setDataPageSize] = useState(5);
 
   // --- Filter / pagination state ---
   const [dataset, setDataset] = useState<DataDataset>(serviceConfig?.defaultDataset ?? "history");
@@ -161,7 +161,7 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
   const [sortBy, setSortBy] = useState("");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const [pageSize, setPageSize] = useState(5);
   const [limit, setLimit] = useState(200);
   const debouncedFilter = useDebouncedValue(filter, 300);
   const debouncedSortBy = useDebouncedValue(sortBy, 150);
@@ -204,7 +204,7 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
     setDataRows([]);
     setDataTotal(0);
     setDataPage(1);
-    setDataPageSize(20);
+    setDataPageSize(5);
     setError(null);
     setMetricsError(null);
     setLogsError(null);
@@ -215,7 +215,7 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
     setSortBy("");
     setSortDirection("desc");
     setPage(1);
-    setPageSize(20);
+    setPageSize(5);
     setLimit(200);
     setMetric("won");
     setRefreshMode("manual");
@@ -266,7 +266,7 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
     setSortDirection(sortDirectionParam === "asc" ? "asc" : "desc");
 
     setPage(parseIntParam(params.get("page"), 1, 1, 100000));
-    setPageSize(parseIntParam(params.get("pageSize"), 20, 1, 200));
+    setPageSize(parseIntParam(params.get("pageSize"), 5, 1, 200));
     setLimit(parseIntParam(params.get("limit"), 200, 1, 1000));
 
     const metricParam = params.get("metric");

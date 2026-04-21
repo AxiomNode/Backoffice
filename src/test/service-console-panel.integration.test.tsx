@@ -243,7 +243,7 @@ describe("ServiceConsolePanel integration", () => {
     fireEvent.click(screen.getByRole("button", { name: "Mostrar" }));
 
     expect((screen.getByLabelText("Pagina") as HTMLInputElement).value).toBe("1");
-    expect((screen.getByLabelText("Tamano pagina") as HTMLInputElement).value).toBe("20");
+    expect((screen.getByLabelText("Tamano pagina") as HTMLInputElement).value).toBe("5");
     expect((screen.getByLabelText("Limite fuente") as HTMLInputElement).value).toBe("200");
     expect((screen.getByLabelText("Intervalo") as HTMLSelectElement).value).toBe("10");
     expect((screen.getByLabelText("Dataset") as HTMLSelectElement).value).toBe("roles");

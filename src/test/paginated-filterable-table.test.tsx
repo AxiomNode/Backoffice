@@ -47,4 +47,34 @@ describe("PaginatedFilterableTable", () => {
     expect(screen.getByLabelText("Ordenar por")).toBeInTheDocument();
     expect(screen.getByLabelText("Filtrar")).toBeInTheDocument();
   });
+
+  it("uses page size 5 by default and allows remote tables to change page size and page", () => {
+    const onPageChange = vi.fn();
+    const onPageSizeChange = vi.fn();
+
+    render(
+      <I18nProvider language="es" setLanguage={vi.fn()}>
+        <PaginatedFilterableTable
+          rows={Array.from({ length: 5 }, (_, index) => ({ id: `row-${index + 1}` }))}
+          remoteState={{
+            totalRows: 12,
+            page: 2,
+            pageSize: 5,
+            onPageChange,
+            onPageSizeChange,
+          }}
+        />
+      </I18nProvider>,
+    );
+
+    expect((screen.getByLabelText("Tamano pagina") as HTMLSelectElement).value).toBe("5");
+
+    fireEvent.change(screen.getByLabelText("Tamano pagina"), { target: { value: "10" } });
+    fireEvent.click(screen.getByRole("button", { name: "Anterior" }));
+    fireEvent.click(screen.getByRole("button", { name: "Siguiente" }));
+
+    expect(onPageSizeChange).toHaveBeenCalledWith(10);
+    expect(onPageChange).toHaveBeenNthCalledWith(1, 1);
+    expect(onPageChange).toHaveBeenNthCalledWith(2, 3);
+  });
 });
