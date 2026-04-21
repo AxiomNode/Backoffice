@@ -119,6 +119,10 @@ function releaseHistoryPreferredWidth(): number {
   return 420;
 }
 
+function releaseHistoryPreferredMaxHeight(): number {
+  return window.innerWidth < 640 ? 448 : 576;
+}
+
 /** Main backoffice layout with sidebar navigation, preferences, and routed panel content. */
 export function BackofficeLayout({
   session,
@@ -257,7 +261,11 @@ export function BackofficeLayout({
       if (!releaseHistoryButtonRef.current) {
         return;
       }
-      const nextStyle = clampPopoverToViewport(releaseHistoryButtonRef.current, releaseHistoryPreferredWidth(), 576);
+      const nextStyle = clampPopoverToViewport(
+        releaseHistoryButtonRef.current,
+        releaseHistoryPreferredWidth(),
+        releaseHistoryPreferredMaxHeight(),
+      );
       if (!nextStyle) {
         setReleaseHistoryOpen(false);
         return;

@@ -289,6 +289,7 @@ describe("BackofficeLayout integration", () => {
       expect(historyPanel?.style.width).toBe("374px");
       expect(historyPanel?.style.left).toBe("8px");
       expect(historyPanel?.style.top).toBe("326px");
+      expect(historyPanel?.style.maxHeight).toBe("448px");
     } finally {
       Object.defineProperty(window, "innerWidth", { configurable: true, value: originalInnerWidth });
       Object.defineProperty(window, "innerHeight", { configurable: true, value: originalInnerHeight });
