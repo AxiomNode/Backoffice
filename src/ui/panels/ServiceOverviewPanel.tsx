@@ -134,6 +134,7 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
   const compactViewport = useMaxWidth(420);
   const narrowViewport = useMaxWidth(380);
   const compactPanel = compact || compactViewport;
+  const [aiTargetExpanded, setAiTargetExpanded] = useState(false);
 
   const [rows, setRows] = useState<ServiceOperationalRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -516,19 +517,35 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
             <h3 className="text-sm font-semibold sm:text-base text-[var(--md-sys-color-on-surface)]">{t("overview.aiTarget.title")}</h3>
             <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">{t("overview.aiTarget.subtitle")}</p>
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              void loadAiTarget();
-              void loadPresets();
-            }}
-            disabled={aiTargetLoading || aiTargetSaving || presetsLoading}
-            className="rounded-full border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container-low)] px-3 py-1.5 text-xs font-semibold transition hover:bg-[var(--md-sys-color-surface-container)] disabled:opacity-50"
-          >
-            {aiTargetLoading || presetsLoading ? "..." : t("overview.aiTarget.refreshBtn")}
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setAiTargetExpanded((current) => !current)}
+              className="rounded-full border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container-low)] px-3 py-1.5 text-xs font-semibold transition hover:bg-[var(--md-sys-color-surface-container)]"
+              aria-expanded={aiTargetExpanded}
+            >
+              {aiTargetExpanded ? t("service.section.hide") : t("service.section.show")}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                void loadAiTarget();
+                void loadPresets();
+              }}
+              disabled={aiTargetLoading || aiTargetSaving || presetsLoading}
+              className="rounded-full border border-[var(--md-sys-color-outline)] bg-[var(--md-sys-color-surface-container-low)] px-3 py-1.5 text-xs font-semibold transition hover:bg-[var(--md-sys-color-surface-container)] disabled:opacity-50"
+            >
+              {aiTargetLoading || presetsLoading ? "..." : t("overview.aiTarget.refreshBtn")}
+            </button>
+          </div>
         </div>
 
+        {!aiTargetExpanded ? (
+          <div className="rounded-2xl border border-[var(--md-sys-color-outline-variant)] bg-[var(--md-sys-color-surface-container-low)] p-3 text-xs text-[var(--md-sys-color-on-surface-variant)]">
+            {t("overview.aiTarget.dayOpsTitle")}: {aiTarget?.label ?? aiTarget?.host ?? "--"}
+          </div>
+        ) : (
+        <>
         <div className="grid gap-3 xl:grid-cols-2">
           <div className="rounded-2xl border border-[var(--md-sys-color-outline-variant)] bg-[var(--md-sys-color-surface-container-low)] p-3 text-xs text-[var(--md-sys-color-on-surface)]">
             <p className="font-semibold">{t("overview.aiTarget.dayOpsTitle")}</p>
@@ -649,6 +666,8 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
             </p>
             <p className="mt-1">{describeProbeStatus(aiProbeResult.llama)}</p>
           </div>
+        )}
+        </>
         )}
       </div>
 

@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { I18nProvider } from "../i18n/context";
@@ -162,6 +162,54 @@ describe("ServiceConsolePanel integration", () => {
       expect(screen.getByText("2/8")).toBeInTheDocument();
       expect(screen.getAllByText("Manual").length).toBeGreaterThan(0);
     });
+  });
+
+  it("collapses refresh settings and quick context by default on narrow viewports", async () => {
+    const originalInnerWidth = window.innerWidth;
+
+    fetchJsonMock.mockImplementation((url: string) => {
+      if (url.endsWith("/v1/backoffice/services")) {
+        return Promise.resolve({
+          services: [{ key: "microservice-users", title: "Users", domain: "core", supportsData: true }],
+        });
+      }
+      if (url.includes("/metrics")) {
+        return Promise.resolve({ metrics: { traffic: { requestsReceivedTotal: 10 } } });
+      }
+      if (url.includes("/logs")) {
+        return Promise.resolve({ logs: [{ createdAt: "2026-04-20T16:10:00Z", event: "ok" }] });
+      }
+      if (url.includes("/data?")) {
+        return Promise.resolve({ rows: [{ id: "u1" }], total: 1, page: 1, pageSize: 20 });
+      }
+      return Promise.reject(new Error(`Unhandled URL: ${url}`));
+    });
+
+    try {
+      Object.defineProperty(window, "innerWidth", { configurable: true, value: 390 });
+
+      renderPanel("svc-users");
+
+      await waitFor(() => {
+        expect(fetchJsonMock).toHaveBeenCalled();
+        expect(screen.getByText("Ajustes de actualizacion")).toBeInTheDocument();
+        expect(screen.getByText("Contexto rapido")).toBeInTheDocument();
+      });
+
+      expect(screen.queryByLabelText("Actualizacion")).not.toBeInTheDocument();
+      expect(screen.queryByText("Dataset")).not.toBeInTheDocument();
+
+      const refreshSection = screen.getByText("Ajustes de actualizacion").closest(".ui-subtle-card");
+      const contextSection = screen.getByText("Contexto rapido").closest(".ui-subtle-card");
+
+      fireEvent.click(within(refreshSection as HTMLElement).getByRole("button", { name: "Mostrar" }));
+      fireEvent.click(within(contextSection as HTMLElement).getByRole("button", { name: "Mostrar" }));
+
+      expect(screen.getByLabelText("Actualizacion")).toBeInTheDocument();
+      expect(screen.getByText("Dataset")).toBeInTheDocument();
+    } finally {
+      Object.defineProperty(window, "innerWidth", { configurable: true, value: originalInnerWidth });
+    }
   });
 
   it("normalizes invalid route params and persists query updates", async () => {

@@ -243,6 +243,13 @@ describe("ServiceOverviewPanel integration", () => {
         expect.any(Object),
       );
       expect(screen.getByText("Destino del servidor llama")).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText("Etiqueta actual")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar" }));
+
+    await waitFor(() => {
       expect(screen.getByText("Etiqueta actual")).toBeInTheDocument();
     });
 
@@ -415,6 +422,8 @@ describe("ServiceOverviewPanel integration", () => {
 
     renderPanel();
 
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar" }));
+
     await waitFor(() => {
       expect(screen.getAllByText("workstation-gpu-vps-relay").length).toBeGreaterThan(0);
       expect(screen.getByText("27001")).toBeInTheDocument();
@@ -463,6 +472,8 @@ describe("ServiceOverviewPanel integration", () => {
     });
 
     renderPanel();
+
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar" }));
 
     await waitFor(() => {
       expect(screen.getByText(/No se pudo gestionar el destino del AI engine/i)).toBeInTheDocument();

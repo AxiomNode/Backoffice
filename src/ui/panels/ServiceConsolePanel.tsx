@@ -192,6 +192,8 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
   const [activeSection, setActiveSection] = useState<ServiceConsoleSection>("observability");
   const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [inlineManualEditorExpanded, setInlineManualEditorExpanded] = useState(false);
+  const [refreshSettingsExpanded, setRefreshSettingsExpanded] = useState(!compactViewport);
+  const [contextExpanded, setContextExpanded] = useState(!compactViewport);
 
   const isQuizHistoryDataset = serviceConfig?.service === "microservice-quiz" && state.dataset === "history";
   const isWordpassHistoryDataset = serviceConfig?.service === "microservice-wordpass" && state.dataset === "history";
@@ -216,6 +218,11 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
     setFiltersExpanded(false);
     setInlineManualEditorExpanded(false);
   }, [navKey]);
+
+  useEffect(() => {
+    setRefreshSettingsExpanded(!compactViewport);
+    setContextExpanded(!compactViewport);
+  }, [compactViewport, navKey]);
 
   useEffect(() => {
     if (!isGameHistoryDataset) {
@@ -437,6 +444,21 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
     ];
   }, [isGameHistoryDataset, state, t]);
 
+  const routeMetricsRows = useMemo(() => {
+    return state.metricsRows.flatMap((row) => {
+      const requestsByRoute = Array.isArray(row.requestsByRoute) ? row.requestsByRoute : [];
+      return requestsByRoute
+        .filter((entry): entry is Record<string, unknown> => !!entry && typeof entry === "object")
+        .map((entry) => ({
+          service: serviceConfig.service,
+          method: entry.method ?? "--",
+          route: entry.route ?? "--",
+          statusCode: entry.statusCode ?? "--",
+          total: entry.total ?? 0,
+        }));
+    });
+  }, [serviceConfig.service, state.metricsRows]);
+
   const renderManualEditorFields = () => (
     <div className="space-y-3">
       <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
@@ -637,6 +659,26 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
           </p>
         </div>
         <div className={`ui-subtle-card w-full rounded-[1.5rem] ${compactViewport ? "max-w-none" : "max-w-sm"} ${refreshCardPadding}`}>
+          {compactViewport && (
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--md-sys-color-on-surface-variant)]">{t("service.section.refreshSettings")}</p>
+                <p className="mt-1 text-[11px] text-[var(--md-sys-color-on-surface-variant)]">
+                  {state.refreshMode === "auto" ? t("service.refresh.nextSync", { seconds: state.refreshIntervalSeconds }) : t("service.button.update")}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRefreshSettingsExpanded((current) => !current)}
+                aria-expanded={refreshSettingsExpanded}
+                className="ui-action-pill ui-action-pill--quiet min-h-0 px-3 py-1.5 text-xs"
+              >
+                {refreshSettingsExpanded ? t("service.section.hide") : t("service.section.show")}
+              </button>
+            </div>
+          )}
+
+          {(!compactViewport || refreshSettingsExpanded) && (
           <div className="grid gap-2 sm:grid-cols-2">
             <label className={`${refreshLabelText} text-[var(--md-sys-color-on-surface-variant)]`}>
               {t("service.refresh.modeLabel")}
@@ -666,6 +708,7 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
               </select>
             </label>
           </div>
+          )}
 
           {state.refreshMode === "manual" ? (
             <button
@@ -689,24 +732,47 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
         </div>
       </div>
 
-      <div className={`grid gap-2 ${contextGridClass}`}>
-        {serviceContextCards.map((card) => (
-          <article key={`${card.label}-${card.detail}`} className={`ui-subtle-card min-w-0 rounded-2xl ${narrowViewport ? "p-2.5" : compactViewport ? "p-2.5" : "p-3"}`}>
-            <p className={`${narrowViewport ? "text-[10px] tracking-[0.12em]" : "text-[11px] tracking-[0.16em]"} font-semibold uppercase text-[var(--md-sys-color-on-surface-variant)]`}>{card.label}</p>
-            <div className={`mt-2 flex flex-wrap items-center ${narrowViewport ? "gap-1.5" : "gap-2"}`}>
-              <span
-                className={`ui-status-chip ${
-                  card.tone === "ok"
-                    ? "ui-status-chip--ok"
-                    : "ui-status-chip--neutral"
-                }`}
+      <div className="space-y-2">
+        {compactViewport && (
+          <div className="ui-subtle-card rounded-2xl p-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--md-sys-color-on-surface-variant)]">{t("service.section.quickContext")}</p>
+                <p className="mt-1 text-[11px] text-[var(--md-sys-color-on-surface-variant)]">{serviceMeta?.title ?? serviceTitle} · {serviceMeta?.domain ?? "--"}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setContextExpanded((current) => !current)}
+                aria-expanded={contextExpanded}
+                className="ui-action-pill ui-action-pill--quiet min-h-0 px-3 py-1.5 text-xs"
               >
-                {card.value}
-              </span>
+                {contextExpanded ? t("service.section.hide") : t("service.section.show")}
+              </button>
             </div>
-            <p className={`${narrowViewport ? "mt-1.5 text-[11px] leading-4" : "mt-2 text-xs"} truncate text-[var(--md-sys-color-on-surface-variant)]`}>{card.detail}</p>
-          </article>
-        ))}
+          </div>
+        )}
+
+        {(!compactViewport || contextExpanded) && (
+        <div className={`grid gap-2 ${contextGridClass}`}>
+          {serviceContextCards.map((card) => (
+            <article key={`${card.label}-${card.detail}`} className={`ui-subtle-card min-w-0 rounded-2xl ${narrowViewport ? "p-2.5" : compactViewport ? "p-2.5" : "p-3"}`}>
+              <p className={`${narrowViewport ? "text-[10px] tracking-[0.12em]" : "text-[11px] tracking-[0.16em]"} font-semibold uppercase text-[var(--md-sys-color-on-surface-variant)]`}>{card.label}</p>
+              <div className={`mt-2 flex flex-wrap items-center ${narrowViewport ? "gap-1.5" : "gap-2"}`}>
+                <span
+                  className={`ui-status-chip ${
+                    card.tone === "ok"
+                      ? "ui-status-chip--ok"
+                      : "ui-status-chip--neutral"
+                  }`}
+                >
+                  {card.value}
+                </span>
+              </div>
+              <p className={`${narrowViewport ? "mt-1.5 text-[11px] leading-4" : "mt-2 text-xs"} truncate text-[var(--md-sys-color-on-surface-variant)]`}>{card.detail}</p>
+            </article>
+          ))}
+        </div>
+        )}
       </div>
 
       {state.error && <p className="ui-feedback ui-feedback--error">{state.error}</p>}
@@ -746,7 +812,25 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
             {state.metricsError ? (
               <p className="ui-feedback ui-feedback--error">{state.metricsError}</p>
             ) : state.metricsRows.length ? (
-              <PaginatedFilterableTable rows={state.metricsRows} defaultPageSize={10} density={density} />
+              <div className="space-y-3">
+                <PaginatedFilterableTable
+                  rows={state.metricsRows}
+                  defaultPageSize={10}
+                  density={density}
+                  collapsibleControls
+                  controlsInitiallyExpanded={!compactViewport}
+                />
+                {routeMetricsRows.length > 0 && (
+                  <PaginatedFilterableTable
+                    rows={routeMetricsRows}
+                    defaultPageSize={10}
+                    defaultSortDirection="desc"
+                    density={density}
+                    collapsibleControls
+                    controlsInitiallyExpanded={false}
+                  />
+                )}
+              </div>
             ) : (
               <div className="ui-subtle-card rounded-2xl border border-dashed px-4 py-3 text-sm">
                 <p className="font-medium">{t("service.metrics.none")}</p>
@@ -762,7 +846,14 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
             {state.logsError ? (
               <p className="ui-feedback ui-feedback--error">{state.logsError}</p>
             ) : state.logsRows.length ? (
-              <PaginatedFilterableTable rows={state.logsRows} defaultPageSize={20} defaultSortDirection="desc" density={density} />
+              <PaginatedFilterableTable
+                rows={state.logsRows}
+                defaultPageSize={20}
+                defaultSortDirection="desc"
+                density={density}
+                collapsibleControls
+                controlsInitiallyExpanded={!compactViewport}
+              />
             ) : (
               <div className="ui-subtle-card rounded-2xl border border-dashed px-4 py-3 text-sm">
                 <p className="font-medium">{t("service.logs.none")}</p>

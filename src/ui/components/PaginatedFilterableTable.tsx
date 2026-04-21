@@ -12,6 +12,8 @@ type PaginatedFilterableTableProps = {
   defaultPageSize?: number;
   defaultSortDirection?: "asc" | "desc";
   density?: UiDensity;
+  collapsibleControls?: boolean;
+  controlsInitiallyExpanded?: boolean;
   iconOnlyColumns?: string[];
   remoteState?: {
     totalRows: number;
@@ -26,7 +28,7 @@ type PaginatedFilterableTableProps = {
 };
 
 /** Memoized data table with client-side filtering, sorting, pagination, and cell detail dialog. */
-export const PaginatedFilterableTable = memo(function PaginatedFilterableTable({ rows, defaultPageSize = 10, defaultSortDirection = "asc", density = "comfortable", iconOnlyColumns = [], remoteState, rowActions = [] }: PaginatedFilterableTableProps) {
+export const PaginatedFilterableTable = memo(function PaginatedFilterableTable({ rows, defaultPageSize = 10, defaultSortDirection = "asc", density = "comfortable", collapsibleControls = false, controlsInitiallyExpanded = true, iconOnlyColumns = [], remoteState, rowActions = [] }: PaginatedFilterableTableProps) {
   const { t } = useI18n();
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const columns = useMemo(() => {
@@ -42,6 +44,7 @@ export const PaginatedFilterableTable = memo(function PaginatedFilterableTable({
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">(defaultSortDirection);
   const [pageSize, setPageSize] = useState(defaultPageSize);
   const [page, setPage] = useState(1);
+  const [controlsExpanded, setControlsExpanded] = useState(controlsInitiallyExpanded);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogValue, setDialogValue] = useState("");
   const [dialogColumn, setDialogColumn] = useState("");
@@ -65,6 +68,10 @@ export const PaginatedFilterableTable = memo(function PaginatedFilterableTable({
   useEffect(() => {
     setSortDirection(defaultSortDirection);
   }, [defaultSortDirection]);
+
+  useEffect(() => {
+    setControlsExpanded(controlsInitiallyExpanded);
+  }, [controlsInitiallyExpanded]);
 
   useEffect(() => {
     setPage(1);
@@ -273,7 +280,22 @@ export const PaginatedFilterableTable = memo(function PaginatedFilterableTable({
   return (
     <div className="space-y-3">
       {!isRemoteMode && (
-      <div className={`ui-subtle-card grid gap-2 rounded-2xl md:grid-cols-2 xl:grid-cols-4 ${controlsPadding}`}>
+      <div className={`ui-subtle-card rounded-2xl ${controlsPadding}`}>
+        {collapsibleControls && (
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <p className={controlLabelClass}>{t("table.filter")}</p>
+            <button
+              type="button"
+              onClick={() => setControlsExpanded((current) => !current)}
+              className={quietPillClass}
+              aria-expanded={controlsExpanded}
+            >
+              {controlsExpanded ? t("service.section.hide") : t("service.section.show")}
+            </button>
+          </div>
+        )}
+        {(controlsExpanded || !collapsibleControls) && (
+        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
         <label className={controlLabelClass}>
           {t("table.filter")}
           <input
@@ -324,6 +346,8 @@ export const PaginatedFilterableTable = memo(function PaginatedFilterableTable({
             <option value={50}>50</option>
           </select>
         </label>
+        </div>
+        )}
       </div>
       )}
 
