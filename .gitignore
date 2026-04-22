@@ -4,6 +4,11 @@ coverage/
 *.log
 *.tsbuildinfo
 
+# Playwright artifacts
+test-results/
+playwright-report/
+playwright/.cache/
+
 # Secrets policy (centralized in secrets repo)
 .env
 .env.*
