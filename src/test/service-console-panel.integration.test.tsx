@@ -20,7 +20,15 @@ vi.mock("../application/services/operationalSummary", () => ({
 }));
 
 vi.mock("../ui/components/PaginatedFilterableTable", () => ({
-  PaginatedFilterableTable: ({ rows, rowActions }: { rows: Array<Record<string, unknown>>; rowActions?: Array<{ label: string; onClick: (row: Record<string, unknown>) => void }> }) => (
+  PaginatedFilterableTable: ({
+    rows,
+    rowActions,
+    remoteState,
+  }: {
+    rows: Array<Record<string, unknown>>;
+    rowActions?: Array<{ label: string; onClick: (row: Record<string, unknown>) => void }>;
+    remoteState?: { onPageChange?: (page: number) => void; onPageSizeChange?: (pageSize: number) => void };
+  }) => (
     <div data-testid="paginated-table">
       <div>rows:{rows.length}</div>
       <div data-testid="first-row">{rows[0] ? JSON.stringify(rows[0]) : ""}</div>
@@ -29,6 +37,16 @@ vi.mock("../ui/components/PaginatedFilterableTable", () => ({
           {action.label}
         </button>
       ))}
+      {remoteState?.onPageChange && (
+        <button type="button" onClick={() => remoteState.onPageChange?.(3)}>
+          remote-page-3
+        </button>
+      )}
+      {remoteState?.onPageSizeChange && (
+        <button type="button" onClick={() => remoteState.onPageSizeChange?.(10)}>
+          remote-page-size-10
+        </button>
+      )}
     </div>
   ),
 }));
@@ -38,10 +56,10 @@ const context: SessionContext = {
   devUid: "test-uid",
 };
 
-function renderPanel(navKey: NavKey) {
+function renderPanel(navKey: NavKey, density: "comfortable" | "dense" = "comfortable") {
   return render(
     <I18nProvider language="es" setLanguage={vi.fn()}>
-      <ServiceConsolePanel navKey={navKey} context={context} density="comfortable" />
+      <ServiceConsolePanel navKey={navKey} context={context} density={density} />
     </I18nProvider>,
   );
 }
@@ -63,6 +81,44 @@ describe("ServiceConsolePanel integration", () => {
     renderPanel("roles");
 
     expect(screen.getByText("Servicio no encontrado.")).toBeInTheDocument();
+  });
+
+  it("shows the global overview error when a metrics request throws synchronously", async () => {
+    fetchJsonMock.mockImplementation((url: string) => {
+      if (url.endsWith("/v1/backoffice/services")) {
+        return Promise.resolve({
+          services: [{ key: "microservice-users", title: "Users", domain: "core", supportsData: true }],
+        });
+      }
+      if (url.includes("/metrics")) {
+        throw new Error("overview boom");
+      }
+      if (url.includes("/logs")) {
+        return Promise.resolve({ logs: [] });
+      }
+      if (url.includes("/data?")) {
+        return Promise.resolve({ rows: [] });
+      }
+      return Promise.reject(new Error(`Unhandled URL: ${url}`));
+    });
+
+    renderPanel("svc-users");
+
+    await waitFor(() => {
+      expect(screen.getByText("overview boom")).toBeInTheDocument();
+    });
+
+    expect(storeServiceLastErrorMock).toHaveBeenCalledWith("microservice-users", "overview boom");
+  });
+
+  it("propagates a catalog load failure to the observability sections", async () => {
+    fetchJsonMock.mockRejectedValue(new Error("catalog unavailable"));
+
+    renderPanel("svc-users");
+
+    await waitFor(() => {
+      expect(screen.getAllByText("catalog unavailable")).toHaveLength(2);
+    });
   });
 
   it("isolates per-section failures without breaking successful sections", async () => {
@@ -161,6 +217,57 @@ describe("ServiceConsolePanel integration", () => {
       expect(screen.getByText("Roles")).toBeInTheDocument();
       expect(screen.getByText("2/8")).toBeInTheDocument();
       expect(screen.getAllByText("Manual").length).toBeGreaterThan(0);
+    });
+  });
+
+  it("toggles the inline manual editor inside the data section for game history datasets", async () => {
+    window.location.hash = "#/backoffice/svc-quiz?dataset=history";
+
+    fetchJsonMock.mockImplementation((url: string) => {
+      if (url.endsWith("/v1/backoffice/services")) {
+        return Promise.resolve({
+          services: [{ key: "microservice-quiz", title: "Quiz", domain: "games", supportsData: true }],
+        });
+      }
+      if (url.includes("/metrics")) {
+        return Promise.resolve({ metrics: { traffic: { requestsReceivedTotal: 10 } } });
+      }
+      if (url.includes("/logs")) {
+        return Promise.resolve({ logs: [] });
+      }
+      if (url.includes("/catalogs")) {
+        return Promise.resolve({
+          catalogs: {
+            categories: [{ id: "22", name: "Science" }],
+            languages: [{ code: "en", name: "English" }],
+          },
+        });
+      }
+      if (url.includes("/data?")) {
+        return Promise.resolve({ rows: [], total: 0, page: 1, pageSize: 20 });
+      }
+      return Promise.reject(new Error(`Unhandled URL: ${url}`));
+    });
+
+    renderPanel("svc-quiz");
+
+    await waitFor(() => {
+      expect(screen.getByRole("tab", { name: "Datos" })).toBeInTheDocument();
+    });
+
+    expect(screen.queryByLabelText("Categoria")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Mostrar" })[1]);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Categoria")).toBeInTheDocument();
+      expect(screen.getAllByRole("button", { name: "Ocultar" }).length).toBeGreaterThan(0);
+    });
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Ocultar" })[0]);
+
+    await waitFor(() => {
+      expect(screen.queryByLabelText("Categoria")).not.toBeInTheDocument();
     });
   });
 
@@ -525,6 +632,242 @@ describe("ServiceConsolePanel integration", () => {
     });
   });
 
+  it("covers row review and row delete actions for quiz history entries", async () => {
+    window.location.hash = "#/backoffice/svc-quiz?dataset=history";
+
+    fetchJsonMock.mockImplementation((url: string, options?: RequestInit) => {
+      if (url.endsWith("/v1/backoffice/services")) {
+        return Promise.resolve({
+          services: [{ key: "microservice-quiz", title: "Quiz", domain: "games", supportsData: true }],
+        });
+      }
+      if (url.includes("/metrics")) {
+        return Promise.resolve({ metrics: { traffic: { requestsReceivedTotal: 10 } } });
+      }
+      if (url.includes("/logs")) {
+        return Promise.resolve({ logs: [] });
+      }
+      if (url.includes("/catalogs")) {
+        return Promise.resolve({
+          catalogs: {
+            categories: [{ id: "22", name: "Science" }],
+            languages: [{ code: "en", name: "English" }],
+          },
+        });
+      }
+      if (url.includes("/data/") && options?.method === "PATCH") {
+        return Promise.resolve({ item: { id: "entry-row-1", status: "pending_review" } });
+      }
+      if (url.includes("/data/") && options?.method === "DELETE") {
+        return Promise.resolve({ deleted: true });
+      }
+      if (url.includes("/data?")) {
+        return Promise.resolve({
+          rows: [
+            {
+              id: "entry-row-1",
+              categoryId: "22",
+              categoryName: "Science",
+              language: "en",
+              status: "manual",
+              request: { categoryId: "22", language: "en", difficulty_percentage: "61" },
+              response: {
+                questions: [
+                  {
+                    question: "Quiz row action",
+                    options: ["One", "Two"],
+                    correct_index: 1,
+                  },
+                ],
+              },
+            },
+          ],
+          total: 1,
+          page: 1,
+          pageSize: 20,
+        });
+      }
+      return Promise.reject(new Error(`Unhandled URL: ${url}`));
+    });
+
+    renderPanel("svc-quiz");
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Marcar revision" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Marcar revision" }));
+
+    await waitFor(() => {
+      expect(fetchJsonMock).toHaveBeenCalledWith(
+        expect.stringContaining("/v1/backoffice/services/microservice-quiz/data/entry-row-1"),
+        expect.objectContaining({
+          method: "PATCH",
+          body: expect.stringContaining('"status":"pending_review"'),
+        }),
+      );
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Eliminar entrada" }));
+
+    await waitFor(() => {
+      expect(fetchJsonMock).toHaveBeenCalledWith(
+        expect.stringContaining("/v1/backoffice/services/microservice-quiz/data/entry-row-1?dataset=history"),
+        expect.objectContaining({ method: "DELETE" }),
+      );
+    });
+  });
+
+  it("shows empty states, route metric fallbacks and supports manual reload buttons", async () => {
+    fetchJsonMock.mockImplementation((url: string) => {
+      if (url.endsWith("/v1/backoffice/services")) {
+        return Promise.resolve({
+          services: [{ key: "microservice-users", title: "Users", domain: "core", supportsData: true }],
+        });
+      }
+      if (url.includes("/metrics")) {
+        return Promise.resolve({
+          metrics: {
+            traffic: { requestsReceivedTotal: 10 },
+            requestsByRoute: [null, { method: null, route: null, statusCode: null, total: null }],
+          },
+        });
+      }
+      if (url.includes("/logs")) {
+        return Promise.resolve({ logs: [] });
+      }
+      if (url.includes("/data?")) {
+        return Promise.resolve({ rows: [], total: 0, page: 1, pageSize: 20 });
+      }
+      return Promise.reject(new Error(`Unhandled URL: ${url}`));
+    });
+
+    renderPanel("svc-users");
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("paginated-table")).toHaveLength(2);
+      expect(screen.getAllByTestId("first-row")[1]).toHaveTextContent('"method":"--"');
+      expect(screen.getAllByTestId("first-row")[1]).toHaveTextContent('"route":"--"');
+      expect(screen.getAllByTestId("first-row")[1]).toHaveTextContent('"statusCode":"--"');
+      expect(screen.getByText("Sin logs disponibles.")).toBeInTheDocument();
+    });
+
+    const overviewLoads = fetchJsonMock.mock.calls.filter(([url]) => String(url).includes("/metrics")).length;
+    fireEvent.click(screen.getByRole("button", { name: "Actualizar servicio" }));
+
+    await waitFor(() => {
+      expect(fetchJsonMock.mock.calls.filter(([url]) => String(url).includes("/metrics")).length).toBeGreaterThan(overviewLoads);
+    });
+
+    fireEvent.click(screen.getByRole("tab", { name: "Datos" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Sin filas para el dataset seleccionado.")).toBeInTheDocument();
+    });
+
+    const dataLoads = fetchJsonMock.mock.calls.filter(([url]) => String(url).includes("/data?")).length;
+    fireEvent.click(screen.getAllByRole("button", { name: "Actualizar servicio" })[1]);
+
+    await waitFor(() => {
+      expect(fetchJsonMock.mock.calls.filter(([url]) => String(url).includes("/data?")).length).toBeGreaterThan(dataLoads);
+    });
+  });
+
+  it("clears followed tasks, updates filters and triggers remote pagination callbacks", async () => {
+    window.location.hash = "#/backoffice/svc-users?dataset=leaderboard&page=2&pageSize=20&limit=50&sortBy=score&sortDirection=asc&filter=seed";
+
+    fetchJsonMock.mockImplementation((url: string) => {
+      if (url.endsWith("/v1/backoffice/services")) {
+        return Promise.resolve({
+          services: [{ key: "microservice-users", title: "Users", domain: "core", supportsData: true }],
+        });
+      }
+      if (url.includes("/metrics")) {
+        return Promise.resolve({ metrics: { traffic: { requestsReceivedTotal: 10 } } });
+      }
+      if (url.includes("/logs")) {
+        return Promise.resolve({ logs: [] });
+      }
+      if (url.includes("/data?")) {
+        return Promise.resolve({ rows: [{ id: "row-1" }], total: 25, page: 2, pageSize: 20 });
+      }
+      return Promise.reject(new Error(`Unhandled URL: ${url}`));
+    });
+
+    renderPanel("svc-users");
+
+    await waitFor(() => {
+      expect(screen.getByRole("tab", { name: "Datos" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("tab", { name: "Datos" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar" }));
+
+    fireEvent.change(screen.getByLabelText("Metrica (users)"), { target: { value: "played" } });
+    fireEvent.change(screen.getByLabelText("Dataset"), { target: { value: "roles" } });
+    fireEvent.change(screen.getByLabelText("Ordenar por"), { target: { value: "email" } });
+    fireEvent.change(screen.getByLabelText("Direccion"), { target: { value: "desc" } });
+    fireEvent.change(screen.getByLabelText("Pagina"), { target: { value: "4" } });
+    fireEvent.change(screen.getByLabelText("Tamano pagina"), { target: { value: "" } });
+    fireEvent.change(screen.getByLabelText("Limite fuente"), { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: "remote-page-3" }));
+    fireEvent.click(screen.getByRole("button", { name: "remote-page-size-10" }));
+
+    await waitFor(() => {
+      expect(window.location.hash).toContain("dataset=roles");
+      expect(window.location.hash).toContain("sortBy=email");
+      expect(window.location.hash).toContain("sortDirection=desc");
+      expect(window.location.hash).toContain("page=1");
+      expect(window.location.hash).toContain("pageSize=10");
+      expect(window.location.hash).toContain("limit=200");
+    });
+  });
+
+  it("shows and clears follow-task state inside process filters", async () => {
+    window.location.hash = "#/backoffice/svc-quiz?dataset=processes&followTaskId=11111111-1111-1111-1111-111111111111";
+
+    fetchJsonMock.mockImplementation((url: string) => {
+      if (url.endsWith("/v1/backoffice/services")) {
+        return Promise.resolve({
+          services: [{ key: "microservice-quiz", title: "Quiz", domain: "games", supportsData: true }],
+        });
+      }
+      if (url.includes("/metrics")) {
+        return Promise.resolve({ metrics: { traffic: { requestsReceivedTotal: 10 } } });
+      }
+      if (url.includes("/logs")) {
+        return Promise.resolve({ logs: [] });
+      }
+      if (url.includes("/catalogs")) {
+        return Promise.resolve({ catalogs: { categories: [], languages: [] } });
+      }
+      if (url.includes("/generation/process/11111111-1111-1111-1111-111111111111")) {
+        return Promise.resolve({ task: { taskId: "11111111-1111-1111-1111-111111111111", status: "running" } });
+      }
+      if (url.includes("/data?")) {
+        return Promise.resolve({ rows: [{ taskId: "11111111-1111-1111-1111-111111111111", status: "running" }], total: 1, page: 1, pageSize: 20 });
+      }
+      return Promise.reject(new Error(`Unhandled URL: ${url}`));
+    });
+
+    renderPanel("svc-quiz");
+
+    fireEvent.click(screen.getByRole("tab", { name: "Datos" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar" }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Siguiendo task 11111111-1111-1111-1111-111111111111/i)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Quitar seguimiento" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Quitar seguimiento" }));
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Siguiendo task 11111111-1111-1111-1111-111111111111/i)).not.toBeInTheDocument();
+      expect(window.location.hash).not.toContain("followTaskId=");
+    });
+  });
+
   it("shows validation errors for invalid manual json payload", async () => {
     window.location.hash = "#/backoffice/svc-wordpass?dataset=history";
 
@@ -569,6 +912,52 @@ describe("ServiceConsolePanel integration", () => {
 
     await waitFor(() => {
       expect(screen.getByText("El contenido debe ser un objeto JSON.")).toBeInTheDocument();
+    });
+  });
+
+  it("shows validation errors for empty manual json objects after removing null fields", async () => {
+    window.location.hash = "#/backoffice/svc-wordpass?dataset=history";
+
+    fetchJsonMock.mockImplementation((url: string) => {
+      if (url.endsWith("/v1/backoffice/services")) {
+        return Promise.resolve({
+          services: [{ key: "microservice-wordpass", title: "Wordpass", domain: "games", supportsData: true }],
+        });
+      }
+      if (url.includes("/metrics")) {
+        return Promise.resolve({ metrics: { traffic: { requestsReceivedTotal: 10 } } });
+      }
+      if (url.includes("/logs")) {
+        return Promise.resolve({ logs: [] });
+      }
+      if (url.includes("/catalogs")) {
+        return Promise.resolve({
+          catalogs: {
+            categories: [{ id: "31", name: "Words" }],
+            languages: [{ code: "es", name: "Español" }],
+          },
+        });
+      }
+      if (url.includes("/data?")) {
+        return Promise.resolve({ rows: [] });
+      }
+      return Promise.reject(new Error(`Unhandled URL: ${url}`));
+    });
+
+    renderPanel("svc-wordpass");
+
+    await waitFor(() => {
+      expect(screen.getByRole("tab", { name: "Edicion manual" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("tab", { name: "Edicion manual" }));
+    fireEvent.change(screen.getByLabelText("Contenido JSON"), {
+      target: { value: '{"hint":null}' },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Insertar entrada" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("service.data.manual.contentNonNull")).toBeInTheDocument();
     });
   });
 
@@ -734,6 +1123,311 @@ describe("ServiceConsolePanel integration", () => {
         expect.stringContaining("/v1/backoffice/services/microservice-quiz/generation/process/11111111-1111-1111-1111-111111111111"),
         expect.anything(),
       );
+    });
+  });
+
+  it("handles dense narrow history mode with malformed quiz rows and partial supporting failures", async () => {
+    const originalInnerWidth = window.innerWidth;
+    window.location.hash = "#/backoffice/svc-quiz?dataset=history&refreshMode=auto&refreshInterval=15";
+
+    fetchJsonMock.mockImplementation((url: string) => {
+      if (url.endsWith("/v1/backoffice/services")) {
+        return Promise.resolve({
+          services: [{ key: "microservice-quiz", title: "Quiz", domain: "games", supportsData: true }],
+        });
+      }
+      if (url.includes("/metrics")) {
+        return Promise.resolve({ metrics: { traffic: { requestsReceivedTotal: 10 } } });
+      }
+      if (url.includes("/logs")) {
+        return Promise.reject(new Error("logs down"));
+      }
+      if (url.includes("/catalogs")) {
+        return Promise.reject(new Error("catalog down"));
+      }
+      if (url.includes("/data?")) {
+        return Promise.resolve({
+          rows: [
+            {
+              request: { categoryId: "22", language: "en", difficulty_percentage: "42" },
+              response: { questions: [{}] },
+            },
+          ],
+          total: 1,
+          page: 1,
+          pageSize: 20,
+        });
+      }
+      return Promise.reject(new Error(`Unhandled URL: ${url}`));
+    });
+
+    try {
+      Object.defineProperty(window, "innerWidth", { configurable: true, value: 360 });
+
+      renderPanel("svc-quiz", "dense");
+
+      await waitFor(() => {
+        expect(screen.getAllByText(/Siguiente actualizacion en 15s/i).length).toBeGreaterThan(0);
+        expect(screen.getByTestId("paginated-table")).toHaveTextContent("rows:1");
+      });
+
+      fireEvent.click(screen.getByRole("tab", { name: "Observabilidad" }));
+
+      await waitFor(() => {
+        expect(screen.getByText("logs down")).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByRole("tab", { name: "Datos" }));
+
+      fireEvent.click(screen.getByRole("button", { name: "Cargar" }));
+      fireEvent.click(screen.getByRole("tab", { name: "Edicion manual" }));
+
+      await waitFor(() => {
+        expect(screen.getByText("catalog down")).toBeInTheDocument();
+        expect((screen.getByLabelText("Categoria") as HTMLInputElement).value).toBe("22");
+        expect((screen.getByLabelText("Lenguaje") as HTMLInputElement).value).toBe("en");
+        expect((screen.getByLabelText("Dificultad (0-100)") as HTMLInputElement).value).toBe("42");
+        expect((screen.getByLabelText("Pregunta") as HTMLInputElement).value).toBe("");
+        expect((screen.getByLabelText("Opcion C") as HTMLInputElement).value).toBe("");
+        expect((screen.getByLabelText("Opcion D") as HTMLInputElement).value).toBe("");
+        expect((screen.getByLabelText("Estado editorial") as HTMLSelectElement).value).toBe("manual");
+      });
+    } finally {
+      Object.defineProperty(window, "innerWidth", { configurable: true, value: originalInnerWidth });
+    }
+  });
+
+  it("loads quiz history rows without explicit status and falls back to empty optional answers", async () => {
+    window.location.hash = "#/backoffice/svc-quiz?dataset=history";
+
+    fetchJsonMock.mockImplementation((url: string) => {
+      if (url.endsWith("/v1/backoffice/services")) {
+        return Promise.resolve({
+          services: [{ key: "microservice-quiz", title: "Quiz", domain: "games", supportsData: true }],
+        });
+      }
+      if (url.includes("/metrics")) {
+        return Promise.resolve({ metrics: { traffic: { requestsReceivedTotal: 10 } } });
+      }
+      if (url.includes("/logs")) {
+        return Promise.resolve({ logs: [] });
+      }
+      if (url.includes("/catalogs")) {
+        return Promise.resolve({
+          catalogs: {
+            categories: [{ id: "22", name: "Science" }],
+            languages: [{ code: "en", name: "English" }],
+          },
+        });
+      }
+      if (url.includes("/data?")) {
+        return Promise.resolve({
+          rows: [
+            {
+              id: "entry-quiz-2",
+              categoryId: "22",
+              language: "en",
+              request: { categoryId: "22", language: "en", difficulty_percentage: 33 },
+              response: {
+                questions: [
+                  {
+                    question: "Pregunta compacta",
+                    options: ["Opcion A", "Opcion B"],
+                    correct_index: 0,
+                  },
+                ],
+              },
+            },
+          ],
+          total: 1,
+          page: 1,
+          pageSize: 20,
+        });
+      }
+      return Promise.reject(new Error(`Unhandled URL: ${url}`));
+    });
+
+    renderPanel("svc-quiz");
+
+    await waitFor(() => {
+      expect(screen.getByTestId("paginated-table")).toHaveTextContent("rows:1");
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Cargar" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Edicion manual" }));
+
+    await waitFor(() => {
+      expect((screen.getByLabelText("Pregunta") as HTMLInputElement).value).toBe("Pregunta compacta");
+      expect((screen.getByLabelText("Opcion A") as HTMLInputElement).value).toBe("Opcion A");
+      expect((screen.getByLabelText("Opcion B") as HTMLInputElement).value).toBe("Opcion B");
+      expect((screen.getByLabelText("Opcion C") as HTMLInputElement).value).toBe("");
+      expect((screen.getByLabelText("Opcion D") as HTMLInputElement).value).toBe("");
+      expect((screen.getByLabelText("Estado editorial") as HTMLSelectElement).value).toBe("manual");
+    });
+  });
+
+  it("loads an empty quiz manual draft when the history response payload is not an object", async () => {
+    window.location.hash = "#/backoffice/svc-quiz?dataset=history";
+
+    fetchJsonMock.mockImplementation((url: string) => {
+      if (url.endsWith("/v1/backoffice/services")) {
+        return Promise.resolve({
+          services: [{ key: "microservice-quiz", title: "Quiz", domain: "games", supportsData: true }],
+        });
+      }
+      if (url.includes("/metrics")) {
+        return Promise.resolve({ metrics: { traffic: { requestsReceivedTotal: 10 } } });
+      }
+      if (url.includes("/logs")) {
+        return Promise.resolve({ logs: [] });
+      }
+      if (url.includes("/catalogs")) {
+        return Promise.resolve({
+          catalogs: {
+            categories: [{ id: "22", name: "Science" }],
+            languages: [{ code: "en", name: "English" }],
+          },
+        });
+      }
+      if (url.includes("/data?")) {
+        return Promise.resolve({
+          rows: [
+            {
+              id: "entry-quiz-empty",
+              categoryId: "22",
+              language: "en",
+              request: { categoryId: "22", language: "en", difficulty_percentage: 44 },
+              response: null,
+            },
+          ],
+          total: 1,
+          page: 1,
+          pageSize: 20,
+        });
+      }
+      return Promise.reject(new Error(`Unhandled URL: ${url}`));
+    });
+
+    renderPanel("svc-quiz");
+
+    await waitFor(() => {
+      expect(screen.getByTestId("paginated-table")).toHaveTextContent("rows:1");
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Cargar" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Edicion manual" }));
+
+    await waitFor(() => {
+      expect((screen.getByLabelText("Pregunta") as HTMLInputElement).value).toBe("");
+      expect((screen.getByLabelText("Opcion A") as HTMLInputElement).value).toBe("");
+      expect((screen.getByLabelText("Opcion B") as HTMLInputElement).value).toBe("");
+      expect((screen.getByLabelText("Opcion C") as HTMLInputElement).value).toBe("");
+      expect((screen.getByLabelText("Opcion D") as HTMLInputElement).value).toBe("");
+      expect((screen.getByLabelText("Dificultad (0-100)") as HTMLInputElement).value).toBe("44");
+      expect((screen.getByLabelText("Estado editorial") as HTMLSelectElement).value).toBe("manual");
+    });
+  });
+
+  it("loads an empty wordpass draft when the history payload has no words array", async () => {
+    window.location.hash = "#/backoffice/svc-wordpass?dataset=history";
+
+    fetchJsonMock.mockImplementation((url: string) => {
+      if (url.endsWith("/v1/backoffice/services")) {
+        return Promise.resolve({
+          services: [{ key: "microservice-wordpass", title: "Wordpass", domain: "games", supportsData: true }],
+        });
+      }
+      if (url.includes("/metrics")) {
+        return Promise.resolve({ metrics: { traffic: { requestsReceivedTotal: 10 } } });
+      }
+      if (url.includes("/logs")) {
+        return Promise.resolve({ logs: [] });
+      }
+      if (url.includes("/catalogs")) {
+        return Promise.resolve({
+          catalogs: {
+            categories: [{ id: "31", name: "Words" }],
+            languages: [{ code: "es", name: "Español" }],
+          },
+        });
+      }
+      if (url.includes("/data?")) {
+        return Promise.resolve({
+          rows: [
+            {
+              id: "entry-word-empty",
+              categoryId: "31",
+              language: "es",
+              request: { categoryId: "31", language: "es", difficulty_percentage: 12 },
+              response: { game: {} },
+            },
+          ],
+          total: 1,
+          page: 1,
+          pageSize: 20,
+        });
+      }
+      return Promise.reject(new Error(`Unhandled URL: ${url}`));
+    });
+
+    renderPanel("svc-wordpass");
+
+    await waitFor(() => {
+      expect(screen.getByTestId("paginated-table")).toHaveTextContent("rows:1");
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Cargar" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Edicion manual" }));
+
+    await waitFor(() => {
+      expect((screen.getByLabelText("Letra") as HTMLInputElement).value).toBe("");
+      expect((screen.getByLabelText("Pista") as HTMLInputElement).value).toBe("");
+      expect((screen.getByLabelText("Respuesta") as HTMLInputElement).value).toBe("");
+      expect((screen.getByLabelText("Dificultad (0-100)") as HTMLInputElement).value).toBe("12");
+      expect((screen.getByLabelText("Estado editorial") as HTMLSelectElement).value).toBe("manual");
+    });
+  });
+
+  it("requires an entry id before updating manual history rows", async () => {
+    window.location.hash = "#/backoffice/svc-quiz?dataset=history";
+
+    fetchJsonMock.mockImplementation((url: string) => {
+      if (url.endsWith("/v1/backoffice/services")) {
+        return Promise.resolve({
+          services: [{ key: "microservice-quiz", title: "Quiz", domain: "games", supportsData: true }],
+        });
+      }
+      if (url.includes("/metrics")) {
+        return Promise.resolve({ metrics: { traffic: { requestsReceivedTotal: 10 } } });
+      }
+      if (url.includes("/logs")) {
+        return Promise.resolve({ logs: [] });
+      }
+      if (url.includes("/catalogs")) {
+        return Promise.resolve({
+          catalogs: {
+            categories: [{ id: "22", name: "Science" }],
+            languages: [{ code: "en", name: "English" }],
+          },
+        });
+      }
+      if (url.includes("/data?")) {
+        return Promise.resolve({ rows: [], total: 0, page: 1, pageSize: 20 });
+      }
+      return Promise.reject(new Error(`Unhandled URL: ${url}`));
+    });
+
+    renderPanel("svc-quiz");
+
+    await waitFor(() => {
+      expect(screen.getByRole("tab", { name: "Edicion manual" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("tab", { name: "Edicion manual" }));
+    fireEvent.click(screen.getByRole("button", { name: "Actualizar entrada" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Debes indicar un ID para actualizar.")).toBeInTheDocument();
     });
   });
 });

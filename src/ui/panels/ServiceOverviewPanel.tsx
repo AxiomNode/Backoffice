@@ -166,12 +166,22 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
       return null;
     }
 
-    return entries.find(
+    const directMatch = entries.find(
       (entry) =>
         entry.host === (target.host ?? "") &&
         entry.protocol === (target.protocol ?? "http") &&
         entry.port === target.port,
-    ) ?? null;
+    );
+
+    if (directMatch) {
+      return directMatch;
+    }
+
+    const protocolPortMatches = entries.filter(
+      (entry) => entry.protocol === (target.protocol ?? "http") && entry.port === target.port,
+    );
+
+    return protocolPortMatches.length === 1 ? protocolPortMatches[0] : null;
   }, []);
 
   const parsePort = useCallback((value: string, fallback: number) => {
@@ -206,7 +216,7 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
         if (current && payload.presets.some((entry) => entry.id === current)) {
           return current;
         }
-        return payload.presets[0]?.id ?? "";
+        return "";
       });
     } catch (loadError) {
       setAiTargetError(loadError instanceof Error ? loadError.message : t("roles.errorUnknown"));
@@ -268,13 +278,25 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
       return;
     }
 
+    const matchedPreset = findPresetMatch(presets, aiTarget);
+    if (matchedPreset && !selectedPresetId) {
+      setSelectedPresetId(matchedPreset.id);
+      syncPresetForm(matchedPreset);
+      return;
+    }
+
     const activePreset = presets.find((entry) => entry.id === selectedPresetId) ?? null;
     if (activePreset) {
       syncPresetForm(activePreset);
       return;
     }
 
-    const matchedPreset = findPresetMatch(presets, aiTarget);
+    if (!selectedPresetId && presets.length === 1) {
+      setSelectedPresetId(presets[0]!.id);
+      syncPresetForm(presets[0]!);
+      return;
+    }
+
     if (matchedPreset) {
       setSelectedPresetId(matchedPreset.id);
       syncPresetForm(matchedPreset);
@@ -382,7 +404,7 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
         name: presetName.trim(),
         host: presetHost.trim(),
         protocol: presetProtocol,
-        port: Number(presetPort),
+        port: parsePort(presetPort, 7002),
       };
       const nextPreset = activePreset && !isCreatingPreset
         ? await fetchJson<AiEngineTargetPreset>(`${EDGE_API_BASE}/v1/backoffice/ai-engine/presets/${encodeURIComponent(activePreset.id)}`, {
@@ -405,7 +427,7 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
     } finally {
       setAiTargetSaving(false);
     }
-  }, [activePreset, authHeaders, isCreatingPreset, loadPresets, presetHost, presetName, presetPort, presetProtocol, t]);
+  }, [activePreset, authHeaders, isCreatingPreset, loadPresets, parsePort, presetHost, presetName, presetPort, presetProtocol, t]);
 
   const removePreset = useCallback(async () => {
     if (!activePreset) {
@@ -612,7 +634,9 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
         <div className="flex flex-wrap items-center gap-3">
           <button
             type="button"
-            onClick={() => void probeAiTarget()}
+            onClick={() => {
+              void probeAiTarget().catch(() => undefined);
+            }}
             disabled={aiProbeLoading || presetHost.trim().length === 0}
             className="ui-action-pill ui-action-pill--quiet text-xs"
           >

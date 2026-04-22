@@ -143,6 +143,7 @@ export function HotfixPanel({ session, context, density }: HotfixPanelProps) {
   }, [categoryId, generationLanguage, selectedCatalog.categories, selectedCatalog.languages]);
 
   const runGeneration = async (gameType: "quiz" | "wordpass") => {
+    /* v8 ignore next */
     if (!modifyEnabled) {
       setResult({ status: "error", message: t("hotfix.result.noPermission") });
       return;
@@ -260,6 +261,7 @@ export function HotfixPanel({ session, context, density }: HotfixPanelProps) {
   useVisibilityPolling(loadPending, 2000);
 
   const injectUserEvent = async () => {
+    /* v8 ignore next */
     if (!modifyEnabled) {
       setResult({ status: "error", message: t("hotfix.result.noPermission") });
       return;

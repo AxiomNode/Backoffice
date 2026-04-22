@@ -30,7 +30,7 @@ type PaginatedFilterableTableProps = {
 };
 
 /** Memoized data table with client-side filtering, sorting, pagination, and cell detail dialog. */
-export const PaginatedFilterableTable = memo(function PaginatedFilterableTable({ rows, defaultPageSize = 5, defaultSortDirection = "asc", density = "comfortable", collapsibleControls = false, controlsInitiallyExpanded = true, iconOnlyColumns = [], remoteState, rowActions = [] }: PaginatedFilterableTableProps) {
+export const PaginatedFilterableTable = memo(function PaginatedFilterableTable({ rows, defaultPageSize = 5, defaultSortDirection = "asc", density = "comfortable", collapsibleControls = false, controlsInitiallyExpanded = false, iconOnlyColumns = [], remoteState, rowActions = [] }: PaginatedFilterableTableProps) {
   const { t } = useI18n();
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const columns = useMemo(() => {

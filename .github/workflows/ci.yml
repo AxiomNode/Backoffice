@@ -34,7 +34,14 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci
-      - run: npm run test:run
+      - run: npm run test:coverage
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage/lcov.info
+          flags: backoffice
+          fail_ci_if_error: false
       - run: npm run typecheck
       - run: npm run build
       - run: npm audit --omit=dev --audit-level=high

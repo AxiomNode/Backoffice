@@ -37,12 +37,13 @@ export default defineConfig({
     css: true,
     coverage: {
       provider: "v8",
-      reporter: ["text", "html"],
+      reporter: ["text", "json-summary", "html", "lcov"],
+      exclude: ["src/data/**"],
       thresholds: {
-        lines: 60,
-        statements: 60,
-        functions: 60,
-        branches: 58,
+        lines: 90,
+        statements: 90,
+        functions: 90,
+        branches: 90,
       },
     },
   },

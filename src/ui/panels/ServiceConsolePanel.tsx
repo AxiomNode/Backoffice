@@ -820,7 +820,7 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
                   defaultPageSize={5}
                   density={density}
                   collapsibleControls
-                  controlsInitiallyExpanded={!compactViewport}
+                  controlsInitiallyExpanded={false}
                 />
                 {routeMetricsRows.length > 0 && (
                   <PaginatedFilterableTable
@@ -854,7 +854,7 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
                 defaultSortDirection="desc"
                 density={density}
                 collapsibleControls
-                controlsInitiallyExpanded={!compactViewport}
+                controlsInitiallyExpanded={false}
               />
             ) : (
               <div className="ui-subtle-card rounded-2xl border border-dashed px-4 py-3 text-sm">

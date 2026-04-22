@@ -1,5 +1,7 @@
 # backoffice
 
+[![codecov](https://codecov.io/gh/AxiomNode/backoffice/branch/main/graph/badge.svg)](https://codecov.io/gh/AxiomNode/backoffice)
+
 React-based operations console for the AxiomNode ecosystem.
 
 ## Architectural role
@@ -21,6 +23,17 @@ flowchart LR
 - Provide visibility for health, traffic, and service-level metrics.
 - Enable controlled operational actions for admin users.
 - Offer a secure UI layer over edge APIs.
+
+## Operator-facing scope
+
+`backoffice` is the main operator UI for observing and changing effective runtime behavior.
+
+Concrete concerns owned here:
+
+- diagnostics and metrics visualization
+- service overview and AI diagnostics workflows
+- operator-visible distinction between defaults, overrides, and effective targets
+- authenticated administration UX for runtime targeting actions
 
 ## Tech stack
 
@@ -44,6 +57,16 @@ flowchart LR
 - change the active ai-engine destination used by staging runtime
 - manage shared ai-engine presets for repeated operator use
 - inspect and retarget service upstreams through the backoffice BFF
+
+## Runtime integration model
+
+The browser should never call private services directly.
+
+Effective path:
+
+1. browser -> `api-gateway`
+2. `api-gateway` -> `bff-backoffice`
+3. `bff-backoffice` -> downstream services and persisted routing state
 
 ## Local development
 
@@ -89,6 +112,12 @@ Push to `main` triggers image rebuild in `platform-infra`. For the covered runti
 - The overview panel exposes shared ai-engine destination presets backed by `bff-backoffice` persistence.
 - Diagnostics panels can reflect effective runtime state, not only static environment configuration.
 - The browser may also hold a local edge endpoint override for controlled troubleshooting of alternative BFF or gateway endpoints.
+
+## Failure boundaries
+
+- UI healthy but backend runtime state stale or inconsistent
+- diagnostics degraded because downstream services are unreachable
+- browser-local troubleshooting overrides affecting operator perception
 
 ## Maintainability notes
 

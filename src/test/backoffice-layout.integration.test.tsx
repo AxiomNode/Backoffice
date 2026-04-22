@@ -26,6 +26,10 @@ vi.mock("../ui/panels/RoleManagementPanel", () => ({
   RoleManagementPanel: () => <div data-testid="roles-panel">roles-panel</div>,
 }));
 
+vi.mock("../ui/panels/AIDiagnosticsPanel", () => ({
+  AIDiagnosticsPanel: () => <div data-testid="ai-diagnostics-panel">ai-diagnostics-panel</div>,
+}));
+
 const session: BackofficeSession = {
   isAuthenticated: true,
   displayName: "Tester",
@@ -40,15 +44,25 @@ const context: SessionContext = {
   devUid: "uid-test",
 };
 
-function renderLayout() {
+function setViewportWidth(width: number) {
+  Object.defineProperty(window, "innerWidth", { configurable: true, value: width });
+}
+
+function renderLayout(
+  options: {
+    session?: Partial<BackofficeSession>;
+    theme?: "light" | "dark";
+    typography?: "sm" | "normal" | "lg" | "xl" | "xxl";
+  } = {},
+) {
   return render(
     <I18nProvider language="es" setLanguage={vi.fn()}>
       <BackofficeLayout
-        session={session}
+        session={{ ...session, ...options.session }}
         context={context}
         onSignOut={vi.fn()}
-        theme="light"
-        typography="normal"
+        theme={options.theme ?? "light"}
+        typography={options.typography ?? "normal"}
         onToggleTheme={vi.fn()}
         onTypographyChange={vi.fn()}
       />
@@ -56,10 +70,48 @@ function renderLayout() {
   );
 }
 
+function renderLayoutWithOptions(
+  options: {
+    session?: Partial<BackofficeSession>;
+    theme?: "light" | "dark";
+    typography?: "sm" | "normal" | "lg" | "xl" | "xxl";
+    onSignOut?: ReturnType<typeof vi.fn>;
+    onToggleTheme?: ReturnType<typeof vi.fn>;
+    onTypographyChange?: ReturnType<typeof vi.fn>;
+    setLanguage?: ReturnType<typeof vi.fn>;
+  } = {},
+) {
+  const onSignOut = options.onSignOut ?? vi.fn();
+  const onToggleTheme = options.onToggleTheme ?? vi.fn();
+  const onTypographyChange = options.onTypographyChange ?? vi.fn();
+  const setLanguage = options.setLanguage ?? vi.fn();
+
+  return {
+    onSignOut,
+    onToggleTheme,
+    onTypographyChange,
+    setLanguage,
+    ...render(
+      <I18nProvider language="es" setLanguage={setLanguage}>
+        <BackofficeLayout
+          session={{ ...session, ...options.session }}
+          context={context}
+          onSignOut={onSignOut}
+          theme={options.theme ?? "light"}
+          typography={options.typography ?? "normal"}
+          onToggleTheme={onToggleTheme}
+          onTypographyChange={onTypographyChange}
+        />
+      </I18nProvider>,
+    ),
+  };
+}
+
 describe("BackofficeLayout integration", () => {
   beforeEach(() => {
     window.localStorage.clear();
     window.location.hash = "#/backoffice/svc-overview";
+    setViewportWidth(1280);
     fetchServiceOperationalSummaryMock.mockReset();
   });
 
@@ -420,6 +472,276 @@ describe("BackofficeLayout integration", () => {
 
     await waitFor(() => {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+  });
+
+  it("opens and closes the mobile drawer with swipe gestures", async () => {
+    setViewportWidth(360);
+    fetchServiceOperationalSummaryMock.mockResolvedValue({
+      rows: [],
+      totals: { total: 1, onlineCount: 1, accessIssues: 0, connectionErrors: 0 },
+    });
+
+    renderLayout();
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    fireEvent.touchStart(screen.getByRole("button", { name: "Menu" }), {
+      touches: [{ clientX: 12, clientY: 120 }],
+    });
+    fireEvent.touchEnd(screen.getByRole("button", { name: "Menu" }), {
+      changedTouches: [{ clientX: 110, clientY: 126 }],
+    });
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+
+    const drawer = screen.getByRole("dialog");
+    fireEvent.touchStart(drawer, {
+      touches: [{ clientX: 180, clientY: 120 }],
+    });
+    fireEvent.touchEnd(drawer, {
+      changedTouches: [{ clientX: 80, clientY: 126 }],
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+  });
+
+  it("closes the mobile drawer on Escape and restores body scrolling", async () => {
+    setViewportWidth(360);
+    fetchServiceOperationalSummaryMock.mockResolvedValue({
+      rows: [],
+      totals: { total: 1, onlineCount: 1, accessIssues: 0, connectionErrors: 0 },
+    });
+
+    renderLayout();
+
+    fireEvent.click(screen.getByRole("button", { name: "Menu" }));
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(document.body.style.overflow).toBe("hidden");
+
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+
+    expect(document.body.style.overflow).toBe("");
+  });
+
+  it("restores dense mobile preferences and shows active switches in narrow view", async () => {
+    window.localStorage.setItem("backoffice.uiDensity", "dense");
+    setViewportWidth(360);
+    fetchServiceOperationalSummaryMock.mockResolvedValue({
+      rows: [],
+      totals: { total: 1, onlineCount: 1, accessIssues: 0, connectionErrors: 0 },
+    });
+
+    renderLayout({ theme: "dark", typography: "xl" });
+
+    expect(screen.getByText("Texto XL")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Comodo" })).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "Cambiar tema" })).toHaveAttribute("aria-checked", "true");
+
+    fireEvent.click(screen.getByRole("button", { name: "UI" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Tema oscuro")).toBeInTheDocument();
+      expect(screen.getByText("Vista densa")).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole("switch", { name: "Cambiar vista" })).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("shows the XL badge in compact mobile view and toggles dense mode back to comfortable", async () => {
+    window.localStorage.setItem("backoffice.uiDensity", "dense");
+    setViewportWidth(390);
+    fetchServiceOperationalSummaryMock.mockResolvedValue({
+      rows: [],
+      totals: { total: 1, onlineCount: 1, accessIssues: 0, connectionErrors: 0 },
+    });
+
+    renderLayout({ theme: "light", typography: "xl" });
+
+    expect(screen.getByText("Texto XL")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Comodo" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Comodo" }));
+
+    await waitFor(() => {
+      expect(window.localStorage.getItem("backoffice.uiDensity")).toBe("comfortable");
+      expect(screen.getByRole("button", { name: "Denso" })).toBeInTheDocument();
+    });
+  });
+
+  it("ignores incomplete mobile swipes and routes mobile header select callbacks", async () => {
+    setViewportWidth(360);
+    fetchServiceOperationalSummaryMock.mockResolvedValue({
+      rows: [],
+      totals: { total: 1, onlineCount: 1, accessIssues: 0, connectionErrors: 0 },
+    });
+
+    const view = renderLayoutWithOptions({ typography: "normal" });
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    fireEvent.touchEnd(screen.getByRole("button", { name: "Menu" }), {
+      changedTouches: [{ clientX: 110, clientY: 126 }],
+    });
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    fireEvent.touchStart(screen.getByRole("button", { name: "Menu" }), {
+      touches: [{ clientX: 12, clientY: 120 }],
+    });
+    fireEvent.touchEnd(screen.getByRole("button", { name: "Menu" }), {
+      changedTouches: [{ clientX: 24, clientY: 250 }],
+    });
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Tamano texto"), { target: { value: "xl" } });
+    fireEvent.change(screen.getByLabelText("Idioma"), { target: { value: "en" } });
+
+    expect(view.onTypographyChange).toHaveBeenCalledWith("xl");
+    expect(view.setLanguage).toHaveBeenCalledWith("en");
+  });
+
+  it("keeps release history open on internal interactions and closes it on external scroll", async () => {
+    fetchServiceOperationalSummaryMock.mockResolvedValue({
+      rows: [],
+      totals: { total: 1, onlineCount: 1, accessIssues: 0, connectionErrors: 0 },
+    });
+
+    renderLayout();
+
+    fireEvent.click(screen.getByRole("button", { name: /Historico de versiones/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Versiones desplegadas")).toBeInTheDocument();
+    });
+
+    fireEvent.mouseDown(screen.getByText("Versiones desplegadas"));
+    fireEvent.scroll(screen.getByText("Versiones desplegadas"));
+    expect(screen.getByText("Versiones desplegadas")).toBeInTheDocument();
+
+    fireEvent.scroll(window);
+
+    await waitFor(() => {
+      expect(screen.queryByText("Versiones desplegadas")).not.toBeInTheDocument();
+    });
+  });
+
+  it("routes UI preference callbacks and closes floating panels with outside interactions", async () => {
+    fetchServiceOperationalSummaryMock.mockResolvedValue({
+      rows: [],
+      totals: { total: 1, onlineCount: 1, accessIssues: 0, connectionErrors: 0 },
+    });
+
+    const view = renderLayoutWithOptions({ theme: "dark", typography: "normal" });
+
+    fireEvent.click(screen.getByRole("button", { name: /Historico de versiones/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Versiones desplegadas")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "UI" }));
+
+    await waitFor(() => {
+      expect(screen.queryByText("Versiones desplegadas")).not.toBeInTheDocument();
+    });
+
+    const preferencesPanel = document.getElementById("layout-preferences-panel") as HTMLElement;
+    expect(preferencesPanel).toBeInTheDocument();
+
+    fireEvent.click(within(preferencesPanel).getByRole("switch", { name: "Cambiar tema" }));
+    fireEvent.click(within(preferencesPanel).getByRole("switch", { name: "Cambiar vista" }));
+    fireEvent.change(within(preferencesPanel).getByDisplayValue("M"), { target: { value: "xl" } });
+    fireEvent.change(within(preferencesPanel).getByDisplayValue("Espanol"), { target: { value: "en" } });
+
+    expect(view.onToggleTheme).toHaveBeenCalledTimes(1);
+    expect(window.localStorage.getItem("backoffice.uiDensity")).toBe("dense");
+    expect(view.onTypographyChange).toHaveBeenCalledWith("xl");
+    expect(view.setLanguage).toHaveBeenCalledWith("en");
+
+    fireEvent.mouseDown(document.body);
+
+    await waitFor(() => {
+      expect(document.getElementById("layout-preferences-panel")).toBeNull();
+    });
+  });
+
+  it("keeps the preferences popover open on internal scroll and handles navigation to the current route", async () => {
+    fetchServiceOperationalSummaryMock.mockResolvedValue({
+      rows: [],
+      totals: { total: 1, onlineCount: 1, accessIssues: 0, connectionErrors: 0 },
+    });
+
+    renderLayout();
+
+    fireEvent.click(screen.getByRole("button", { name: "UI" }));
+
+    await waitFor(() => {
+      expect(document.getElementById("layout-preferences-panel")).toBeInTheDocument();
+    });
+
+    const preferencesPanel = document.getElementById("layout-preferences-panel") as HTMLElement;
+
+    fireEvent.scroll(preferencesPanel);
+    expect(document.getElementById("layout-preferences-panel")).toBeInTheDocument();
+
+    const overviewButtons = screen.getAllByRole("button", { name: /Centro de control/i });
+    fireEvent.click(overviewButtons[0]);
+
+    await waitFor(() => {
+      expect(document.getElementById("layout-preferences-panel")).toBeNull();
+      expect(screen.getByTestId("service-overview-panel")).toBeInTheDocument();
+      expect(window.location.hash).toContain("#/backoffice/svc-overview");
+    });
+  });
+
+  it("calls sign out from the header action", async () => {
+    fetchServiceOperationalSummaryMock.mockResolvedValue({
+      rows: [],
+      totals: { total: 1, onlineCount: 1, accessIssues: 0, connectionErrors: 0 },
+    });
+
+    const view = renderLayoutWithOptions();
+
+    fireEvent.click(screen.getByRole("button", { name: "Salir" }));
+
+    expect(view.onSignOut).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders the ai diagnostics panel for roles with write access", async () => {
+    fetchServiceOperationalSummaryMock.mockResolvedValue({
+      rows: [],
+      totals: { total: 1, onlineCount: 1, accessIssues: 0, connectionErrors: 0 },
+    });
+
+    renderLayout();
+
+    fireEvent.click(screen.getAllByRole("button", { name: /Laboratorio IA/i })[0]);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("ai-diagnostics-panel")).toBeInTheDocument();
+    });
+  });
+
+  it("renders the role management panel for super admins", async () => {
+    fetchServiceOperationalSummaryMock.mockResolvedValue({
+      rows: [],
+      totals: { total: 1, onlineCount: 1, accessIssues: 0, connectionErrors: 0 },
+    });
+
+    renderLayout({ session: { role: "SuperAdmin" } });
+
+    fireEvent.click(screen.getAllByRole("button", { name: /Accesos y permisos/i })[0]);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("roles-panel")).toBeInTheDocument();
     });
   });
 });
