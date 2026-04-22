@@ -1,6 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
+import type { NavKey } from "../domain/types/backoffice";
 import { routeFromNavKey, useHashRoute } from "../ui/hooks/useHashRoute";
 
 describe("useHashRoute", () => {
@@ -35,11 +36,11 @@ describe("useHashRoute", () => {
     window.location.hash = "#/backoffice/svc-overview";
 
     const { result, rerender } = renderHook(
-      ({ allowed, fallback }) => useHashRoute(allowed, fallback),
+      ({ allowed, fallback }: { allowed: readonly NavKey[]; fallback: NavKey }) => useHashRoute(allowed, fallback),
       {
         initialProps: {
-          allowed: ["svc-overview", "svc-users"] as const,
-          fallback: "svc-overview" as const,
+          allowed: ["svc-overview", "svc-users"] as readonly NavKey[],
+          fallback: "svc-overview" as NavKey,
         },
       },
     );
@@ -50,8 +51,8 @@ describe("useHashRoute", () => {
     expect(window.location.hash).toBe("#/backoffice/svc-users");
 
     rerender({
-      allowed: ["svc-overview"] as const,
-      fallback: "svc-overview" as const,
+      allowed: ["svc-overview"] as readonly NavKey[],
+      fallback: "svc-overview" as NavKey,
     });
 
     expect(result.current[0]).toBe("svc-overview");
@@ -61,11 +62,11 @@ describe("useHashRoute", () => {
     window.location.hash = "#/backoffice/svc-overview";
 
     const { result, rerender } = renderHook(
-      ({ allowed, fallback }) => useHashRoute(allowed, fallback),
+      ({ allowed, fallback }: { allowed: readonly NavKey[]; fallback: NavKey }) => useHashRoute(allowed, fallback),
       {
         initialProps: {
-          allowed: ["svc-overview", "svc-users"] as const,
-          fallback: "svc-overview" as const,
+          allowed: ["svc-overview", "svc-users"] as readonly NavKey[],
+          fallback: "svc-overview" as NavKey,
         },
       },
     );
@@ -74,8 +75,8 @@ describe("useHashRoute", () => {
 
     window.location.hash = "#/backoffice/svc-users";
     rerender({
-      allowed: ["svc-overview", "svc-users", "svc-api-gateway"] as const,
-      fallback: "svc-overview" as const,
+      allowed: ["svc-overview", "svc-users", "svc-api-gateway"] as readonly NavKey[],
+      fallback: "svc-overview" as NavKey,
     });
 
     expect(result.current[0]).toBe("svc-users");

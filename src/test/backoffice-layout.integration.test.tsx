@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../i18n/context";
 import type { BackofficeSession } from "../auth";
 import { UI_SERVICE_ROUTE_QUERY_STORAGE_PREFIX } from "../domain/constants/ui";
-import type { SessionContext } from "../domain/types/backoffice";
+import type { SessionContext, UiLanguage, UiTypography } from "../domain/types/backoffice";
 import { BackofficeLayout } from "../ui/layout/BackofficeLayout";
 
 const fetchServiceOperationalSummaryMock = vi.hoisted(() => vi.fn());
@@ -92,15 +92,15 @@ function renderLayoutWithOptions(
     onTypographyChange,
     setLanguage,
     ...render(
-      <I18nProvider language="es" setLanguage={setLanguage}>
+      <I18nProvider language="es" setLanguage={setLanguage as (language: UiLanguage) => void}>
         <BackofficeLayout
           session={{ ...session, ...options.session }}
           context={context}
-          onSignOut={onSignOut}
+          onSignOut={onSignOut as () => void}
           theme={options.theme ?? "light"}
           typography={options.typography ?? "normal"}
-          onToggleTheme={onToggleTheme}
-          onTypographyChange={onTypographyChange}
+          onToggleTheme={onToggleTheme as () => void}
+          onTypographyChange={onTypographyChange as (value: UiTypography) => void}
         />
       </I18nProvider>,
     ),

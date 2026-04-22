@@ -4,7 +4,7 @@ import type { NavKey } from "../../domain/types/backoffice";
 
 /** @module useHashRoute - Hash-based routing for the backoffice single-page shell. */
 
-function navKeyFromHash(hash: string, allowed: NavKey[]): NavKey | null {
+function navKeyFromHash(hash: string, allowed: readonly NavKey[]): NavKey | null {
   const match = hash.match(/^#\/backoffice\/([^/?#]+)/);
   if (!match) return null;
   const candidate = match[1] as NavKey;
@@ -21,7 +21,7 @@ export function routeFromNavKey(key: NavKey): string {
  * Returns the current NavKey and a navigate function that updates the hash.
  */
 export function useHashRoute(
-  allowedKeys: NavKey[],
+  allowedKeys: readonly NavKey[],
   fallback: NavKey,
 ): [current: NavKey, navigate: (key: NavKey) => void] {
   const [current, setCurrent] = useState<NavKey>(() => {

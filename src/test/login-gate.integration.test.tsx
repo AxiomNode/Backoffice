@@ -2,6 +2,8 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { I18nProvider } from "../i18n/context";
+import type { BackofficeSession } from "../auth";
+import type { SessionContext, UiLanguage, UiTypography } from "../domain/types/backoffice";
 import { LoginGate } from "../ui/panels/LoginGate";
 
 const authState = vi.hoisted(() => ({
@@ -40,11 +42,18 @@ function renderLoginGate(onAuthenticated = vi.fn()) {
 
 function renderLoginGateWithOptions({
   onAuthenticated = vi.fn(),
-  theme = "light" as const,
-  typography = "normal" as const,
+  theme = "light",
+  typography = "normal",
   onToggleTheme = vi.fn(),
   onTypographyChange = vi.fn(),
   setLanguage = vi.fn(),
+}: {
+  onAuthenticated?: ReturnType<typeof vi.fn>;
+  theme?: "light" | "dark";
+  typography?: "sm" | "normal" | "lg" | "xl" | "xxl";
+  onToggleTheme?: ReturnType<typeof vi.fn>;
+  onTypographyChange?: ReturnType<typeof vi.fn>;
+  setLanguage?: ReturnType<typeof vi.fn>;
 } = {}) {
   return {
     onAuthenticated,
@@ -52,13 +61,13 @@ function renderLoginGateWithOptions({
     onTypographyChange,
     setLanguage,
     ...render(
-      <I18nProvider language="es" setLanguage={setLanguage}>
+      <I18nProvider language="es" setLanguage={setLanguage as (language: UiLanguage) => void}>
         <LoginGate
-          onAuthenticated={onAuthenticated}
+          onAuthenticated={onAuthenticated as (session: BackofficeSession, context: SessionContext) => void}
           theme={theme}
           typography={typography}
-          onToggleTheme={onToggleTheme}
-          onTypographyChange={onTypographyChange}
+          onToggleTheme={onToggleTheme as () => void}
+          onTypographyChange={onTypographyChange as (value: UiTypography) => void}
         />
       </I18nProvider>,
     ),
