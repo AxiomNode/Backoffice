@@ -17,9 +17,13 @@ env:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src
     steps:
       - uses: actions/checkout@v4
       - name: Enforce tracked artifact policy
+        working-directory: .
         run: |
           set -euo pipefail
           bad_paths=$(git ls-files | grep -E '(^|/)(node_modules|dist|coverage)(/|$)|(^|/).*\.tsbuildinfo$' || true)
@@ -32,14 +36,14 @@ jobs:
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: package-lock.json
+          cache-dependency-path: src/package-lock.json
       - run: npm ci
       - run: npm run test:coverage
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./coverage/lcov.info
+          files: ./src/coverage/lcov.info
           flags: backoffice
           fail_ci_if_error: false
       - run: npm run typecheck
