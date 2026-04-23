@@ -686,10 +686,22 @@ export function BackofficeLayout({
         </header>
 
         <Suspense fallback={<div className="m3-card animate-pulse p-6 text-center text-sm text-[var(--md-sys-color-on-surface-variant)]">…</div>}>
-          {current === "svc-overview" && <ServiceOverviewPanel context={context} density={density} />}
-          {current !== "svc-overview" && SERVICE_NAV_KEYS.has(current) && <ServiceConsolePanel key={current} navKey={current} context={context} density={density} />}
-          {current === "ai-diagnostics" && roleCanModify(session.role) && <AIDiagnosticsPanel context={context} density={density} />}
-          {current === "roles" && roleCanManageUsers(session.role) && <RoleManagementPanel context={context} density={density} />}
+          {/** El apartado ai-engine-api reutiliza el laboratorio IA cuando el rol permite operaciones runtime. */}
+          {(() => {
+            const canUseAiDiagnostics = roleCanModify(session.role);
+            const showAiDiagnostics = current === "ai-diagnostics" || (current === "svc-ai-api" && canUseAiDiagnostics);
+
+            return (
+              <>
+                {current === "svc-overview" && <ServiceOverviewPanel context={context} density={density} />}
+                {current !== "svc-overview" && SERVICE_NAV_KEYS.has(current) && !showAiDiagnostics && (
+                  <ServiceConsolePanel key={current} navKey={current} context={context} density={density} />
+                )}
+                {showAiDiagnostics && <AIDiagnosticsPanel context={context} density={density} />}
+                {current === "roles" && roleCanManageUsers(session.role) && <RoleManagementPanel context={context} density={density} />}
+              </>
+            );
+          })()}
         </Suspense>
       </main>
     </div>

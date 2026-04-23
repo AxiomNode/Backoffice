@@ -97,6 +97,72 @@ type ServiceTargetsResponse = {
   targets: ServiceTarget[];
 };
 
+type GameGeneratorKey = "quiz" | "wordpass";
+
+type RuntimeDifficultyLevel = "easy" | "medium" | "hard";
+
+type RuntimeGenerationWorkerSnapshot = {
+  gameType: "quiz" | "word-pass";
+  active: boolean;
+  iterationInFlight: boolean;
+  intervalSeconds: number;
+  activatedAt: string | null;
+  lastIterationAt: string | null;
+  lastIterationDurationMs: number | null;
+  lastIterationCreated: number | null;
+  iterationsSinceActivation: number;
+  iterationsTotal: number;
+  generatedSinceActivation: number;
+  totalObjectsInDb: number;
+  lastError: string | null;
+  config: {
+    countPerIteration: number;
+    selectedCategoryIds: string[];
+    selectedDifficultyLevels: RuntimeDifficultyLevel[];
+  };
+  available: {
+    categories: Array<{ id: string; name: string }>;
+    difficultyLevels: Array<{
+      id: RuntimeDifficultyLevel;
+      label: string;
+      min: number;
+      max: number;
+    }>;
+  };
+  balance: {
+    categories: Array<{ id: string; name: string; total: number; missingToMax: number }>;
+    difficulties: Array<{
+      id: RuntimeDifficultyLevel;
+      label: string;
+      total: number;
+      missingToMax: number;
+    }>;
+    mostMissingCategoryId: string | null;
+    mostMissingDifficultyLevel: RuntimeDifficultyLevel | null;
+  };
+};
+
+type RuntimeGenerationWorkerResponse = {
+  gameType: "quiz" | "word-pass";
+  worker: RuntimeGenerationWorkerSnapshot;
+};
+
+type GeneratorUiState = {
+  loading: boolean;
+  saving: boolean;
+  error: string | null;
+  snapshot: RuntimeGenerationWorkerSnapshot | null;
+  form: {
+    countPerIteration: string;
+    categoryIds: string[];
+    difficultyLevels: RuntimeDifficultyLevel[];
+  };
+};
+
+type GeneratorUiPatch = Omit<Partial<GeneratorUiState>, "form"> & {
+  form?: Partial<GeneratorUiState["form"]>;
+};
+
 type AIDiagnosticsPanelProps = {
   context: SessionContext;
   density: UiDensity;
@@ -122,6 +188,11 @@ const COVERAGE_BAR: Record<string, number> = {
   moderate: 55,
   good: 80,
   excellent: 100,
+};
+
+const GENERATOR_SERVICE_BY_GAME: Record<GameGeneratorKey, "microservice-quiz" | "microservice-wordpass"> = {
+  quiz: "microservice-quiz",
+  wordpass: "microservice-wordpass",
 };
 
 function formatDuration(startMs: number, endMs: number): string {
@@ -177,6 +248,31 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
   const [selectedServiceBaseUrl, setSelectedServiceBaseUrl] = useState("");
   const [selectedServiceLabel, setSelectedServiceLabel] = useState("");
 
+  const [generatorState, setGeneratorState] = useState<Record<GameGeneratorKey, GeneratorUiState>>({
+    quiz: {
+      loading: false,
+      saving: false,
+      error: null,
+      snapshot: null,
+      form: {
+        countPerIteration: "10",
+        categoryIds: [],
+        difficultyLevels: [],
+      },
+    },
+    wordpass: {
+      loading: false,
+      saving: false,
+      error: null,
+      snapshot: null,
+      form: {
+        countPerIteration: "10",
+        categoryIds: [],
+        difficultyLevels: [],
+      },
+    },
+  });
+
   // Test runner state
   const [testStatus, setTestStatus] = useState<TestRunStatus | null>(null);
   const [testRunning, setTestRunning] = useState(false);
@@ -198,6 +294,122 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
     setSelectedServiceBaseUrl(nextTarget?.baseUrl ?? "");
     setSelectedServiceLabel(nextTarget?.label ?? "");
   }, []);
+
+  const setGeneratorPatch = useCallback(
+    (game: GameGeneratorKey, patch: GeneratorUiPatch) => {
+    setGeneratorState((current) => ({
+      ...current,
+      [game]: {
+        ...current[game],
+        ...patch,
+        form: {
+          ...current[game].form,
+          ...(patch.form ?? {}),
+        },
+      },
+    }));
+    },
+    []
+  );
+
+  const syncGeneratorForm = useCallback((game: GameGeneratorKey, snapshot: RuntimeGenerationWorkerSnapshot) => {
+    setGeneratorPatch(game, {
+      snapshot,
+      error: null,
+      form: {
+        countPerIteration: String(snapshot.config.countPerIteration),
+        categoryIds: snapshot.config.selectedCategoryIds,
+        difficultyLevels: snapshot.config.selectedDifficultyLevels,
+      },
+    });
+  }, [setGeneratorPatch]);
+
+  const loadGeneratorStatusForGame = useCallback(async (game: GameGeneratorKey) => {
+    const service = GENERATOR_SERVICE_BY_GAME[game];
+    setGeneratorPatch(game, { loading: true, error: null });
+    try {
+      const payload = await fetchJson<RuntimeGenerationWorkerResponse>(
+        `${EDGE_API_BASE}/v1/backoffice/services/${service}/generation/worker`,
+        { headers: headers() },
+      );
+      syncGeneratorForm(game, payload.worker);
+    } catch (error) {
+      setGeneratorPatch(game, {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setGeneratorPatch(game, { loading: false });
+    }
+  }, [headers, setGeneratorPatch, syncGeneratorForm]);
+
+  const loadGeneratorStatus = useCallback(async () => {
+    await Promise.all([loadGeneratorStatusForGame("quiz"), loadGeneratorStatusForGame("wordpass")]);
+  }, [loadGeneratorStatusForGame]);
+
+  const startGenerator = useCallback(async (game: GameGeneratorKey) => {
+    const service = GENERATOR_SERVICE_BY_GAME[game];
+    const current = generatorState[game];
+    const snapshot = current.snapshot;
+
+    const countPerIteration = Number.parseInt(current.form.countPerIteration, 10);
+    const normalizedCount = Number.isFinite(countPerIteration) ? Math.max(1, Math.min(200, countPerIteration)) : 10;
+
+    const availableCategoryIds = snapshot?.available.categories.map((entry) => entry.id) ?? [];
+    const availableDifficultyIds = snapshot?.available.difficultyLevels.map((entry) => entry.id) ?? ["easy", "medium", "hard"];
+
+    const selectedCategoryIds = current.form.categoryIds.filter((entry) => availableCategoryIds.includes(entry));
+    const selectedDifficultyLevels = current.form.difficultyLevels.filter((entry) => availableDifficultyIds.includes(entry));
+
+    const payload = {
+      countPerIteration: normalizedCount,
+      ...(selectedCategoryIds.length > 0 && selectedCategoryIds.length < availableCategoryIds.length
+        ? { categoryIds: selectedCategoryIds }
+        : {}),
+      ...(selectedDifficultyLevels.length > 0 && selectedDifficultyLevels.length < availableDifficultyIds.length
+        ? { difficultyLevels: selectedDifficultyLevels }
+        : {}),
+    };
+
+    setGeneratorPatch(game, { saving: true, error: null });
+    try {
+      const response = await fetchJson<RuntimeGenerationWorkerResponse>(
+        `${EDGE_API_BASE}/v1/backoffice/services/${service}/generation/worker/start`,
+        {
+          method: "POST",
+          headers: headers(),
+          body: JSON.stringify(payload),
+        },
+      );
+      syncGeneratorForm(game, response.worker);
+    } catch (error) {
+      setGeneratorPatch(game, {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setGeneratorPatch(game, { saving: false });
+    }
+  }, [generatorState, headers, setGeneratorPatch, syncGeneratorForm]);
+
+  const stopGenerator = useCallback(async (game: GameGeneratorKey) => {
+    const service = GENERATOR_SERVICE_BY_GAME[game];
+    setGeneratorPatch(game, { saving: true, error: null });
+    try {
+      const response = await fetchJson<RuntimeGenerationWorkerResponse>(
+        `${EDGE_API_BASE}/v1/backoffice/services/${service}/generation/worker/stop`,
+        {
+          method: "POST",
+          headers: headers(),
+        },
+      );
+      syncGeneratorForm(game, response.worker);
+    } catch (error) {
+      setGeneratorPatch(game, {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      setGeneratorPatch(game, { saving: false });
+    }
+  }, [headers, setGeneratorPatch, syncGeneratorForm]);
 
   // ---- RAG stats loader ---------------------------------------------------
 
@@ -262,7 +474,8 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
     loadRagStats();
     loadTarget();
     loadServiceTargets();
-  }, [loadRagStats, loadServiceTargets, loadTarget]);
+    loadGeneratorStatus();
+  }, [loadGeneratorStatus, loadRagStats, loadServiceTargets, loadTarget]);
 
   useEffect(() => {
     const activeTarget = serviceTargets.find((entry) => entry.service === selectedService) ?? serviceTargets[0] ?? null;
@@ -271,6 +484,16 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
     }
     syncServiceForm(activeTarget);
   }, [selectedService, serviceTargets, syncServiceForm]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      void loadGeneratorStatus();
+    }, 10_000);
+
+    return () => {
+      clearInterval(timer);
+    };
+  }, [loadGeneratorStatus]);
 
   const applyTarget = useCallback(async () => {
     setTargetSaving(true);
@@ -463,6 +686,7 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
   const coveragePercent = COVERAGE_BAR[coverageLevel] ?? 0;
   const coverageColor = COVERAGE_COLORS[coverageLevel] ?? "";
   const currentServiceTarget = serviceTargets.find((entry) => entry.service === selectedService) ?? null;
+  const generatorOrder: GameGeneratorKey[] = ["quiz", "wordpass"];
 
   return (
     <div className={`grid gap-4 ${compact ? "gap-3" : "gap-5"}`}>
@@ -474,6 +698,217 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
         <p className="text-sm text-[var(--md-sys-color-on-surface-variant)]">
           {t("diag.subtitle")}
         </p>
+      </div>
+
+      <div className="m3-card ui-panel-shell rounded-[1.75rem] p-4">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-base font-semibold text-[var(--md-sys-color-on-surface)]">
+              {t("diag.generation.title")}
+            </h3>
+            <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
+              {t("diag.generation.subtitle")}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={loadGeneratorStatus}
+            disabled={generatorState.quiz.loading || generatorState.wordpass.loading}
+            className="ui-action-pill ui-action-pill--quiet min-h-0 px-3 py-1.5 text-xs"
+          >
+            {(generatorState.quiz.loading || generatorState.wordpass.loading) ? "..." : t("diag.generation.refreshBtn")}
+          </button>
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-2">
+          {generatorOrder.map((game) => {
+            const state = generatorState[game];
+            const snapshot = state.snapshot;
+            const categories = snapshot?.available.categories ?? [];
+            const difficultyLevels = snapshot?.available.difficultyLevels ?? [];
+            const allCategoriesSelected = categories.length > 0 && state.form.categoryIds.length === categories.length;
+            const allDifficultiesSelected =
+              difficultyLevels.length > 0 && state.form.difficultyLevels.length === difficultyLevels.length;
+            const mostMissingCategory =
+              snapshot?.balance.categories.find((entry) => entry.id === snapshot.balance.mostMissingCategoryId)?.name ?? "--";
+            const mostMissingDifficulty = snapshot?.balance.mostMissingDifficultyLevel ?? "--";
+
+            return (
+              <section key={game} className="ui-panel-block rounded-[1.35rem] p-3">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <h4 className="text-sm font-semibold text-[var(--md-sys-color-on-surface)]">
+                    {game === "quiz" ? t("diag.generation.quiz") : t("diag.generation.wordpass")}
+                  </h4>
+                  <span className="text-xs font-medium text-[var(--md-sys-color-on-surface-variant)]">
+                    {snapshot?.active ? t("diag.generation.status.active") : t("diag.generation.status.inactive")}
+                  </span>
+                </div>
+
+                {state.error && (
+                  <div className="ui-feedback text-xs text-[var(--md-sys-color-error)]">
+                    {t("diag.generation.error")}: {state.error}
+                  </div>
+                )}
+
+                <div className="mt-3 grid gap-3 md:grid-cols-2">
+                  <label className="ui-control-label text-xs">
+                    {t("diag.generation.countPerIteration")}
+                    <input
+                      type="number"
+                      min={1}
+                      max={200}
+                      value={state.form.countPerIteration}
+                      onChange={(event) =>
+                        setGeneratorPatch(game, {
+                          form: {
+                            countPerIteration: event.target.value,
+                          },
+                        })
+                      }
+                      className="control-input mt-1 w-full"
+                    />
+                  </label>
+
+                  <div className="ui-panel-block rounded-[1rem] p-2.5">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--md-sys-color-on-surface-variant)]">
+                      {t("diag.generation.interval")}
+                    </p>
+                    <p className="mt-1 text-sm text-[var(--md-sys-color-on-surface)]">
+                      {snapshot ? `${snapshot.intervalSeconds}s` : "--"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-3 grid gap-3 md:grid-cols-2">
+                  <div className="ui-panel-block rounded-[1rem] p-2.5">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--md-sys-color-on-surface-variant)]">
+                      {t("diag.generation.categories")}
+                    </p>
+                    <div className="mt-2 grid gap-1">
+                      {categories.length === 0 && (
+                        <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">--</p>
+                      )}
+                      {categories.map((entry) => {
+                        const checked = state.form.categoryIds.includes(entry.id);
+                        return (
+                          <label key={`${game}-cat-${entry.id}`} className="flex items-center gap-2 text-xs">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => {
+                                const next = checked
+                                  ? state.form.categoryIds.filter((id) => id !== entry.id)
+                                  : [...state.form.categoryIds, entry.id];
+                                setGeneratorPatch(game, {
+                                  form: {
+                                    categoryIds: next,
+                                  },
+                                });
+                              }}
+                            />
+                            <span className="text-[var(--md-sys-color-on-surface)]">{entry.name}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                    <p className="mt-2 text-[11px] text-[var(--md-sys-color-on-surface-variant)]">
+                      {allCategoriesSelected || state.form.categoryIds.length === 0
+                        ? t("diag.generation.allSelectedHint")
+                        : `${state.form.categoryIds.length}/${categories.length}`}
+                    </p>
+                  </div>
+
+                  <div className="ui-panel-block rounded-[1rem] p-2.5">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--md-sys-color-on-surface-variant)]">
+                      {t("diag.generation.difficulties")}
+                    </p>
+                    <div className="mt-2 grid gap-1">
+                      {difficultyLevels.length === 0 && (
+                        <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">--</p>
+                      )}
+                      {difficultyLevels.map((entry) => {
+                        const checked = state.form.difficultyLevels.includes(entry.id);
+                        return (
+                          <label key={`${game}-difficulty-${entry.id}`} className="flex items-center gap-2 text-xs">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => {
+                                const next = checked
+                                  ? state.form.difficultyLevels.filter((id) => id !== entry.id)
+                                  : [...state.form.difficultyLevels, entry.id];
+                                setGeneratorPatch(game, {
+                                  form: {
+                                    difficultyLevels: next,
+                                  },
+                                });
+                              }}
+                            />
+                            <span className="text-[var(--md-sys-color-on-surface)]">
+                              {entry.label} ({entry.min}-{entry.max})
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                    <p className="mt-2 text-[11px] text-[var(--md-sys-color-on-surface-variant)]">
+                      {allDifficultiesSelected || state.form.difficultyLevels.length === 0
+                        ? t("diag.generation.allSelectedHint")
+                        : `${state.form.difficultyLevels.length}/${difficultyLevels.length}`}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void startGenerator(game);
+                    }}
+                    disabled={state.saving}
+                    className="ui-action-pill ui-action-pill--tonal text-xs"
+                  >
+                    {t("diag.generation.startBtn")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void stopGenerator(game);
+                    }}
+                    disabled={state.saving}
+                    className="ui-action-pill ui-action-pill--quiet text-xs"
+                  >
+                    {t("diag.generation.stopBtn")}
+                  </button>
+                </div>
+
+                <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                  <StatCard label={t("diag.generation.lastDuration")} value={snapshot?.lastIterationDurationMs ?? "--"} />
+                  <StatCard label={t("diag.generation.iterationsSession")} value={snapshot?.iterationsSinceActivation ?? "--"} />
+                  <StatCard label={t("diag.generation.iterationsTotal")} value={snapshot?.iterationsTotal ?? "--"} />
+                  <StatCard label={t("diag.generation.generatedSession")} value={snapshot?.generatedSinceActivation ?? "--"} />
+                  <StatCard label={t("diag.generation.totalDb")} value={snapshot?.totalObjectsInDb ?? "--"} />
+                  <StatCard label={t("diag.generation.inFlight")} value={snapshot?.iterationInFlight ? t("diag.generation.yes") : t("diag.generation.no")} />
+                </div>
+
+                <div className="mt-3 grid gap-2 md:grid-cols-2">
+                  <div className="ui-panel-block rounded-[1rem] p-2.5">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--md-sys-color-on-surface-variant)]">
+                      {t("diag.generation.missingCategory")}
+                    </p>
+                    <p className="mt-1 text-xs text-[var(--md-sys-color-on-surface)]">{mostMissingCategory}</p>
+                  </div>
+                  <div className="ui-panel-block rounded-[1rem] p-2.5">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--md-sys-color-on-surface-variant)]">
+                      {t("diag.generation.missingDifficulty")}
+                    </p>
+                    <p className="mt-1 text-xs text-[var(--md-sys-color-on-surface)]">{mostMissingDifficulty}</p>
+                  </div>
+                </div>
+              </section>
+            );
+          })}
+        </div>
       </div>
 
       <div className="m3-card ui-panel-shell rounded-[1.75rem] p-4">
