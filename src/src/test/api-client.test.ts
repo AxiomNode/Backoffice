@@ -63,6 +63,29 @@ describe("apiClient.fetchJson", () => {
     );
   });
 
+  it("adds Content-Type only when a request body is present", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { fetchJson } = await import("../infrastructure/http/apiClient");
+
+    await fetchJson("http://localhost:7005/no-body");
+    await fetchJson("http://localhost:7005/with-body", {
+      method: "POST",
+      body: JSON.stringify({ foo: "bar" }),
+    });
+
+    const firstHeaders = (fetchMock.mock.calls[0]?.[1] as RequestInit | undefined)?.headers as Headers;
+    const secondHeaders = (fetchMock.mock.calls[1]?.[1] as RequestInit | undefined)?.headers as Headers;
+
+    expect(firstHeaders.get("Content-Type")).toBeNull();
+    expect(secondHeaders.get("Content-Type")).toBe("application/json");
+  });
+
   it("falls back to the HTTP status text when the error body is empty", async () => {
     vi.stubGlobal(
       "fetch",

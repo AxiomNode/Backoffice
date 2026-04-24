@@ -110,7 +110,10 @@ function extractErrorDetail(raw: string): string | null {
 /** Performs a JSON fetch with automatic auth header injection and error handling. */
 export async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
   const headers = new Headers(options?.headers ?? {});
-  headers.set("Content-Type", "application/json");
+  const hasBody = options?.body !== undefined && options?.body !== null;
+  if (hasBody && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
   if (EDGE_API_TOKEN) {
     headers.set("Authorization", `Bearer ${EDGE_API_TOKEN}`);
   }
