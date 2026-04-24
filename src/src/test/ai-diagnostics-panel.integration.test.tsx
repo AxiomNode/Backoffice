@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { I18nProvider } from "../i18n/context";
@@ -441,4 +441,265 @@ describe("AIDiagnosticsPanel integration", () => {
       expect(screen.getByText("Error al gestionar el destino del AI Engine: reset-target-down")).toBeInTheDocument();
     });
   });
+
+  it("starts and stops quiz generator with normalized payload", async () => {
+    fetchJsonMock.mockImplementation((url: string, options?: RequestInit) => {
+      if (url.endsWith("/v1/backoffice/ai-diagnostics/rag/stats")) {
+        return Promise.resolve({
+          total_chunks: 10,
+          total_chars: 2000,
+          unique_documents: 3,
+          embedding_dimensions: 384,
+          avg_chunk_chars: 200,
+          coverage_level: "good",
+          coverage_message: "ok",
+          retriever_config: { top_k: 4, min_score: 0.25 },
+          sources: [],
+        });
+      }
+
+      if (url.includes("/v1/backoffice/services/microservice-quiz/generation/worker") && (!options?.method || options.method === "GET")) {
+        return Promise.resolve({
+          gameType: "quiz",
+          worker: {
+            ...buildWorkerSnapshot("quiz"),
+            config: {
+              countPerIteration: 10,
+              selectedCategoryIds: ["cat-1", "cat-2"],
+              selectedDifficultyLevels: ["easy", "medium", "hard"],
+            },
+          },
+        });
+      }
+
+      if (url.includes("/v1/backoffice/services/microservice-wordpass/generation/worker") && (!options?.method || options.method === "GET")) {
+        return Promise.resolve({ gameType: "word-pass", worker: buildWorkerSnapshot("word-pass") });
+      }
+
+      if (url.endsWith("/generation/worker/start") && options?.method === "POST") {
+        return Promise.resolve({
+          gameType: "quiz",
+          worker: {
+            ...buildWorkerSnapshot("quiz"),
+            active: true,
+            config: {
+              countPerIteration: 200,
+              selectedCategoryIds: ["cat-1"],
+              selectedDifficultyLevels: ["easy", "medium"],
+            },
+          },
+        });
+      }
+
+      if (url.endsWith("/generation/worker/stop") && options?.method === "POST") {
+        return Promise.resolve({
+          gameType: "quiz",
+          worker: {
+            ...buildWorkerSnapshot("quiz"),
+            active: false,
+            config: {
+              countPerIteration: 200,
+              selectedCategoryIds: ["cat-1"],
+              selectedDifficultyLevels: ["easy", "medium"],
+            },
+          },
+        });
+      }
+
+      if (url.endsWith("/v1/backoffice/ai-engine/target") && (!options?.method || options.method === "GET")) {
+        return Promise.resolve({
+          source: "env",
+          label: null,
+          host: "localhost",
+          protocol: "http",
+          port: 7002,
+          llamaBaseUrl: "http://localhost:7002/v1/completions",
+          envLlamaBaseUrl: "http://localhost:7002/v1/completions",
+          updatedAt: null,
+        });
+      }
+
+      if (url.endsWith("/v1/backoffice/ai-diagnostics/tests/status")) {
+        return Promise.resolve({
+          status: "idle",
+          suites: {},
+          summary: { total: 0, passed: 0, failed: 0, skipped: 0, errors: 0 },
+        });
+      }
+
+      throw new Error(`Unhandled URL: ${url}`);
+    });
+
+    renderPanel();
+
+    const quizHeader = await screen.findByText("Generador quiz");
+    const quizSection = quizHeader.closest("section");
+    expect(quizSection).not.toBeNull();
+    const quiz = within(quizSection!);
+
+    const countInput = quiz.getByLabelText("Cantidad por iteracion") as HTMLInputElement;
+    fireEvent.change(countInput, { target: { value: "999" } });
+    fireEvent.click(quiz.getByLabelText("Science"));
+    fireEvent.click(quiz.getByLabelText("hard (67-100)"));
+
+    fireEvent.click(quiz.getByRole("button", { name: "Activar iteraciones" }));
+
+    await waitFor(() => {
+      expect(fetchJsonMock).toHaveBeenCalledWith(
+        "http://localhost:7005/v1/backoffice/services/microservice-quiz/generation/worker/start",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            countPerIteration: 200,
+            categoryIds: ["cat-1"],
+            difficultyLevels: ["easy", "medium"],
+          }),
+        }),
+      );
+    });
+
+    fireEvent.click(quiz.getByRole("button", { name: "Desactivar iteraciones" }));
+
+    await waitFor(() => {
+      expect(fetchJsonMock).toHaveBeenCalledWith(
+        "http://localhost:7005/v1/backoffice/services/microservice-quiz/generation/worker/stop",
+        expect.objectContaining({ method: "POST" }),
+      );
+    });
+  });
+
+  it("retries polling after transient status failure and renders suite details", async () => {
+    let statusCalls = 0;
+
+    fetchJsonMock.mockImplementation((url: string, options?: RequestInit) => {
+      if (url.endsWith("/v1/backoffice/ai-diagnostics/rag/stats")) {
+        return Promise.resolve({
+          total_chunks: 10,
+          total_chars: 2000,
+          unique_documents: 3,
+          embedding_dimensions: 384,
+          avg_chunk_chars: 200,
+          coverage_level: "good",
+          coverage_message: "ok",
+          retriever_config: { top_k: 4, min_score: 0.25 },
+          sources: [{ source: "doc-a", chunks: 5, total_chars: 1000, unique_documents: 1, avg_chunk_chars: 200 }],
+        });
+      }
+
+      if (url.includes("/v1/backoffice/services/microservice-quiz/generation/worker") && (!options?.method || options.method === "GET")) {
+        return Promise.resolve({ gameType: "quiz", worker: buildWorkerSnapshot("quiz") });
+      }
+
+      if (url.includes("/v1/backoffice/services/microservice-wordpass/generation/worker") && (!options?.method || options.method === "GET")) {
+        return Promise.resolve({ gameType: "word-pass", worker: buildWorkerSnapshot("word-pass") });
+      }
+
+      if (url.endsWith("/v1/backoffice/ai-engine/target") && (!options?.method || options.method === "GET")) {
+        return Promise.resolve({
+          source: "env",
+          label: null,
+          host: "localhost",
+          protocol: "http",
+          port: 7002,
+          llamaBaseUrl: "http://localhost:7002/v1/completions",
+          envLlamaBaseUrl: "http://localhost:7002/v1/completions",
+          updatedAt: null,
+        });
+      }
+
+      if (url.endsWith("/v1/backoffice/ai-diagnostics/tests/run") && options?.method === "POST") {
+        return Promise.resolve({ status: "running" });
+      }
+
+      if (url.endsWith("/v1/backoffice/ai-diagnostics/tests/status")) {
+        statusCalls += 1;
+        if (statusCalls === 1) {
+          return Promise.reject(new Error("status-temporary-down"));
+        }
+        if (statusCalls === 2) {
+          return Promise.resolve({
+            status: "running",
+            progress: {
+              total_suites: 2,
+              completed_suites: 1,
+              percent: 45,
+              current_suite: "semantic",
+              message: "suite in progress",
+            },
+            suites: {
+              smoke: {
+                suite: "smoke",
+                total: 1,
+                passed: 1,
+                failed: 0,
+                tests: [{ name: "health endpoint", passed: true }],
+              },
+            },
+            summary: { total: 1, passed: 1, failed: 0, skipped: 0, errors: 0 },
+            recommendations: ["use deterministic prompts"],
+          });
+        }
+
+        return Promise.resolve({
+          status: "completed",
+          started_at: 1000,
+          finished_at: 2500,
+          progress: {
+            total_suites: 2,
+            completed_suites: 2,
+            percent: 100,
+            message: "done",
+          },
+          suites: {
+            semantic: {
+              suite: "semantic",
+              total: 2,
+              passed: 1,
+              failed: 1,
+              tests: [
+                { name: "retrieval quality", passed: true },
+                { name: "hallucination guard", passed: false, error: "threshold", details: { score: 0.12345, retries: 2, strict: true } },
+              ],
+            },
+          },
+          summary: { total: 2, passed: 1, failed: 1, skipped: 0, errors: 0 },
+          recommendations: ["use deterministic prompts"],
+        });
+      }
+
+      throw new Error(`Unhandled URL: ${url}`);
+    });
+
+    renderPanel();
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Ejecutar tests" })).toBeInTheDocument();
+      expect(screen.getByText("Fuentes de documentos")).toBeInTheDocument();
+      expect(screen.getByText("doc-a")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Ejecutar tests" }));
+
+    await waitFor(() => {
+      expect(statusCalls).toBe(1);
+    });
+
+    await new Promise((resolve) => window.setTimeout(resolve, 2200));
+
+    await waitFor(() => {
+      expect(statusCalls).toBeGreaterThanOrEqual(2);
+    });
+
+    await new Promise((resolve) => window.setTimeout(resolve, 1200));
+
+    await waitFor(() => {
+      expect(statusCalls).toBe(3);
+      expect(screen.getByText("Completado")).toBeInTheDocument();
+      expect(screen.getByText("Duracion: 1.5s")).toBeInTheDocument();
+      expect(screen.getByText("Recomendaciones")).toBeInTheDocument();
+      expect(screen.getByText("use deterministic prompts")).toBeInTheDocument();
+      expect(screen.getByText("hallucination guard")).toBeInTheDocument();
+      expect(screen.getByText(/score=0.1235, retries=2, strict=true/)).toBeInTheDocument();
+    });
+  }, 12000);
 });
