@@ -48,6 +48,15 @@ type SuiteResult = {
   passed: number;
   failed: number;
   tests: TestResult[];
+  metrics?: Record<string, number | string | boolean>;
+};
+
+type TestRunProgress = {
+  total_suites: number;
+  completed_suites: number;
+  percent: number;
+  current_suite?: string | null;
+  message?: string | null;
 };
 
 type TestRunStatus = {
@@ -56,6 +65,9 @@ type TestRunStatus = {
   finished_at?: number;
   message?: string;
   suites: Record<string, SuiteResult>;
+  progress?: TestRunProgress;
+  recommendations?: string[];
+  performance?: Record<string, Record<string, number | string | boolean>>;
   summary: {
     total: number;
     passed: number;
@@ -687,6 +699,14 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
   const coverageColor = COVERAGE_COLORS[coverageLevel] ?? "";
   const currentServiceTarget = serviceTargets.find((entry) => entry.service === selectedService) ?? null;
   const generatorOrder: GameGeneratorKey[] = ["quiz", "wordpass"];
+  const progressPercent = Math.max(
+    0,
+    Math.min(
+      100,
+      testStatus?.progress?.percent ?? (testStatus?.status === "completed" ? 100 : 0),
+    ),
+  );
+  const hasRecommendations = Boolean(testStatus?.recommendations && testStatus.recommendations.length > 0);
 
   return (
     <div className={`grid gap-4 ${compact ? "gap-3" : "gap-5"}`}>
@@ -1356,6 +1376,14 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
           <div className="mb-4 space-y-3">
             <div className="flex flex-wrap items-center gap-3">
               <StatusBadge status={testStatus.status} t={t} />
+              <span className="text-xs font-semibold text-[var(--md-sys-color-on-surface-variant)]">
+                {t("diag.tests.progress")}: {progressPercent}%
+              </span>
+              {testStatus.progress?.current_suite && (
+                <span className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
+                  {t("diag.tests.currentSuite")}: {testStatus.progress.current_suite}
+                </span>
+              )}
               {testStatus.started_at && testStatus.finished_at && (
                 <span className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
                   {t("diag.tests.duration")}: {formatDuration(testStatus.started_at, testStatus.finished_at)}
@@ -1375,10 +1403,17 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
             </div>
 
             {/* Progress bar for running tests */}
-            {testStatus.status === "running" && (
+            {(testStatus.status === "running" || progressPercent > 0) && (
               <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--md-sys-color-surface-container)]">
-                <div className="h-full animate-pulse rounded-full bg-[var(--md-sys-color-primary)]" style={{ width: "60%" }} />
+                <div
+                  className={`h-full rounded-full bg-[var(--md-sys-color-primary)] ${testStatus.status === "running" ? "transition-all duration-500" : ""}`}
+                  style={{ width: `${progressPercent}%` }}
+                />
               </div>
+            )}
+
+            {testStatus.progress?.message && (
+              <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">{testStatus.progress.message}</p>
             )}
           </div>
         )}
@@ -1389,6 +1424,22 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
             {Object.entries(testStatus.suites).map(([key, suite]) => (
               <SuiteCard key={key} suite={suite} compact={compact} />
             ))}
+          </div>
+        )}
+
+        {testStatus && testStatus.status !== "idle" && hasRecommendations && (
+          <div className="mt-4 ui-panel-block rounded-[1.2rem] p-3">
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-[var(--md-sys-color-on-surface-variant)]">
+              {t("diag.tests.recommendations")}
+            </h4>
+            <div className="mt-2 grid gap-1.5 text-xs text-[var(--md-sys-color-on-surface)]">
+              {testStatus.recommendations!.map((recommendation, index) => (
+                <div key={`${recommendation}-${index}`} className="flex items-start gap-2">
+                  <span className="mt-0.5 text-[var(--md-sys-color-primary)]">•</span>
+                  <span>{recommendation}</span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
@@ -1416,6 +1467,7 @@ function StatCard({ label, value }: { label: string; value: string | number }) {
 function StatusBadge({ status, t }: { status: string; t: (key: string) => string }) {
   const map: Record<string, { klass: string; label: string }> = {
     running: { klass: "ui-status-chip ui-status-chip--neutral", label: t("diag.tests.running") },
+    already_running: { klass: "ui-status-chip ui-status-chip--neutral", label: t("diag.tests.running") },
     completed: { klass: "ui-status-chip ui-status-chip--ok", label: t("diag.tests.completed") },
     error: { klass: "ui-status-chip ui-status-chip--error", label: "Error" },
     idle: { klass: "ui-status-chip ui-status-chip--neutral", label: t("diag.tests.idle") },

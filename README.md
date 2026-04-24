@@ -111,6 +111,7 @@ Push to `main` triggers image rebuild in `platform-infra`. For the covered runti
 
 - The overview panel exposes shared ai-engine destination presets backed by `bff-backoffice` persistence.
 - Diagnostics panels can reflect effective runtime state, not only static environment configuration.
+- AI diagnostics test runs display backend progress (`suite`, percentage, status message) while executing and render recommendation hints after completion.
 - The browser may also hold a local edge endpoint override for controlled troubleshooting of alternative BFF or gateway endpoints.
 
 ## Failure boundaries

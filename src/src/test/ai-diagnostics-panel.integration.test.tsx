@@ -1005,7 +1005,7 @@ describe("AIDiagnosticsPanel integration", () => {
     fireEvent.click(screen.getByRole("button", { name: "Ejecutar tests" }));
 
     await waitFor(() => {
-      expect(screen.getByText("Sin ejecucion activa")).toBeInTheDocument();
+      expect(screen.getAllByText("Ejecutando...").length).toBeGreaterThan(0);
       expect(screen.getByText("score=0.1235, chunk=2")).toBeInTheDocument();
       expect(screen.getByText(/boom/)).toBeInTheDocument();
     });
