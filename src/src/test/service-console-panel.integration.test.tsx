@@ -141,6 +141,80 @@ describe("ServiceConsolePanel integration", () => {
     });
   });
 
+  it("renders warnings and failures in service tests tab with recommendations", async () => {
+    fetchJsonMock.mockImplementation((url: string) => {
+      if (url.endsWith("/v1/backoffice/services")) {
+        return Promise.resolve({
+          services: [{ key: "ai-engine-api", title: "AI Engine API", domain: "ai", supportsData: false }],
+        });
+      }
+      if (url.includes("/metrics")) {
+        return Promise.reject(new Error("metrics timeout"));
+      }
+      if (url.includes("/logs")) {
+        return Promise.resolve({ logs: [] });
+      }
+      if (url.endsWith("/v1/backoffice/ai-diagnostics/rag/stats")) {
+        return Promise.reject(new Error("rag unavailable"));
+      }
+      if (url.includes("/data?")) {
+        return Promise.resolve({ rows: [] });
+      }
+      return Promise.reject(new Error(`Unhandled URL: ${url}`));
+    });
+
+    renderPanel("svc-ai-api");
+
+    await waitFor(() => {
+      expect(screen.getByText("metrics timeout")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("tab", { name: "Tests" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Recomendaciones")).toBeInTheDocument();
+      expect(screen.getByText(/Verifica scraping\/prometheus/i)).toBeInTheDocument();
+      expect(screen.getByText(/Revisa conectividad ai-engine-api/i)).toBeInTheDocument();
+      expect(screen.getAllByText("Fallo").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("Alerta").length).toBeGreaterThan(0);
+    });
+  });
+
+  it("shows AI stats page without advanced tab when diagnostics embedding is not available", async () => {
+    fetchJsonMock.mockImplementation((url: string) => {
+      if (url.endsWith("/v1/backoffice/services")) {
+        return Promise.resolve({
+          services: [{ key: "ai-engine-stats", title: "AI Stats", domain: "ai", supportsData: false }],
+        });
+      }
+      if (url.includes("/metrics")) {
+        return Promise.resolve({ metrics: { traffic: { requestsReceivedTotal: 5, p95LatencyMs: 800 } } });
+      }
+      if (url.includes("/logs")) {
+        return Promise.resolve({ logs: [{ createdAt: "2026-04-24T11:00:00Z", event: "ok" }] });
+      }
+      if (url.endsWith("/v1/backoffice/ai-diagnostics/rag/stats")) {
+        return Promise.resolve(null);
+      }
+      if (url.includes("/data?")) {
+        return Promise.resolve({ rows: [] });
+      }
+      return Promise.reject(new Error(`Unhandled URL: ${url}`));
+    });
+
+    renderPanel("svc-ai-stats");
+
+    await waitFor(() => {
+      expect(screen.getByRole("tab", { name: "Observabilidad" })).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: "Tests" })).toBeInTheDocument();
+      expect(screen.queryByRole("tab", { name: "IA avanzada" })).not.toBeInTheDocument();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Sin estadisticas AI disponibles.")).toBeInTheDocument();
+    });
+  });
+
   it("shows the global overview error when a metrics request throws synchronously", async () => {
     fetchJsonMock.mockImplementation((url: string) => {
       if (url.endsWith("/v1/backoffice/services")) {

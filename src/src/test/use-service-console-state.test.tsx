@@ -2,7 +2,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { UI_SERVICE_GENERATION_FOLLOW_STORAGE_PREFIX, UI_SERVICE_ROUTE_QUERY_STORAGE_PREFIX } from "../domain/constants/ui";
-import type { SessionContext } from "../domain/types/backoffice";
+import type { NavKey, SessionContext } from "../domain/types/backoffice";
 
 const fetchJsonMock = vi.hoisted(() => vi.fn());
 const storeServiceLastErrorMock = vi.hoisted(() => vi.fn());
@@ -421,5 +421,85 @@ describe("useServiceConsoleState", () => {
     expect(result.current.dataMutationMessage).toBe("delete-ok");
     expect(result.current.dataMutationError).toBeNull();
     expect(result.current.deleteEntryId).toBe("");
+  });
+
+  it("loads AI RAG stats for ai-engine service pages and reports fetch failures", async () => {
+    window.location.hash = "#/backoffice/svc-ai-api";
+
+    fetchJsonMock.mockImplementation((url: string) => {
+      if (url.endsWith("/v1/backoffice/services")) {
+        return Promise.resolve({
+          services: [{ key: "ai-engine-api", title: "AI Engine API", domain: "ai", supportsData: false }],
+        });
+      }
+      if (url.includes("/metrics")) {
+        return Promise.resolve({ metrics: { traffic: { requestsReceivedTotal: 10 } } });
+      }
+      if (url.includes("/logs")) {
+        return Promise.resolve({ logs: [] });
+      }
+      if (url.endsWith("/v1/backoffice/ai-diagnostics/rag/stats")) {
+        return Promise.resolve({
+          total_chunks: 50,
+          total_chars: 10000,
+          unique_documents: 8,
+          embedding_dimensions: 768,
+          avg_chunk_chars: 200,
+          coverage_level: "moderate",
+          coverage_message: "partial",
+          retriever_config: { top_k: 5, min_score: 0.1 },
+          sources: [],
+        });
+      }
+      if (url.includes("/data?")) {
+        return Promise.resolve({ rows: [] });
+      }
+      return Promise.reject(new Error(`Unhandled URL: ${url}`));
+    });
+
+    const initialProps: { navKey: NavKey } = { navKey: "svc-ai-api" };
+
+    const { result, rerender } = renderHook(
+      ({ navKey }) => useServiceConsoleState(navKey, context, "error-fallback", messages),
+      { initialProps },
+    );
+
+    await waitFor(() => {
+      expect(result.current.aiRagStats).toEqual(
+        expect.objectContaining({
+          total_chunks: 50,
+          coverage_level: "moderate",
+        }),
+      );
+      expect(result.current.aiRagStatsError).toBeNull();
+    });
+
+    fetchJsonMock.mockImplementation((url: string) => {
+      if (url.endsWith("/v1/backoffice/services")) {
+        return Promise.resolve({
+          services: [{ key: "ai-engine-stats", title: "AI Engine Stats", domain: "ai", supportsData: false }],
+        });
+      }
+      if (url.includes("/metrics")) {
+        return Promise.resolve({ metrics: { traffic: { requestsReceivedTotal: 10 } } });
+      }
+      if (url.includes("/logs")) {
+        return Promise.resolve({ logs: [] });
+      }
+      if (url.endsWith("/v1/backoffice/ai-diagnostics/rag/stats")) {
+        return Promise.reject(new Error("rag-failed"));
+      }
+      if (url.includes("/data?")) {
+        return Promise.resolve({ rows: [] });
+      }
+      return Promise.reject(new Error(`Unhandled URL: ${url}`));
+    });
+
+    rerender({ navKey: "svc-ai-stats" });
+
+    await waitFor(() => {
+      expect(result.current.aiRagStats).toBeNull();
+      expect(result.current.aiRagStatsError).toBe("rag-failed");
+    });
   });
 });
