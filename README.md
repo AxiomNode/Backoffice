@@ -115,6 +115,7 @@ Push to `main` triggers image rebuild in `platform-infra`. For the covered runti
 - Every service page now uses a shared tab model (`Observability`, `Tests`, and `Data` when available), with service-specific extra tabs when needed.
 - `svc-ai-api` keeps the same shared tabs and adds an in-page `Advanced AI` tab that embeds the diagnostics lab, while `ai-diagnostics` remains the dedicated standalone route.
 - AI observability data for service pages includes direct RAG stats (coverage, chunk/doc volume, and source breakdown) in the service-level observability tab.
+- The shell header is split into two tiers: a compact global operator bar (session, environment health, release metadata, and preferences) and a route-level module header to keep context visible without hero-style vertical bloat.
 - The browser may also hold a local edge endpoint override for controlled troubleshooting of alternative BFF or gateway endpoints.
 
 ## Failure boundaries

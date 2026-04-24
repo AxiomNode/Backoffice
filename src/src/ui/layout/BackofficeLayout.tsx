@@ -517,172 +517,191 @@ export function BackofficeLayout({
       </div>
 
       <main className={`relative z-20 min-w-0 overflow-visible ${compactViewport ? "space-y-2.5" : "space-y-3 sm:space-y-4 xl:space-y-4"}`}>
-        <header className={`m3-card ui-fade-in relative z-30 overflow-visible bg-[linear-gradient(125deg,color-mix(in_srgb,var(--md-sys-color-primary-container)_62%,var(--md-sys-color-surface)_38%)_0%,color-mix(in_srgb,var(--md-sys-color-surface-container-low)_95%,transparent_5%)_56%,color-mix(in_srgb,var(--md-sys-color-surface-container)_90%,var(--md-sys-color-secondary-container)_10%)_100%)] ${narrowViewport ? "p-3" : compactViewport ? "p-3.5" : "p-4 xl:p-5"}`}>
-          <div className={`grid ${compactViewport ? "gap-3" : "gap-4"} xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start`}>
-            <div className={`min-w-0 ${compactViewport ? "space-y-3" : "space-y-3.5"}`}>
-              <div className={`flex flex-wrap items-start justify-between ${compactViewport ? "gap-3" : "gap-4 xl:gap-6"}`}>
-                <div className="min-w-0 flex-1">
-                  <p className={`uppercase text-[var(--md-sys-color-on-surface-variant)] ${narrowViewport ? "text-[10px] tracking-[0.18em]" : "text-[11px] tracking-[0.24em]"}`}>{t("layout.header.adminConsole")}</p>
-                  <h1 className={`m3-title mt-2 ${narrowViewport ? "text-lg leading-6" : compactViewport ? "text-xl leading-7" : "text-xl sm:text-2xl xl:text-4xl"}`}>{t("layout.header.title")}</h1>
-                  <p className={`mt-1.5 max-w-3xl text-[var(--md-sys-color-on-surface-variant)] ${narrowViewport ? "text-[11px] leading-4" : compactViewport ? "text-xs leading-5" : "text-xs sm:text-sm xl:text-[0.95rem]"}`}>
-                    {t("layout.header.session")}: {session.displayName} ({session.role})
-                  </p>
-                </div>
-
-                <div className={`ui-subtle-card flex w-full min-w-0 flex-col items-start rounded-[1.35rem] ${narrowViewport ? "p-2.5" : "p-3 sm:p-3.5"} sm:w-auto sm:min-w-[10.5rem] xl:min-w-[12rem]`}>
-                  <p className={`uppercase tracking-[0.18em] text-[var(--md-sys-color-on-surface-variant)] ${narrowViewport ? "text-[10px]" : "text-[11px]"}`}>
-                    {t("layout.release.environment")} {deploymentHistory.environment.toUpperCase()}
-                  </p>
-                  <p className={`mt-2 font-semibold text-[var(--md-sys-color-on-surface)] ${narrowViewport ? "text-xs" : "text-sm sm:text-base"}`}>
-                    {t("layout.release.version")}: {deploymentHistory.currentVersion}
-                  </p>
-                  <p className={`mt-1 text-[var(--md-sys-color-on-surface-variant)] ${narrowViewport ? "text-[11px] leading-4" : "text-xs leading-5"}`}>
-                    {t("layout.release.deployedAt")}: {deploymentHistory.currentDeployedAt}
-                  </p>
-                </div>
+        <header className="space-y-2.5 sm:space-y-3">
+          <section className={`m3-card ui-fade-in relative z-30 overflow-visible bg-[linear-gradient(128deg,color-mix(in_srgb,var(--md-sys-color-primary-container)_46%,var(--md-sys-color-surface)_54%)_0%,color-mix(in_srgb,var(--md-sys-color-surface-container-low)_95%,transparent_5%)_55%,color-mix(in_srgb,var(--md-sys-color-surface-container)_92%,var(--md-sys-color-secondary-container)_8%)_100%)] ${narrowViewport ? "p-3" : compactViewport ? "p-3.5" : "p-4 xl:p-4.5"}`}>
+            <div className="flex flex-wrap items-start justify-between gap-2.5 sm:gap-3">
+              <div className="min-w-0">
+                <p className={`uppercase text-[var(--md-sys-color-on-surface-variant)] ${narrowViewport ? "text-[10px] tracking-[0.15em]" : "text-[11px] tracking-[0.2em]"}`}>
+                  {t("layout.header.adminConsole")}
+                </p>
+                <p className={`mt-1 m3-title ${narrowViewport ? "text-base" : compactViewport ? "text-lg" : "text-lg xl:text-xl"}`}>
+                  {t("sidebar.title")}
+                </p>
               </div>
 
-              <div className={`flex flex-wrap items-center ${compactViewport ? "gap-2" : "gap-2.5"}`}>
-                <span
-                  className={`ui-status-chip ${
-                    globalHealth === "healthy"
-                      ? "ui-status-chip--ok"
-                      : globalHealth === "warning"
-                        ? "ui-status-chip--warn"
-                        : globalHealth === "critical"
-                          ? "ui-status-chip--error"
-                          : "ui-status-chip--neutral"
-                  }`}
-                >
-                  {globalHealth === "healthy"
-                    ? t("layout.header.semaphore.healthy")
+              <div className={`flex flex-wrap items-center justify-end ${compactViewport ? "gap-2" : "gap-2.5"}`}>
+                <div className="relative z-30">
+                  <button
+                    ref={releaseHistoryButtonRef}
+                    type="button"
+                    onClick={() => {
+                      setReleaseHistoryOpen((currentValue) => !currentValue);
+                      setPreferencesOpen(false);
+                    }}
+                    aria-expanded={releaseHistoryOpen}
+                    aria-controls="deployment-history-panel"
+                    className={`ui-action-pill ui-action-pill--tonal ${narrowViewport ? "px-3 py-1.5 text-[11px]" : "text-xs"}`}
+                  >
+                    {t("layout.release.historyBtn")} ({deploymentHistory.history.length})
+                  </button>
+
+                  {releaseHistoryOpen &&
+                    releaseHistoryStyle &&
+                    canRenderFloatingPanels &&
+                    createPortal(
+                      <div
+                        id="deployment-history-panel"
+                        ref={releaseHistoryPopoverRef}
+                        style={releaseHistoryStyle}
+                        className="ui-popover-panel overflow-hidden rounded-[1.75rem] p-4"
+                      >
+                        <p className="text-sm font-semibold text-[var(--md-sys-color-on-surface)]">{t("layout.release.historyTitle")}</p>
+                        <div className="mt-3 space-y-2 overflow-y-auto pr-1" style={{ maxHeight: releaseHistoryStyle.maxHeight ? Math.max(120, Number(releaseHistoryStyle.maxHeight) - 76) : undefined }}>
+                          {deploymentHistory.history.map((entry) => (
+                            <article
+                              key={`${entry.version}-${entry.deployedAt}`}
+                              className="ui-subtle-card rounded-2xl px-3 py-3"
+                            >
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <p className="text-sm font-semibold text-[var(--md-sys-color-on-surface)]">{entry.version}</p>
+                                <p className="text-[11px] text-[var(--md-sys-color-on-surface-variant)]">{entry.deployedAt}</p>
+                              </div>
+                              <p className="mt-1 text-xs text-[var(--md-sys-color-on-surface-variant)]">{entry.summary}</p>
+                              <p className="mt-1 text-[11px] text-[var(--md-sys-color-on-surface-variant)]">{entry.commitSha}</p>
+                            </article>
+                          ))}
+                        </div>
+                      </div>,
+                      document.body,
+                    )}
+                </div>
+
+                <div className="relative z-30">
+                  <button
+                    ref={preferencesButtonRef}
+                    type="button"
+                    onClick={() => {
+                      setPreferencesOpen((currentValue) => !currentValue);
+                      setReleaseHistoryOpen(false);
+                    }}
+                    aria-expanded={preferencesOpen}
+                    aria-controls="layout-preferences-panel"
+                    className={`ui-action-pill ui-action-pill--tonal ${narrowViewport ? "px-3 py-1.5 text-[11px]" : "text-xs"}`}
+                  >
+                    UI
+                  </button>
+
+                  {preferencesOpen &&
+                    preferencesStyle &&
+                    canRenderFloatingPanels &&
+                    createPortal(
+                      <div
+                        id="layout-preferences-panel"
+                        ref={preferencesPopoverRef}
+                        style={preferencesStyle}
+                        className="ui-popover-panel overflow-y-auto rounded-[1.75rem] p-4"
+                      >
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <label className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
+                            {t("language.selectorLabel")}
+                            <select value={language} onChange={(event) => setLanguage(event.target.value as typeof language)} className="control-input mt-1 w-full py-1.5">
+                              {LANGUAGE_OPTIONS.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <label className="text-xs text-[var(--md-sys-color-on-surface-variant)] sm:col-span-2">
+                            {t("layout.header.typography")}
+                            <select value={typography} onChange={(event) => onTypographyChange(event.target.value as UiTypography)} className="control-input mt-1 w-full py-1.5">
+                              {TYPOGRAPHY_OPTIONS.map((size) => (
+                                <option key={size} value={size}>{t(TYPOGRAPHY_LABEL_KEYS[size])}</option>
+                              ))}
+                            </select>
+                          </label>
+                          <button type="button" onClick={onToggleTheme} className="ui-switch justify-between rounded-2xl border border-[var(--md-sys-color-outline-variant)] px-3 py-2.5" role="switch" aria-checked={theme === "dark"} aria-label={t("layout.header.themeSwitch")}>
+                            <span className={`ui-switch-track ${theme === "dark" ? "is-on" : ""}`}>
+                              <span className="ui-switch-thumb" />
+                            </span>
+                            <span className="text-xs font-semibold text-[var(--md-sys-color-on-surface-variant)]">{theme === "dark" ? t("layout.header.themeDark") : t("layout.header.themeLight")}</span>
+                          </button>
+                          <button type="button" onClick={toggleDensity} className="ui-switch justify-between rounded-2xl border border-[var(--md-sys-color-outline-variant)] px-3 py-2.5" role="switch" aria-checked={density === "dense"} aria-label={t("layout.header.densitySwitch")}>
+                            <span className={`ui-switch-track ${density === "dense" ? "is-on" : ""}`}>
+                              <span className="ui-switch-thumb" />
+                            </span>
+                            <span className="text-xs font-semibold text-[var(--md-sys-color-on-surface-variant)]">{density === "dense" ? t("layout.header.densityDense") : t("layout.header.densityComfortable")}</span>
+                          </button>
+                        </div>
+                      </div>,
+                      document.body,
+                    )}
+                </div>
+
+                <button type="button" onClick={onSignOut} className={`ui-action-pill ui-action-pill--quiet ${narrowViewport ? "px-3 py-1.5 text-xs" : "text-sm"}`}>
+                  {t("layout.header.signOut")}
+                </button>
+              </div>
+            </div>
+
+            <div className={`mt-3 flex flex-wrap items-center ${compactViewport ? "gap-2" : "gap-2.5"}`}>
+              <span className="ui-status-chip ui-status-chip--neutral">
+                {t("layout.release.environment")} {deploymentHistory.environment.toUpperCase()}
+              </span>
+              <span
+                className={`ui-status-chip ${
+                  globalHealth === "healthy"
+                    ? "ui-status-chip--ok"
                     : globalHealth === "warning"
-                      ? t("layout.header.semaphore.warning")
+                      ? "ui-status-chip--warn"
                       : globalHealth === "critical"
-                        ? t("layout.header.semaphore.critical")
-                        : t("layout.header.semaphore.unknown")}
-                </span>
-                <span className={`${narrowViewport ? "text-[11px]" : "text-xs sm:text-sm"} text-[var(--md-sys-color-on-surface-variant)]`}>{globalHealthText}</span>
+                        ? "ui-status-chip--error"
+                        : "ui-status-chip--neutral"
+                }`}
+              >
+                {globalHealth === "healthy"
+                  ? t("layout.header.semaphore.healthy")
+                  : globalHealth === "warning"
+                    ? t("layout.header.semaphore.warning")
+                    : globalHealth === "critical"
+                      ? t("layout.header.semaphore.critical")
+                      : t("layout.header.semaphore.unknown")}
+              </span>
+              <span className={`${narrowViewport ? "text-[11px]" : "text-xs sm:text-sm"} text-[var(--md-sys-color-on-surface-variant)]`}>{globalHealthText}</span>
+              <span className={`${narrowViewport ? "text-[11px]" : "text-xs"} text-[var(--md-sys-color-on-surface-variant)]`}>
+                {t("layout.release.version")}: {deploymentHistory.currentVersion}
+              </span>
+              <span className={`${narrowViewport ? "text-[11px]" : "text-xs"} text-[var(--md-sys-color-on-surface-variant)]`}>
+                {t("layout.release.deployedAt")}: {deploymentHistory.currentDeployedAt}
+              </span>
+            </div>
+          </section>
+
+          <section className={`m3-card ui-summary-band ${narrowViewport ? "p-3" : compactViewport ? "p-3.5" : "p-4"}`}>
+            <div className="flex flex-wrap items-start justify-between gap-3 sm:gap-4">
+              <div className="min-w-0 flex-1">
+                <p className={`uppercase text-[var(--md-sys-color-on-surface-variant)] ${narrowViewport ? "text-[10px] tracking-[0.16em]" : "text-[11px] tracking-[0.2em]"}`}>
+                  {t("layout.mobile.serviceFallback")}
+                </p>
+                <h1 className={`m3-title mt-1.5 ${narrowViewport ? "text-lg leading-6" : compactViewport ? "text-xl leading-7" : "text-2xl leading-8"}`}>
+                  {currentNav?.title ?? t("layout.mobile.serviceFallback")}
+                </h1>
+                {currentNav?.subtitle && (
+                  <p className={`mt-1.5 max-w-4xl text-[var(--md-sys-color-on-surface-variant)] ${narrowViewport ? "text-[11px] leading-4" : "text-xs sm:text-sm"}`}>
+                    {currentNav.subtitle}
+                  </p>
+                )}
               </div>
 
-              <div className={`flex flex-wrap items-center ${compactViewport ? "gap-2" : "gap-2.5"}`}>
-                  <div className="relative z-30">
-                    <button
-                      ref={releaseHistoryButtonRef}
-                      type="button"
-                      onClick={() => {
-                        setReleaseHistoryOpen((currentValue) => !currentValue);
-                        setPreferencesOpen(false);
-                      }}
-                      aria-expanded={releaseHistoryOpen}
-                      aria-controls="deployment-history-panel"
-                      className={`ui-action-pill ui-action-pill--tonal ${narrowViewport ? "px-3 py-1.5 text-[11px]" : "text-xs"}`}
-                    >
-                      {t("layout.release.historyBtn")} ({deploymentHistory.history.length})
-                    </button>
-
-                    {releaseHistoryOpen &&
-                      releaseHistoryStyle &&
-                      canRenderFloatingPanels &&
-                      createPortal(
-                        <div
-                          id="deployment-history-panel"
-                          ref={releaseHistoryPopoverRef}
-                          style={releaseHistoryStyle}
-                          className="ui-popover-panel overflow-hidden rounded-[1.75rem] p-4"
-                        >
-                          <p className="text-sm font-semibold text-[var(--md-sys-color-on-surface)]">{t("layout.release.historyTitle")}</p>
-                          <div className="mt-3 space-y-2 overflow-y-auto pr-1" style={{ maxHeight: releaseHistoryStyle.maxHeight ? Math.max(120, Number(releaseHistoryStyle.maxHeight) - 76) : undefined }}>
-                            {deploymentHistory.history.map((entry) => (
-                              <article
-                                key={`${entry.version}-${entry.deployedAt}`}
-                                className="ui-subtle-card rounded-2xl px-3 py-3"
-                              >
-                                <div className="flex flex-wrap items-center justify-between gap-2">
-                                  <p className="text-sm font-semibold text-[var(--md-sys-color-on-surface)]">{entry.version}</p>
-                                  <p className="text-[11px] text-[var(--md-sys-color-on-surface-variant)]">{entry.deployedAt}</p>
-                                </div>
-                                <p className="mt-1 text-xs text-[var(--md-sys-color-on-surface-variant)]">{entry.summary}</p>
-                                <p className="mt-1 text-[11px] text-[var(--md-sys-color-on-surface-variant)]">{entry.commitSha}</p>
-                              </article>
-                            ))}
-                          </div>
-                        </div>,
-                        document.body,
-                      )}
-                  </div>
-
-                  <div className="relative z-30">
-                    <button
-                      ref={preferencesButtonRef}
-                      type="button"
-                      onClick={() => {
-                        setPreferencesOpen((currentValue) => !currentValue);
-                        setReleaseHistoryOpen(false);
-                      }}
-                      aria-expanded={preferencesOpen}
-                      aria-controls="layout-preferences-panel"
-                      className={`ui-action-pill ui-action-pill--tonal ${narrowViewport ? "px-3 py-1.5 text-[11px]" : "text-xs"}`}
-                    >
-                      UI
-                    </button>
-
-                    {preferencesOpen &&
-                      preferencesStyle &&
-                      canRenderFloatingPanels &&
-                      createPortal(
-                        <div
-                          id="layout-preferences-panel"
-                          ref={preferencesPopoverRef}
-                          style={preferencesStyle}
-                          className="ui-popover-panel overflow-y-auto rounded-[1.75rem] p-4"
-                        >
-                          <div className="grid gap-3 sm:grid-cols-2">
-                            <label className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
-                              {t("language.selectorLabel")}
-                              <select value={language} onChange={(event) => setLanguage(event.target.value as typeof language)} className="control-input mt-1 w-full py-1.5">
-                                {LANGUAGE_OPTIONS.map((option) => (
-                                  <option key={option.value} value={option.value}>
-                                    {option.label}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
-                            <label className="text-xs text-[var(--md-sys-color-on-surface-variant)] sm:col-span-2">
-                              {t("layout.header.typography")}
-                              <select value={typography} onChange={(event) => onTypographyChange(event.target.value as UiTypography)} className="control-input mt-1 w-full py-1.5">
-                                {TYPOGRAPHY_OPTIONS.map((size) => (
-                                  <option key={size} value={size}>{t(TYPOGRAPHY_LABEL_KEYS[size])}</option>
-                                ))}
-                              </select>
-                            </label>
-                            <button type="button" onClick={onToggleTheme} className="ui-switch justify-between rounded-2xl border border-[var(--md-sys-color-outline-variant)] px-3 py-2.5" role="switch" aria-checked={theme === "dark"} aria-label={t("layout.header.themeSwitch")}>
-                              <span className={`ui-switch-track ${theme === "dark" ? "is-on" : ""}`}>
-                                <span className="ui-switch-thumb" />
-                              </span>
-                              <span className="text-xs font-semibold text-[var(--md-sys-color-on-surface-variant)]">{theme === "dark" ? t("layout.header.themeDark") : t("layout.header.themeLight")}</span>
-                            </button>
-                            <button type="button" onClick={toggleDensity} className="ui-switch justify-between rounded-2xl border border-[var(--md-sys-color-outline-variant)] px-3 py-2.5" role="switch" aria-checked={density === "dense"} aria-label={t("layout.header.densitySwitch")}>
-                              <span className={`ui-switch-track ${density === "dense" ? "is-on" : ""}`}>
-                                <span className="ui-switch-thumb" />
-                              </span>
-                              <span className="text-xs font-semibold text-[var(--md-sys-color-on-surface-variant)]">{density === "dense" ? t("layout.header.densityDense") : t("layout.header.densityComfortable")}</span>
-                            </button>
-                          </div>
-                        </div>,
-                        document.body,
-                      )}
-                  </div>
-
-                  <button type="button" onClick={onSignOut} className={`ui-action-pill ui-action-pill--quiet ${narrowViewport ? "px-3 py-1.5 text-xs" : "text-sm"}`}>{t("layout.header.signOut")}</button>
+              <div className={`ui-subtle-card flex min-w-[11rem] flex-col rounded-2xl ${narrowViewport ? "px-3 py-2.5" : "px-3.5 py-3"}`}>
+                <p className={`uppercase tracking-[0.16em] text-[var(--md-sys-color-on-surface-variant)] ${narrowViewport ? "text-[10px]" : "text-[11px]"}`}>
+                  {t("layout.header.session")}
+                </p>
+                <p className={`mt-1.5 font-semibold text-[var(--md-sys-color-on-surface)] ${narrowViewport ? "text-xs" : "text-sm"}`}>{session.displayName}</p>
+                <p className={`text-[var(--md-sys-color-on-surface-variant)] ${narrowViewport ? "text-[11px]" : "text-xs"}`}>{session.role}</p>
               </div>
             </div>
-            <div className={`${compactViewport ? "hidden" : "flex"} items-start justify-start xl:justify-end xl:pt-1`}>
-              <div className="ui-subtle-card flex items-center justify-center rounded-[1.5rem] px-3 py-3 sm:px-4 xl:px-5">
-                <img src="/axiomnode-logo.svg" alt="AxiomNode" className="h-10 w-auto object-contain sm:h-12 xl:h-14" />
-              </div>
-            </div>
-          </div>
+          </section>
         </header>
 
         <Suspense fallback={<div className="m3-card animate-pulse p-6 text-center text-sm text-[var(--md-sys-color-on-surface-variant)]">…</div>}>
