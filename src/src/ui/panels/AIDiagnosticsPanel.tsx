@@ -665,7 +665,7 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
     try {
       await fetchJson<{ status: string }>(
         `${EDGE_API_BASE}/v1/backoffice/ai-diagnostics/tests/run`,
-        { method: "POST", headers: headers() },
+        { method: "POST", headers: headers(), body: JSON.stringify({}) },
       );
       stopPolling();
       await pollTestStatus();
