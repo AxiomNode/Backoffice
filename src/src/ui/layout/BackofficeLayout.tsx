@@ -686,10 +686,9 @@ export function BackofficeLayout({
         </header>
 
         <Suspense fallback={<div className="m3-card animate-pulse p-6 text-center text-sm text-[var(--md-sys-color-on-surface-variant)]">…</div>}>
-          {/** El apartado ai-engine-api reutiliza el laboratorio IA cuando el rol permite operaciones runtime. */}
+          {/** La ruta ai-diagnostics mantiene el laboratorio IA dedicado; las paginas svc-* usan consola unificada por servicio. */}
           {(() => {
-            const canUseAiDiagnostics = roleCanModify(session.role);
-            const showAiDiagnostics = current === "ai-diagnostics" || (current === "svc-ai-api" && canUseAiDiagnostics);
+            const showAiDiagnostics = current === "ai-diagnostics" && roleCanModify(session.role);
 
             return (
               <>

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type { DataDataset, NavKey, SessionContext, UiDensity } from "../../domain/types/backoffice";
 import { useI18n } from "../../i18n/context";
 import type { LabelKey } from "../../i18n/labels";
+import { AIDiagnosticsPanel } from "./AIDiagnosticsPanel";
 import { AutoRefreshCountdown } from "../components/AutoRefreshCountdown";
 import { PaginatedFilterableTable } from "../components/PaginatedFilterableTable";
 import { useMaxWidth } from "../hooks/useMaxWidth";
@@ -140,7 +141,17 @@ type ServiceConsolePanelProps = {
   density: UiDensity;
 };
 
-type ServiceConsoleSection = "observability" | "data" | "manual";
+type ServiceConsoleSection = "observability" | "tests" | "data" | "manual" | "advanced";
+
+type ServiceTestStatus = "passed" | "warning" | "failed";
+
+type ServiceTestCheck = {
+  key: string;
+  label: string;
+  detail: string;
+  status: ServiceTestStatus;
+  recommendation?: string;
+};
 
 type CollapsibleSectionProps = {
   title: string;
@@ -203,16 +214,6 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
   }
 
   const isGameHistoryDataset = isQuizHistoryDataset || isWordpassHistoryDataset;
-
-  useEffect(() => {
-    setActiveSection(isGameHistoryDataset ? "data" : "observability");
-  }, [isGameHistoryDataset, navKey]);
-
-  useEffect(() => {
-    if (activeSection === "manual" && !isGameHistoryDataset) {
-      setActiveSection("data");
-    }
-  }, [activeSection, isGameHistoryDataset]);
 
   useEffect(() => {
     setFiltersExpanded(false);
@@ -459,6 +460,162 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
     });
   }, [serviceConfig.service, state.metricsRows]);
 
+  const isAiServicePage = serviceConfig.service === "ai-engine-api" || serviceConfig.service === "ai-engine-stats";
+  const hasAiAdvancedSection = serviceConfig.service === "ai-engine-api";
+
+  const latencyP95Ms = useMemo(() => {
+    const asNumber = (value: unknown): number | null => {
+      if (typeof value === "number" && Number.isFinite(value)) return value;
+      if (typeof value === "string") {
+        const parsed = Number(value);
+        if (Number.isFinite(parsed)) return parsed;
+      }
+      return null;
+    };
+
+    const candidates: number[] = [];
+
+    for (const metricRow of state.metricsRows) {
+      const latency = metricRow.latency && typeof metricRow.latency === "object" ? (metricRow.latency as Record<string, unknown>) : null;
+      const directValue = asNumber(metricRow.p95LatencyMs ?? metricRow.latencyP95Ms ?? metricRow.p95_ms ?? metricRow.p95);
+      const nestedValue = latency ? asNumber(latency.p95 ?? latency.p95_ms ?? latency.latencyP95Ms) : null;
+      if (directValue !== null) candidates.push(directValue);
+      if (nestedValue !== null) candidates.push(nestedValue);
+    }
+
+    if (candidates.length === 0) return null;
+    return Math.max(...candidates);
+  }, [state.metricsRows]);
+
+  const serviceTestChecks = useMemo((): ServiceTestCheck[] => {
+    const checks: ServiceTestCheck[] = [];
+
+    checks.push({
+      key: "metrics-connectivity",
+      label: t("service.tests.metricsConnectivity"),
+      detail: state.metricsError
+        ? state.metricsError
+        : state.metricsRows.length > 0
+          ? t("service.tests.metricsConnectivity.ok")
+          : t("service.tests.metricsConnectivity.warn"),
+      status: state.metricsError ? "failed" : state.metricsRows.length > 0 ? "passed" : "warning",
+      recommendation: state.metricsError ? t("service.tests.metricsConnectivity.reco") : undefined,
+    });
+
+    checks.push({
+      key: "logs-connectivity",
+      label: t("service.tests.logsConnectivity"),
+      detail: state.logsError
+        ? state.logsError
+        : state.logsRows.length > 0
+          ? t("service.tests.logsConnectivity.ok")
+          : t("service.tests.logsConnectivity.warn"),
+      status: state.logsError ? "failed" : state.logsRows.length > 0 ? "passed" : "warning",
+      recommendation: state.logsError ? t("service.tests.logsConnectivity.reco") : undefined,
+    });
+
+    checks.push({
+      key: "performance-baseline",
+      label: t("service.tests.performanceBaseline"),
+      detail:
+        latencyP95Ms === null
+          ? t("service.tests.performanceBaseline.warn")
+          : t("service.tests.performanceBaseline.value", { value: Math.round(latencyP95Ms) }),
+      status:
+        latencyP95Ms === null
+          ? "warning"
+          : latencyP95Ms > 2500
+            ? "failed"
+            : latencyP95Ms > 1200
+              ? "warning"
+              : "passed",
+      recommendation:
+        latencyP95Ms !== null && latencyP95Ms > 1200
+          ? t("service.tests.performanceBaseline.reco")
+          : undefined,
+    });
+
+    if (hasDataSection) {
+      checks.push({
+        key: "data-pipeline",
+        label: t("service.tests.dataPipeline"),
+        detail: state.dataError
+          ? state.dataError
+          : state.dataRows.length > 0 || state.dataTotal > 0
+            ? t("service.tests.dataPipeline.ok", { rows: Math.max(state.dataRows.length, state.dataTotal) })
+            : t("service.tests.dataPipeline.warn"),
+        status:
+          state.dataError
+            ? "failed"
+            : state.dataRows.length > 0 || state.dataTotal > 0
+              ? "passed"
+              : "warning",
+        recommendation: state.dataError ? t("service.tests.dataPipeline.reco") : undefined,
+      });
+    }
+
+    if (serviceConfig.service === "microservice-users") {
+      const supportsLeaderboard = Boolean(serviceConfig.datasets?.some((dataset) => dataset.value === "leaderboard"));
+      checks.push({
+        key: "users-leaderboard-check",
+        label: t("service.tests.usersCustom"),
+        detail: supportsLeaderboard ? t("service.tests.usersCustom.ok") : t("service.tests.usersCustom.fail"),
+        status: supportsLeaderboard ? "passed" : "failed",
+        recommendation: supportsLeaderboard ? undefined : t("service.tests.usersCustom.reco"),
+      });
+    }
+
+    if (serviceConfig.service === "microservice-quiz" || serviceConfig.service === "microservice-wordpass") {
+      const supportsProcesses = Boolean(serviceConfig.datasets?.some((dataset) => dataset.value === "processes"));
+      checks.push({
+        key: "generator-process-monitoring",
+        label: t("service.tests.generatorCustom"),
+        detail: supportsProcesses ? t("service.tests.generatorCustom.ok") : t("service.tests.generatorCustom.fail"),
+        status: supportsProcesses ? "passed" : "failed",
+        recommendation: supportsProcesses ? undefined : t("service.tests.generatorCustom.reco"),
+      });
+    }
+
+    if (isAiServicePage) {
+      checks.push({
+        key: "ai-rag-stats",
+        label: t("service.tests.aiCustom"),
+        detail: state.aiRagStatsError
+          ? state.aiRagStatsError
+          : state.aiRagStats
+            ? t("service.tests.aiCustom.ok", { chunks: state.aiRagStats.total_chunks })
+            : t("service.tests.aiCustom.warn"),
+        status: state.aiRagStatsError ? "failed" : state.aiRagStats ? "passed" : "warning",
+        recommendation: state.aiRagStatsError ? t("service.tests.aiCustom.reco") : undefined,
+      });
+    }
+
+    return checks;
+  }, [
+    hasDataSection,
+    isAiServicePage,
+    latencyP95Ms,
+    serviceConfig.datasets,
+    serviceConfig.service,
+    state.aiRagStats,
+    state.aiRagStatsError,
+    state.dataError,
+    state.dataRows.length,
+    state.dataTotal,
+    state.logsError,
+    state.logsRows.length,
+    state.metricsError,
+    state.metricsRows.length,
+    t,
+  ]);
+
+  const testsRecommendations = useMemo(
+    () => serviceTestChecks
+      .filter((check) => check.status !== "passed" && check.recommendation)
+      .map((check) => check.recommendation as string),
+    [serviceTestChecks],
+  );
+
   const renderManualEditorFields = () => (
     <div className="space-y-3">
       <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
@@ -637,13 +794,20 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
 
     if (activeSection === "data" && !hasDataSection) {
       setActiveSection("observability");
+      return;
     }
-  }, [activeSection, hasDataSection, isGameHistoryDataset]);
+
+    if (activeSection === "advanced" && !hasAiAdvancedSection) {
+      setActiveSection("tests");
+    }
+  }, [activeSection, hasAiAdvancedSection, hasDataSection, isGameHistoryDataset]);
 
   const sectionOptions: Array<{ key: ServiceConsoleSection; label: string; visible: boolean }> = [
     { key: "observability", label: t("service.section.observability"), visible: true },
+    { key: "tests", label: t("service.section.tests"), visible: true },
     { key: "data", label: t("service.section.data"), visible: hasDataSection },
     { key: "manual", label: t("service.section.manual"), visible: isGameHistoryDataset },
+    { key: "advanced", label: t("service.section.aiAdvanced"), visible: hasAiAdvancedSection },
   ];
 
   const visibleSections = sectionOptions.filter((section) => section.visible);
@@ -805,6 +969,83 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
 
       {activeSection === "observability" && (
         <section className={`grid min-w-0 ${compactViewport ? "gap-2.5" : "gap-3"}`} aria-label={t("service.section.observability")}>
+          {isAiServicePage && (
+            <article className={`ui-table-shell min-w-0 rounded-[1.75rem] ${compactViewport ? "p-3" : "p-4"} space-y-3`}>
+              <div>
+                <h3 className={`m3-title ${compact ? "text-base" : "text-lg"}`}>{t("service.aiObservability.title")}</h3>
+                <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">{t("service.aiObservability.subtitle")}</p>
+              </div>
+
+              {state.aiRagStatsError ? (
+                <p className="ui-feedback ui-feedback--error">{state.aiRagStatsError}</p>
+              ) : state.aiRagStats ? (
+                <>
+                  <div className="ui-panel-block rounded-[1.2rem] p-3">
+                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--md-sys-color-on-surface-variant)]">
+                        {t("service.aiObservability.coverage")}
+                      </span>
+                      <span className="ui-status-chip ui-status-chip--neutral">{state.aiRagStats.coverage_level}</span>
+                    </div>
+                    <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">{state.aiRagStats.coverage_message}</p>
+                  </div>
+
+                  <div className={`grid gap-2 ${compactViewport ? "grid-cols-2" : "sm:grid-cols-2 xl:grid-cols-5"}`}>
+                    <article className="ui-metric-tile ui-metric-tile--neutral rounded-[1.2rem] p-3">
+                      <p className="ui-metric-label">{t("diag.rag.totalChunks")}</p>
+                      <p className="ui-metric-value mt-2">{state.aiRagStats.total_chunks}</p>
+                    </article>
+                    <article className="ui-metric-tile ui-metric-tile--neutral rounded-[1.2rem] p-3">
+                      <p className="ui-metric-label">{t("diag.rag.totalChars")}</p>
+                      <p className="ui-metric-value mt-2">{state.aiRagStats.total_chars.toLocaleString()}</p>
+                    </article>
+                    <article className="ui-metric-tile ui-metric-tile--neutral rounded-[1.2rem] p-3">
+                      <p className="ui-metric-label">{t("diag.rag.uniqueDocs")}</p>
+                      <p className="ui-metric-value mt-2">{state.aiRagStats.unique_documents}</p>
+                    </article>
+                    <article className="ui-metric-tile ui-metric-tile--neutral rounded-[1.2rem] p-3">
+                      <p className="ui-metric-label">{t("diag.rag.embeddingDim")}</p>
+                      <p className="ui-metric-value mt-2">{state.aiRagStats.embedding_dimensions}</p>
+                    </article>
+                    <article className="ui-metric-tile ui-metric-tile--neutral rounded-[1.2rem] p-3">
+                      <p className="ui-metric-label">{t("diag.rag.avgChunkChars")}</p>
+                      <p className="ui-metric-value mt-2">{state.aiRagStats.avg_chunk_chars}</p>
+                    </article>
+                  </div>
+
+                  {state.aiRagStats.sources.length > 0 && (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="border-b border-[var(--md-sys-color-outline-variant)] text-left text-[var(--md-sys-color-on-surface-variant)]">
+                            <th className="py-1 pr-3 font-medium">Source</th>
+                            <th className="py-1 pr-3 text-right font-medium">Chunks</th>
+                            <th className="py-1 pr-3 text-right font-medium">Chars</th>
+                            <th className="py-1 pr-3 text-right font-medium">Docs</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {state.aiRagStats.sources.map((source) => (
+                            <tr key={source.source} className="border-b border-[var(--md-sys-color-outline-variant)]/30">
+                              <td className="py-1 pr-3 font-mono">{source.source}</td>
+                              <td className="py-1 pr-3 text-right">{source.chunks}</td>
+                              <td className="py-1 pr-3 text-right">{source.total_chars.toLocaleString()}</td>
+                              <td className="py-1 pr-3 text-right">{source.unique_documents}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="ui-subtle-card rounded-2xl border border-dashed px-4 py-3 text-sm">
+                  <p className="font-medium">{t("service.aiObservability.empty")}</p>
+                </div>
+              )}
+            </article>
+          )}
+
           <article className={`ui-table-shell min-w-0 rounded-[1.75rem] ${compactViewport ? "p-3" : "p-4"} space-y-2`}>
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -864,6 +1105,72 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
             )}
           </article>
         </section>
+      )}
+
+      {activeSection === "tests" && (
+        <article className={`ui-table-shell min-w-0 space-y-3 rounded-[1.75rem] ${compactViewport ? "p-3" : "p-4"}`} aria-label={t("service.section.tests")}>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 className={`m3-title ${compact ? "text-base" : "text-lg"}`}>{t("service.tests.title")}</h3>
+              <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">{t("service.tests.subtitle")}</p>
+            </div>
+            <button type="button" onClick={() => void state.loadAll()} className={`ui-action-pill ui-action-pill--quiet ${compactActionClass}`}>
+              {state.loading ? t("service.button.updating") : t("service.tests.run")}
+            </button>
+          </div>
+
+          <div className={`grid gap-2 ${compactViewport ? "grid-cols-1" : "sm:grid-cols-2"}`}>
+            {serviceTestChecks.map((check) => {
+              const statusClass =
+                check.status === "passed"
+                  ? "ui-status-chip--ok"
+                  : check.status === "failed"
+                    ? "ui-status-chip--error"
+                    : "ui-status-chip--neutral";
+              const statusLabel =
+                check.status === "passed"
+                  ? t("service.tests.status.passed")
+                  : check.status === "failed"
+                    ? t("service.tests.status.failed")
+                    : t("service.tests.status.warning");
+
+              return (
+                <article key={check.key} className="ui-panel-block rounded-[1.25rem] p-3">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-[var(--md-sys-color-on-surface)]">{check.label}</p>
+                    <span className={`ui-status-chip ${statusClass}`}>{statusLabel}</span>
+                  </div>
+                  <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">{check.detail}</p>
+                </article>
+              );
+            })}
+          </div>
+
+          {testsRecommendations.length > 0 && (
+            <div className="ui-panel-block rounded-[1.2rem] p-3">
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-[var(--md-sys-color-on-surface-variant)]">{t("service.tests.recommendations")}</h4>
+              <div className="mt-2 grid gap-1.5 text-xs text-[var(--md-sys-color-on-surface)]">
+                {testsRecommendations.map((recommendation, index) => (
+                  <p key={`${recommendation}-${index}`} className="flex items-start gap-2">
+                    <span className="mt-0.5 text-[var(--md-sys-color-primary)]">•</span>
+                    <span>{recommendation}</span>
+                  </p>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {hasAiAdvancedSection && (
+            <div className="ui-subtle-card rounded-2xl p-3 text-xs text-[var(--md-sys-color-on-surface-variant)]">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p>{t("service.tests.aiAdvancedHint")}</p>
+                <button type="button" onClick={() => setActiveSection("advanced")} className="ui-action-pill ui-action-pill--tonal min-h-0 px-3 py-1.5 text-xs">
+                  {t("service.tests.aiAdvancedBtn")}
+                </button>
+              </div>
+            </div>
+          )}
+        </article>
       )}
 
       {activeSection === "data" && hasDataSection && serviceConfig.datasets && serviceConfig.datasets.length > 0 && (
@@ -1043,6 +1350,12 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
             </div>
           )}
         </article>
+      )}
+
+      {activeSection === "advanced" && hasAiAdvancedSection && (
+        <section aria-label={t("service.section.aiAdvanced")}>
+          <AIDiagnosticsPanel context={context} density={density} />
+        </section>
       )}
 
       {activeSection === "manual" && isGameHistoryDataset && (

@@ -730,6 +730,22 @@ describe("BackofficeLayout integration", () => {
     });
   });
 
+  it("renders svc-ai-api with the shared service console tabs", async () => {
+    fetchServiceOperationalSummaryMock.mockResolvedValue({
+      rows: [],
+      totals: { total: 1, onlineCount: 1, accessIssues: 0, connectionErrors: 0 },
+    });
+
+    renderLayout();
+
+    fireEvent.click(screen.getAllByRole("button", { name: /Generacion IA/i })[0]);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("service-console-panel")).toHaveTextContent("console-panel:svc-ai-api");
+      expect(screen.queryByTestId("ai-diagnostics-panel")).not.toBeInTheDocument();
+    });
+  });
+
   it("renders the role management panel for super admins", async () => {
     fetchServiceOperationalSummaryMock.mockResolvedValue({
       rows: [],

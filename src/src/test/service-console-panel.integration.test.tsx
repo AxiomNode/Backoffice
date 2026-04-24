@@ -51,6 +51,10 @@ vi.mock("../ui/components/PaginatedFilterableTable", () => ({
   ),
 }));
 
+vi.mock("../ui/panels/AIDiagnosticsPanel", () => ({
+  AIDiagnosticsPanel: () => <div data-testid="ai-diagnostics-embedded">ai-diagnostics-embedded</div>,
+}));
+
 const context: SessionContext = {
   mode: "dev",
   devUid: "test-uid",
@@ -81,6 +85,60 @@ describe("ServiceConsolePanel integration", () => {
     renderPanel("roles");
 
     expect(screen.getByText("Servicio no encontrado.")).toBeInTheDocument();
+  });
+
+  it("exposes base tabs and AI advanced tab for svc-ai-api", async () => {
+    fetchJsonMock.mockImplementation((url: string) => {
+      if (url.endsWith("/v1/backoffice/services")) {
+        return Promise.resolve({
+          services: [{ key: "ai-engine-api", title: "AI Engine API", domain: "ai", supportsData: false }],
+        });
+      }
+      if (url.includes("/metrics")) {
+        return Promise.resolve({ metrics: { traffic: { requestsReceivedTotal: 42 } } });
+      }
+      if (url.includes("/logs")) {
+        return Promise.resolve({ logs: [{ createdAt: "2026-04-24T11:00:00Z", event: "ok" }] });
+      }
+      if (url.endsWith("/v1/backoffice/ai-diagnostics/rag/stats")) {
+        return Promise.resolve({
+          total_chunks: 120,
+          total_chars: 80000,
+          unique_documents: 12,
+          embedding_dimensions: 1024,
+          avg_chunk_chars: 666,
+          coverage_level: "good",
+          coverage_message: "kb healthy",
+          retriever_config: { top_k: 5, min_score: 0.2 },
+          sources: [{ source: "knowledge/base.md", chunks: 20, total_chars: 12000, unique_documents: 1, avg_chunk_chars: 600 }],
+        });
+      }
+      if (url.includes("/data?")) {
+        return Promise.resolve({ rows: [] });
+      }
+      return Promise.reject(new Error(`Unhandled URL: ${url}`));
+    });
+
+    renderPanel("svc-ai-api");
+
+    await waitFor(() => {
+      expect(screen.getByRole("tab", { name: "Observabilidad" })).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: "Tests" })).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: "IA avanzada" })).toBeInTheDocument();
+      expect(screen.queryByRole("tab", { name: "Datos" })).not.toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("tab", { name: "Tests" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Testeo de servicio")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("tab", { name: "IA avanzada" }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("ai-diagnostics-embedded")).toBeInTheDocument();
+    });
   });
 
   it("shows the global overview error when a metrics request throws synchronously", async () => {

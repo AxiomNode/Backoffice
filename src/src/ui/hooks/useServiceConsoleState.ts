@@ -21,6 +21,24 @@ type ServiceCatalogSnapshot = {
   languages: Array<{ code: string; name: string }>;
 };
 
+type AiRagStats = {
+  total_chunks: number;
+  total_chars: number;
+  unique_documents: number;
+  embedding_dimensions: number;
+  avg_chunk_chars: number;
+  coverage_level: string;
+  coverage_message: string;
+  retriever_config: { top_k?: number; min_score?: number };
+  sources: Array<{
+    source: string;
+    chunks: number;
+    total_chars: number;
+    unique_documents: number;
+    avg_chunk_chars: number;
+  }>;
+};
+
 function parseIntParam(value: string | null, fallback: number, min: number, max: number): number {
   if (!value) return fallback;
   const parsed = Number(value);
@@ -149,6 +167,7 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
   const [catalog, setCatalog] = useState<ServiceCatalogItem[]>([]);
   const [metricsRows, setMetricsRows] = useState<Array<Record<string, unknown>>>([]);
   const [logsRows, setLogsRows] = useState<Array<Record<string, unknown>>>([]);
+  const [aiRagStats, setAiRagStats] = useState<AiRagStats | null>(null);
   const [dataRows, setDataRows] = useState<Array<Record<string, unknown>>>([]);
   const [dataTotal, setDataTotal] = useState(0);
   const [dataPage, setDataPage] = useState(1);
@@ -180,6 +199,7 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
   const [error, setError] = useState<string | null>(null);
   const [metricsError, setMetricsError] = useState<string | null>(null);
   const [logsError, setLogsError] = useState<string | null>(null);
+  const [aiRagStatsError, setAiRagStatsError] = useState<string | null>(null);
   const [dataError, setDataError] = useState<string | null>(null);
 
   // --- Manual CRUD state ---
@@ -201,6 +221,7 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
     setCatalog([]);
     setMetricsRows([]);
     setLogsRows([]);
+    setAiRagStats(null);
     setDataRows([]);
     setDataTotal(0);
     setDataPage(1);
@@ -208,6 +229,7 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
     setError(null);
     setMetricsError(null);
     setLogsError(null);
+    setAiRagStatsError(null);
     setDataError(null);
     setOverviewLoading(false);
     setDataLoading(false);
@@ -445,9 +467,12 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
     setError(null);
     setMetricsError(null);
     setLogsError(null);
+    setAiRagStatsError(null);
 
     try {
-      const [metricsResult, logsResult] = await Promise.all([
+      const loadAiRagStats = serviceConfig.service === "ai-engine-api" || serviceConfig.service === "ai-engine-stats";
+
+      const [metricsResult, logsResult, aiRagStatsResult] = await Promise.all([
         asSectionResult(
           fetchJson<{ metrics: unknown }>(`${EDGE_API_BASE}/v1/backoffice/services/${serviceConfig.service}/metrics`, {
             headers: composeAuthHeaders(context),
@@ -460,6 +485,14 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
             signal: abortController.signal,
           }),
         ),
+        loadAiRagStats
+          ? asSectionResult(
+              fetchJson<AiRagStats>(`${EDGE_API_BASE}/v1/backoffice/ai-diagnostics/rag/stats`, {
+                headers: composeAuthHeaders(context),
+                signal: abortController.signal,
+              }),
+            )
+          : Promise.resolve(null),
       ]);
 
       if (requestVersion !== overviewRequestVersionRef.current) return;
@@ -480,6 +513,17 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
         storeServiceLastError(serviceConfig.service, logsResult.error);
       }
 
+      if (aiRagStatsResult === null) {
+        setAiRagStats(null);
+        setAiRagStatsError(null);
+      } else if (aiRagStatsResult.ok) {
+        setAiRagStats(aiRagStatsResult.data);
+      } else {
+        setAiRagStats(null);
+        setAiRagStatsError(aiRagStatsResult.error);
+        storeServiceLastError(serviceConfig.service, aiRagStatsResult.error);
+      }
+
       setLastOverviewSyncAt(Date.now());
     } catch (err) {
       if (isAbortError(err)) {
@@ -488,6 +532,8 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
       if (requestVersion !== overviewRequestVersionRef.current) return;
       setMetricsRows([]);
       setLogsRows([]);
+      setAiRagStats(null);
+      setAiRagStatsError(null);
       const message = err instanceof Error ? err.message : errorLabel;
       setError(message);
       storeServiceLastError(serviceConfig.service, message);
@@ -765,7 +811,7 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
   return {
     serviceConfig,
     // Data
-    catalog, metricsRows, logsRows, dataRows, dataTotal, dataPage, dataPageSize,
+    catalog, metricsRows, logsRows, aiRagStats, dataRows, dataTotal, dataPage, dataPageSize,
     // Filter / pagination
     dataset, setDataset,
     metric, setMetric,
@@ -787,7 +833,7 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
     overviewLoading,
     dataLoading,
     error,
-    metricsError, logsError, dataError,
+    metricsError, logsError, aiRagStatsError, dataError,
     // Manual CRUD
     manualCategoryId, setManualCategoryId,
     manualLanguage, setManualLanguage,
