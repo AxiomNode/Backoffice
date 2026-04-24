@@ -3,11 +3,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { SessionContext, UiDensity } from "../../domain/types/backoffice";
 import { composeAuthHeaders } from "../../infrastructure/backoffice/authHeaders";
 import {
-  DEFAULT_EDGE_API_BASE,
   EDGE_API_BASE,
   fetchJson,
-  getEdgeApiBaseOverride,
-  setEdgeApiBaseOverride,
 } from "../../infrastructure/http/apiClient";
 import { useI18n } from "../../i18n/context";
 
@@ -86,27 +83,6 @@ type AiEngineTarget = {
   llamaBaseUrl: string | null;
   envLlamaBaseUrl: string | null;
   updatedAt: string | null;
-};
-
-type ServiceTarget = {
-  service:
-    | "api-gateway"
-    | "bff-mobile"
-    | "microservice-users"
-    | "microservice-quiz"
-    | "microservice-wordpass"
-    | "ai-engine-stats"
-    | "ai-engine-api";
-  title: string;
-  source: "env" | "override";
-  baseUrl: string;
-  label: string | null;
-  updatedAt: string | null;
-};
-
-type ServiceTargetsResponse = {
-  total: number;
-  targets: ServiceTarget[];
 };
 
 type GameGeneratorKey = "quiz" | "wordpass";
@@ -248,18 +224,6 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
   const [targetPort, setTargetPort] = useState("7002");
   const [targetLabel, setTargetLabel] = useState("");
 
-  const [edgeApiBaseInput, setEdgeApiBaseInput] = useState(EDGE_API_BASE);
-  const [edgeApiOverride, setEdgeApiOverride] = useState<string | null>(() => getEdgeApiBaseOverride());
-  const [edgeApiError, setEdgeApiError] = useState<string | null>(null);
-
-  const [serviceTargets, setServiceTargets] = useState<ServiceTarget[]>([]);
-  const [serviceTargetsLoading, setServiceTargetsLoading] = useState(false);
-  const [serviceTargetsSaving, setServiceTargetsSaving] = useState(false);
-  const [serviceTargetsError, setServiceTargetsError] = useState<string | null>(null);
-  const [selectedService, setSelectedService] = useState<ServiceTarget["service"]>("microservice-users");
-  const [selectedServiceBaseUrl, setSelectedServiceBaseUrl] = useState("");
-  const [selectedServiceLabel, setSelectedServiceLabel] = useState("");
-
   const [generatorState, setGeneratorState] = useState<Record<GameGeneratorKey, GeneratorUiState>>({
     quiz: {
       loading: false,
@@ -300,11 +264,6 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
     setTargetProtocol(nextTarget.protocol ?? "http");
     setTargetPort(String(nextTarget.port ?? 7002));
     setTargetLabel(nextTarget.label ?? "");
-  }, []);
-
-  const syncServiceForm = useCallback((nextTarget: ServiceTarget | null) => {
-    setSelectedServiceBaseUrl(nextTarget?.baseUrl ?? "");
-    setSelectedServiceLabel(nextTarget?.label ?? "");
   }, []);
 
   const setGeneratorPatch = useCallback(
@@ -463,39 +422,11 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
     setTargetError(null);
   }, [targetHost, targetLabel, targetPort, targetProtocol]);
 
-  const loadServiceTargets = useCallback(async () => {
-    setServiceTargetsLoading(true);
-    setServiceTargetsError(null);
-    try {
-      const payload = await fetchJson<ServiceTargetsResponse>(
-        `${EDGE_API_BASE}/v1/backoffice/service-targets`,
-        { headers: headers() },
-      );
-      setServiceTargets(payload.targets);
-      if (payload.targets.length > 0 && !payload.targets.some((entry) => entry.service === selectedService)) {
-        setSelectedService(payload.targets[0].service);
-      }
-    } catch (err) {
-      setServiceTargetsError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setServiceTargetsLoading(false);
-    }
-  }, [headers, selectedService]);
-
   useEffect(() => {
     loadRagStats();
     loadTarget();
-    loadServiceTargets();
     loadGeneratorStatus();
-  }, [loadGeneratorStatus, loadRagStats, loadServiceTargets, loadTarget]);
-
-  useEffect(() => {
-    const activeTarget = serviceTargets.find((entry) => entry.service === selectedService) ?? serviceTargets[0] ?? null;
-    if (activeTarget && activeTarget.service !== selectedService) {
-      setSelectedService(activeTarget.service);
-    }
-    syncServiceForm(activeTarget);
-  }, [selectedService, serviceTargets, syncServiceForm]);
+  }, [loadGeneratorStatus, loadRagStats, loadTarget]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -556,73 +487,6 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
       setTargetSaving(false);
     }
   }, [headers, loadRagStats, syncTargetForm]);
-
-  const applyEdgeApiTarget = useCallback(() => {
-    setEdgeApiError(null);
-    try {
-      const normalized = setEdgeApiBaseOverride(edgeApiBaseInput);
-      setEdgeApiOverride(normalized);
-      window.location.reload();
-    } catch (err) {
-      setEdgeApiError(err instanceof Error ? err.message : String(err));
-    }
-  }, [edgeApiBaseInput]);
-
-  const resetEdgeApiTarget = useCallback(() => {
-    setEdgeApiError(null);
-    setEdgeApiBaseOverride(null);
-    setEdgeApiOverride(null);
-    setEdgeApiBaseInput(DEFAULT_EDGE_API_BASE);
-    window.location.reload();
-  }, []);
-
-  const applyServiceTarget = useCallback(async () => {
-    setServiceTargetsSaving(true);
-    setServiceTargetsError(null);
-    try {
-      const nextTarget = await fetchJson<ServiceTarget>(
-        `${EDGE_API_BASE}/v1/backoffice/service-targets/${selectedService}`,
-        {
-          method: "PUT",
-          headers: headers(),
-          body: JSON.stringify({
-            baseUrl: selectedServiceBaseUrl,
-            label: selectedServiceLabel,
-          }),
-        },
-      );
-      setServiceTargets((current) =>
-        current.map((entry) => (entry.service === nextTarget.service ? nextTarget : entry)),
-      );
-      syncServiceForm(nextTarget);
-    } catch (err) {
-      setServiceTargetsError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setServiceTargetsSaving(false);
-    }
-  }, [headers, selectedService, selectedServiceBaseUrl, selectedServiceLabel, syncServiceForm]);
-
-  const resetServiceTarget = useCallback(async () => {
-    setServiceTargetsSaving(true);
-    setServiceTargetsError(null);
-    try {
-      const nextTarget = await fetchJson<ServiceTarget>(
-        `${EDGE_API_BASE}/v1/backoffice/service-targets/${selectedService}`,
-        {
-          method: "DELETE",
-          headers: headers(),
-        },
-      );
-      setServiceTargets((current) =>
-        current.map((entry) => (entry.service === nextTarget.service ? nextTarget : entry)),
-      );
-      syncServiceForm(nextTarget);
-    } catch (err) {
-      setServiceTargetsError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setServiceTargetsSaving(false);
-    }
-  }, [headers, selectedService, syncServiceForm]);
 
   // ---- Test runner --------------------------------------------------------
 
@@ -697,7 +561,6 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
   const coverageLevel = ragStats?.coverage_level ?? "empty";
   const coveragePercent = COVERAGE_BAR[coverageLevel] ?? 0;
   const coverageColor = COVERAGE_COLORS[coverageLevel] ?? "";
-  const currentServiceTarget = serviceTargets.find((entry) => entry.service === selectedService) ?? null;
   const generatorOrder: GameGeneratorKey[] = ["quiz", "wordpass"];
   const progressPercent = Math.max(
     0,
@@ -929,174 +792,6 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
             );
           })}
         </div>
-      </div>
-
-      <div className="m3-card ui-panel-shell rounded-[1.75rem] p-4">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <div>
-            <h3 className="text-base font-semibold text-[var(--md-sys-color-on-surface)]">
-              {t("diag.edge.title")}
-            </h3>
-            <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
-              {t("diag.edge.subtitle")}
-            </p>
-          </div>
-        </div>
-
-        {edgeApiError && (
-          <div className="ui-feedback text-sm text-[var(--md-sys-color-error)]">
-            {t("diag.edge.error")}: {edgeApiError}
-          </div>
-        )}
-
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          <StatCard
-            label={t("diag.edge.current")}
-            value={EDGE_API_BASE}
-          />
-          <StatCard
-            label={t("diag.edge.default")}
-            value={DEFAULT_EDGE_API_BASE}
-          />
-          <StatCard
-            label={t("diag.edge.source")}
-            value={edgeApiOverride ? t("diag.target.source.override") : t("diag.target.source.env")}
-          />
-        </div>
-
-        <div className="mt-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-end">
-          <label className="ui-control-label text-xs">
-            {t("diag.edge.baseUrl")}
-            <input
-              value={edgeApiBaseInput}
-              onChange={(event) => setEdgeApiBaseInput(event.target.value)}
-              placeholder="http://localhost:7005"
-              className="control-input mt-1 w-full"
-            />
-          </label>
-          <button
-            type="button"
-            onClick={applyEdgeApiTarget}
-            disabled={edgeApiBaseInput.trim().length === 0}
-            className="ui-action-pill ui-action-pill--tonal text-xs"
-          >
-            {t("diag.edge.applyBtn")}
-          </button>
-          <button
-            type="button"
-            onClick={resetEdgeApiTarget}
-            className="ui-action-pill ui-action-pill--quiet text-xs"
-          >
-            {t("diag.edge.resetBtn")}
-          </button>
-        </div>
-
-        <p className="mt-3 text-xs text-[var(--md-sys-color-on-surface-variant)]">
-          {t("diag.edge.runtimeOnly")}
-        </p>
-      </div>
-
-      <div className="m3-card ui-panel-shell rounded-[1.75rem] p-4">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <div>
-            <h3 className="text-base font-semibold text-[var(--md-sys-color-on-surface)]">
-              {t("diag.services.title")}
-            </h3>
-            <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
-              {t("diag.services.subtitle")}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={loadServiceTargets}
-            disabled={serviceTargetsLoading || serviceTargetsSaving}
-            className="ui-action-pill ui-action-pill--quiet min-h-0 px-3 py-1.5 text-xs"
-          >
-            {serviceTargetsLoading ? "..." : t("diag.services.refreshBtn")}
-          </button>
-        </div>
-
-        {serviceTargetsError && (
-          <div className="ui-feedback text-sm text-[var(--md-sys-color-error)]">
-            {t("diag.services.error")}: {serviceTargetsError}
-          </div>
-        )}
-
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {serviceTargets.map((entry) => (
-            <button
-              key={entry.service}
-              type="button"
-              onClick={() => setSelectedService(entry.service)}
-              className={`ui-panel-block rounded-[1.25rem] p-3 text-left transition ${selectedService === entry.service ? "border-[var(--md-sys-color-primary)] bg-[var(--md-sys-color-primary-container)]" : "hover:bg-[var(--md-sys-color-surface-container)]"}`}
-            >
-              <div className="text-sm font-semibold text-[var(--md-sys-color-on-surface)]">{entry.title}</div>
-              <div className="mt-1 text-[11px] uppercase tracking-wide text-[var(--md-sys-color-on-surface-variant)]">
-                {entry.source === "override" ? t("diag.target.source.override") : t("diag.target.source.env")}
-              </div>
-              <div className="mt-2 break-all font-mono text-[11px] text-[var(--md-sys-color-on-surface-variant)]">{entry.baseUrl}</div>
-            </button>
-          ))}
-        </div>
-
-        {currentServiceTarget && (
-          <div className="mt-4 space-y-4">
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <StatCard label={t("diag.services.service")} value={currentServiceTarget.title} />
-              <StatCard
-                label={t("diag.target.source")}
-                value={currentServiceTarget.source === "override" ? t("diag.target.source.override") : t("diag.target.source.env")}
-              />
-              <StatCard label={t("diag.services.baseUrl")} value={currentServiceTarget.baseUrl} />
-              <StatCard label={t("diag.target.updatedAt")} value={formatTimestamp(currentServiceTarget.updatedAt)} />
-            </div>
-
-            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(220px,320px)]">
-              <label className="ui-control-label text-xs">
-                {t("diag.services.baseUrl")}
-                <input
-                  value={selectedServiceBaseUrl}
-                  onChange={(event) => setSelectedServiceBaseUrl(event.target.value)}
-                  placeholder="http://localhost:7102"
-                  className="control-input mt-1 w-full"
-                />
-              </label>
-
-              <label className="ui-control-label text-xs">
-                {t("diag.target.label")}
-                <input
-                  value={selectedServiceLabel}
-                  onChange={(event) => setSelectedServiceLabel(event.target.value)}
-                  placeholder={t("diag.services.labelHint")}
-                  className="control-input mt-1 w-full"
-                />
-              </label>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                onClick={applyServiceTarget}
-                disabled={serviceTargetsSaving || selectedServiceBaseUrl.trim().length === 0}
-                className="ui-action-pill ui-action-pill--tonal text-xs"
-              >
-                {serviceTargetsSaving ? t("diag.tests.running") : t("diag.services.applyBtn")}
-              </button>
-              <button
-                type="button"
-                onClick={resetServiceTarget}
-                disabled={serviceTargetsSaving}
-                className="ui-action-pill ui-action-pill--quiet text-xs"
-              >
-                {t("diag.services.resetBtn")}
-              </button>
-            </div>
-
-            <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
-              {t("diag.services.runtimeOnly")}
-            </p>
-          </div>
-        )}
       </div>
 
       <div className="m3-card ui-panel-shell rounded-[1.75rem] p-4">

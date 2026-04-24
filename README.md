@@ -6,7 +6,7 @@ React-based operations console for the AxiomNode ecosystem.
 
 ## Architectural role
 
-`backoffice` is the operator-facing interface for the platform. It is not just an admin dashboard; it is the visible surface for runtime inspection, service targeting, and AI-related operational diagnostics.
+`backoffice` is the operator-facing interface for the platform. It is not just an admin dashboard; it is the visible surface for runtime inspection and AI-related operational diagnostics.
 
 ## Runtime context
 
@@ -33,7 +33,7 @@ Concrete concerns owned here:
 - diagnostics and metrics visualization
 - service overview and AI diagnostics workflows
 - operator-visible distinction between defaults, overrides, and effective targets
-- authenticated administration UX for runtime targeting actions
+- authenticated administration UX for AI runtime actions
 
 ## Tech stack
 
@@ -48,7 +48,7 @@ Concrete concerns owned here:
 2. Control/administration views.
 3. AI generation control actions.
 4. Role-gated access (`SuperAdmin`, `Admin`, `Viewer`, `Gamer`).
-5. Runtime destination management for operational service targeting.
+5. Runtime destination management for AI inference targeting.
 
 ## Primary operational use cases
 
@@ -56,7 +56,7 @@ Concrete concerns owned here:
 - inspect AI diagnostics and RAG coverage
 - change the active ai-engine destination used by staging runtime
 - manage shared ai-engine presets for repeated operator use
-- inspect and retarget service upstreams through the backoffice BFF
+- switch the llama server destination dynamically (workstation host/IP) for diagnostics and manual recovery flows
 
 ## Runtime integration model
 
@@ -116,13 +116,13 @@ Push to `main` triggers image rebuild in `platform-infra`. For the covered runti
 - `svc-ai-api` keeps the same shared tabs and adds an in-page `Advanced AI` tab that embeds the diagnostics lab, while `ai-diagnostics` remains the dedicated standalone route.
 - AI observability data for service pages includes direct RAG stats (coverage, chunk/doc volume, and source breakdown) in the service-level observability tab.
 - The shell header is split into two tiers: a compact global operator bar (session, environment health, release metadata, and preferences) and a route-level module header to keep context visible without hero-style vertical bloat.
-- The browser may also hold a local edge endpoint override for controlled troubleshooting of alternative BFF or gateway endpoints.
+- AI diagnostics keeps dynamic llama target control, while operational services in stg are assumed to run on VPS Kubernetes without per-service backoffice overrides.
 
 ## Failure boundaries
 
 - UI healthy but backend runtime state stale or inconsistent
 - diagnostics degraded because downstream services are unreachable
-- browser-local troubleshooting overrides affecting operator perception
+- external llama workstation connectivity or reachability affecting diagnostics
 
 ## Maintainability notes
 
@@ -142,4 +142,4 @@ Push to `main` triggers image rebuild in `platform-infra`. For the covered runti
 
 - `docs/architecture/`
 - `docs/operations/`
-- `../docs/operations/runtime-routing-and-service-targeting.md`
+- `../docs/operations/runtime-routing-and-service-targeting.md` (historical reference)
