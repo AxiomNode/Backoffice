@@ -70,7 +70,7 @@ export class BackofficeAuth {
 
   async signInWithGoogle(): Promise<void> {
     if (!this.auth || !this.googleProvider) {
-      throw new Error("Firebase auth no esta configurado en este entorno.");
+      throw new Error("Firebase auth is not configured in this environment.");
     }
     await signInWithPopup(this.auth, this.googleProvider);
   }

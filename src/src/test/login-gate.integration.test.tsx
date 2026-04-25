@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { I18nProvider } from "../i18n/context";
 import type { BackofficeSession } from "../auth";
-import type { SessionContext, UiLanguage, UiTypography } from "../domain/types/backoffice";
+import type { SessionContext, UiTypography } from "../domain/types/backoffice";
 import { LoginGate } from "../ui/panels/LoginGate";
 
 const authState = vi.hoisted(() => ({
@@ -46,22 +46,19 @@ function renderLoginGateWithOptions({
   typography = "normal",
   onToggleTheme = vi.fn(),
   onTypographyChange = vi.fn(),
-  setLanguage = vi.fn(),
 }: {
   onAuthenticated?: ReturnType<typeof vi.fn>;
   theme?: "light" | "dark";
   typography?: "sm" | "normal" | "lg" | "xl" | "xxl";
   onToggleTheme?: ReturnType<typeof vi.fn>;
   onTypographyChange?: ReturnType<typeof vi.fn>;
-  setLanguage?: ReturnType<typeof vi.fn>;
 } = {}) {
   return {
     onAuthenticated,
     onToggleTheme,
     onTypographyChange,
-    setLanguage,
     ...render(
-      <I18nProvider language="es" setLanguage={setLanguage as (language: UiLanguage) => void}>
+      <I18nProvider language="es" setLanguage={vi.fn()}>
         <LoginGate
           onAuthenticated={onAuthenticated as (session: BackofficeSession, context: SessionContext) => void}
           theme={theme}
@@ -254,7 +251,7 @@ describe("LoginGate", () => {
     });
   });
 
-  it("propagates theme, typography and language preference callbacks", async () => {
+  it("propagates theme and typography preference callbacks", async () => {
     let handler: ((session: { idToken?: string } | null) => void) | null = null;
     authState.onSessionChanged.mockImplementation((nextHandler: (session: { idToken?: string } | null) => void) => {
       handler = nextHandler;
@@ -269,11 +266,9 @@ describe("LoginGate", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Cambiar a claro" }));
     fireEvent.change(screen.getByDisplayValue("M"), { target: { value: "xl" } });
-    fireEvent.change(screen.getByDisplayValue("Espanol"), { target: { value: "en" } });
 
     expect(view.onToggleTheme).toHaveBeenCalledTimes(1);
     expect(view.onTypographyChange).toHaveBeenCalledWith("xl");
-    expect(view.setLanguage).toHaveBeenCalledWith("en");
   });
 
   it("shows the generic auth fallback when restoring a Firebase session fails with a non-error", async () => {

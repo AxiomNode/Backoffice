@@ -9,7 +9,7 @@ import { SERVICE_NAV_KEYS } from "../../domain/constants/navigation";
 import { UI_DENSITY_STORAGE_KEY, UI_SERVICE_ROUTE_QUERY_STORAGE_PREFIX } from "../../domain/constants/ui";
 import type { NavKey, SessionContext, UiDensity, UiTheme, UiTypography } from "../../domain/types/backoffice";
 import { useI18n } from "../../i18n/context";
-import { LANGUAGE_OPTIONS, type LabelKey } from "../../i18n/labels";
+import type { LabelKey } from "../../i18n/labels";
 import { useHashRoute, routeFromNavKey } from "../hooks/useHashRoute";
 import { useMaxWidth } from "../hooks/useMaxWidth";
 import { useVisibilityPolling } from "../hooks/useVisibilityPolling";
@@ -134,7 +134,7 @@ export function BackofficeLayout({
   onToggleTheme,
   onTypographyChange,
 }: BackofficeLayoutProps) {
-  const { language, setLanguage, t } = useI18n();
+  const { t } = useI18n();
   const compactViewport = useMaxWidth(420);
   const narrowViewport = useMaxWidth(380);
   const navItems = useMemo(
@@ -475,18 +475,6 @@ export function BackofficeLayout({
               <option key={size} value={size}>{t(TYPOGRAPHY_LABEL_KEYS[size])}</option>
             ))}
           </select>
-          <select
-            value={language}
-            onChange={(event) => setLanguage(event.target.value as typeof language)}
-            aria-label={t("language.selectorLabel")}
-            className={`control-input px-2 py-1 ${narrowViewport ? "max-w-[7rem] min-w-[5rem] text-[11px]" : "max-w-[8.5rem] min-w-[5.5rem] text-xs"}`}
-          >
-            {LANGUAGE_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
         </div>
       </div>
 
@@ -602,16 +590,6 @@ export function BackofficeLayout({
                         className="ui-popover-panel overflow-y-auto rounded-[1.75rem] p-4"
                       >
                         <div className="grid gap-3 sm:grid-cols-2">
-                          <label className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
-                            {t("language.selectorLabel")}
-                            <select value={language} onChange={(event) => setLanguage(event.target.value as typeof language)} className="control-input mt-1 w-full py-1.5">
-                              {LANGUAGE_OPTIONS.map((option) => (
-                                <option key={option.value} value={option.value}>
-                                  {option.label}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
                           <label className="text-xs text-[var(--md-sys-color-on-surface-variant)] sm:col-span-2">
                             {t("layout.header.typography")}
                             <select value={typography} onChange={(event) => onTypographyChange(event.target.value as UiTypography)} className="control-input mt-1 w-full py-1.5">

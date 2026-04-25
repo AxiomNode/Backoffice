@@ -35,8 +35,8 @@ export function navItemsForRole(role: BackofficeRole): NavItem[] {
     {
       key: "svc-overview",
       section: "overview",
-      title: "Resumen de servicios",
-      subtitle: "Estado operativo y consumo en tiempo real",
+      title: "Service summary",
+      subtitle: "Operational state and live consumption",
     },
     ...SERVICE_NAV_CONFIGS.map((config) => ({
       key: config.navKey,
@@ -47,11 +47,11 @@ export function navItemsForRole(role: BackofficeRole): NavItem[] {
   ];
 
   if (roleCanModify(role)) {
-    items.push({ key: "ai-diagnostics", section: "ai", title: "AI Diagnostics", subtitle: "Tests de alucinacion y medidor RAG" });
+    items.push({ key: "ai-diagnostics", section: "ai", title: "AI Diagnostics", subtitle: "Hallucination checks and RAG coverage" });
   }
 
   if (roleCanManageUsers(role)) {
-    items.push({ key: "roles", section: "admin", title: "Gestion de roles", subtitle: "SuperAdmin administra Admin/Viewer" });
+    items.push({ key: "roles", section: "admin", title: "Role management", subtitle: "SuperAdmin manages Admin and Viewer access" });
   }
 
   return items;

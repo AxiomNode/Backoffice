@@ -7,7 +7,7 @@ import type { BackofficeRole, SessionContext, UiTheme, UiTypography } from "../.
 import { composeAuthHeaders } from "../../infrastructure/backoffice/authHeaders";
 import { EDGE_API_BASE, fetchJson } from "../../infrastructure/http/apiClient";
 import { useI18n } from "../../i18n/context";
-import { LANGUAGE_OPTIONS, type LabelKey } from "../../i18n/labels";
+import type { LabelKey } from "../../i18n/labels";
 
 /** @module LoginGate - Authentication gate that blocks access until the user signs in. */
 
@@ -63,7 +63,7 @@ export function LoginGate({
   onToggleTheme,
   onTypographyChange,
 }: LoginGateProps) {
-  const { language, setLanguage, t } = useI18n();
+  const { t } = useI18n();
   const mode = backofficeAuth.mode;
   const [devUid, setDevUid] = useState(ADMIN_DEV_UID);
   const [error, setError] = useState<string | null>(null);
@@ -222,21 +222,6 @@ export function LoginGate({
             >
               {TYPOGRAPHY_OPTIONS.map((size) => (
                 <option key={size} value={size}>{t(TYPOGRAPHY_LABEL_KEYS[size])}</option>
-              ))}
-            </select>
-          </label>
-
-          <label className="text-sm text-[var(--md-sys-color-on-surface)] sm:col-span-2">
-            {t("language.selectorLabel")}
-            <select
-              value={language}
-              onChange={(event) => setLanguage(event.target.value as typeof language)}
-              className="control-input mt-1 w-full"
-            >
-              {LANGUAGE_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
               ))}
             </select>
           </label>

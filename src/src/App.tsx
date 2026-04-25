@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { backofficeAuth, type BackofficeSession } from "./auth";
 import { clearPrefixedStorageEntries } from "./application/services/sessionStorage";
 import {
-  UI_LANGUAGE_STORAGE_KEY,
   UI_SERVICE_LAST_ERROR_STORAGE_PREFIX,
   UI_SERVICE_ROUTE_QUERY_STORAGE_PREFIX,
   UI_THEME_STORAGE_KEY,
@@ -19,6 +18,7 @@ import { LoginGate } from "./ui/panels/LoginGate";
 
 /** Root application component that gates login and renders the backoffice layout. */
 export function App() {
+  const language: UiLanguage = "en";
   const [session, setSession] = useState<BackofficeSession | null>(null);
   const [context, setContext] = useState<SessionContext | null>(null);
   const [theme, setTheme] = useState<UiTheme>(() => {
@@ -41,16 +41,6 @@ export function App() {
     }
     return "normal";
   });
-  const [language, setLanguage] = useState<UiLanguage>(() => {
-    if (typeof window === "undefined") {
-      return "es";
-    }
-    const stored = window.localStorage.getItem(UI_LANGUAGE_STORAGE_KEY);
-    if (stored === "es" || stored === "en" || stored === "fr" || stored === "de" || stored === "it") {
-      return stored;
-    }
-    return "es";
-  });
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -66,9 +56,10 @@ export function App() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    window.localStorage.setItem(UI_LANGUAGE_STORAGE_KEY, language);
     document.documentElement.setAttribute("lang", language);
   }, [language]);
+
+  const setLanguage = () => undefined;
 
   const toggleTheme = () => setTheme((value) => (value === "light" ? "dark" : "light"));
   const handleAuthenticated = (nextSession: BackofficeSession, nextContext: SessionContext) => {

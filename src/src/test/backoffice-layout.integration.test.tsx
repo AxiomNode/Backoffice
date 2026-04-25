@@ -293,7 +293,6 @@ describe("BackofficeLayout integration", () => {
       const preferencesPanel = document.getElementById("layout-preferences-panel");
       expect(preferencesPanel).not.toBeNull();
       expect(within(preferencesPanel as HTMLElement).getByLabelText("Tamano texto")).toBeInTheDocument();
-      expect(within(preferencesPanel as HTMLElement).getByLabelText("Idioma")).toBeInTheDocument();
     });
 
     const preferencesPanel = document.getElementById("layout-preferences-panel");
@@ -602,10 +601,8 @@ describe("BackofficeLayout integration", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Tamano texto"), { target: { value: "xl" } });
-    fireEvent.change(screen.getByLabelText("Idioma"), { target: { value: "en" } });
 
     expect(view.onTypographyChange).toHaveBeenCalledWith("xl");
-    expect(view.setLanguage).toHaveBeenCalledWith("en");
   });
 
   it("keeps release history open on internal interactions and closes it on external scroll", async () => {
@@ -659,12 +656,10 @@ describe("BackofficeLayout integration", () => {
     fireEvent.click(within(preferencesPanel).getByRole("switch", { name: "Cambiar tema" }));
     fireEvent.click(within(preferencesPanel).getByRole("switch", { name: "Cambiar vista" }));
     fireEvent.change(within(preferencesPanel).getByDisplayValue("M"), { target: { value: "xl" } });
-    fireEvent.change(within(preferencesPanel).getByDisplayValue("Espanol"), { target: { value: "en" } });
 
     expect(view.onToggleTheme).toHaveBeenCalledTimes(1);
     expect(window.localStorage.getItem("backoffice.uiDensity")).toBe("dense");
     expect(view.onTypographyChange).toHaveBeenCalledWith("xl");
-    expect(view.setLanguage).toHaveBeenCalledWith("en");
 
     fireEvent.mouseDown(document.body);
 
