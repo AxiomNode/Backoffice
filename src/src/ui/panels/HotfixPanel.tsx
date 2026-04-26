@@ -56,6 +56,19 @@ type GenerationProcessesListResponse = {
   tasks?: GenerationTaskSnapshot[];
 };
 
+function formatPendingTimestamp(value: string | null | undefined): string {
+  if (!value) {
+    return "--";
+  }
+
+  const timestamp = new Date(value);
+  if (Number.isNaN(timestamp.getTime())) {
+    return value;
+  }
+
+  return timestamp.toLocaleString();
+}
+
 /** Panel for executing runtime hotfix operations like batch generation and cache management. */
 export function HotfixPanel({ session, context, density }: HotfixPanelProps) {
   const { t } = useI18n();
@@ -217,6 +230,113 @@ export function HotfixPanel({ session, context, density }: HotfixPanelProps) {
   const progressRatio = generationTask?.progress?.ratio ?? 0;
   const progressPercent = Math.max(0, Math.min(100, Math.round(progressRatio * 100)));
 
+  const pendingSummary = pendingProcesses.reduce(
+    (summary, item) => {
+      summary.running += item.task.status === "running" ? 1 : 0;
+      summary.requested += item.task.requested;
+      summary.processed += item.task.processed;
+      summary.created += item.task.created;
+      summary.failed += item.task.failed;
+      return summary;
+    },
+    { running: 0, requested: 0, processed: 0, created: 0, failed: 0 },
+  );
+
+  const readPendingTimestamp = (task: GenerationTaskSnapshot) => {
+    const raw = task.updatedAt ?? task.startedAt ?? "";
+    const parsed = Date.parse(raw);
+    return Number.isNaN(parsed) ? 0 : parsed;
+  };
+
+  const readPendingRiskRank = (task: GenerationTaskSnapshot) => {
+    if (task.status === "failed" || task.failed > 0) {
+      return 2;
+    }
+    if (task.duplicates > 0) {
+      return 1;
+    }
+    return 0;
+  };
+
+  const pendingGroups = (["quiz", "wordpass"] as const)
+    .map((gameType) => ({
+      gameType,
+      label: t(`hotfix.pending.group.${gameType}`),
+      items: pendingProcesses
+        .filter((item) => item.gameType === gameType)
+        .sort((left, right) => {
+          const riskDelta = readPendingRiskRank(right.task) - readPendingRiskRank(left.task);
+          if (riskDelta !== 0) {
+            return riskDelta;
+          }
+          return readPendingTimestamp(right.task) - readPendingTimestamp(left.task);
+        }),
+    }))
+    .filter((group) => group.items.length > 0);
+
+  const describePendingRisk = (task: GenerationTaskSnapshot) => {
+    if (task.status === "failed" || task.failed > 0) {
+      return {
+        label: t("hotfix.pending.risk.failed"),
+        containerClassName: "ui-feedback ui-feedback--error",
+        pillClassName: "ui-feedback ui-feedback--error px-2 py-1 text-[11px] font-semibold",
+      };
+    }
+
+    if (task.duplicates > 0) {
+      return {
+        label: t("hotfix.pending.risk.duplicates"),
+        containerClassName: "ui-feedback ui-feedback--warn",
+        pillClassName: "ui-feedback ui-feedback--warn px-2 py-1 text-[11px] font-semibold",
+      };
+    }
+
+    return {
+      label: t("hotfix.pending.risk.healthy"),
+      containerClassName: "ui-summary-band",
+      pillClassName: "ui-surface-soft px-2 py-1 text-[11px] font-semibold text-[var(--md-sys-color-on-surface-variant)]",
+    };
+  };
+
+  const describePendingMeta = (item: PendingProcessRow) => {
+    if (item.task.updatedAt) {
+      return t("hotfix.pending.meta.updated", {
+        service: item.service,
+        timestamp: formatPendingTimestamp(item.task.updatedAt),
+      });
+    }
+
+    if (item.task.startedAt) {
+      return t("hotfix.pending.meta.started", {
+        service: item.service,
+        timestamp: formatPendingTimestamp(item.task.startedAt),
+      });
+    }
+
+    return t("hotfix.pending.meta.none", {
+      service: item.service,
+    });
+  };
+
+  const operationalSnapshot = [
+    {
+      label: t("hotfix.snapshot.writeAccess"),
+      value: modifyEnabled ? t("hotfix.snapshot.enabled") : t("hotfix.snapshot.readOnly"),
+    },
+    {
+      label: t("hotfix.snapshot.catalogSource"),
+      value: generationCatalogSource,
+    },
+    {
+      label: t("hotfix.snapshot.executionMode"),
+      value: generationMode === "progress" ? t("hotfix.generationMode.progress") : t("hotfix.generationMode.wait"),
+    },
+    {
+      label: t("hotfix.snapshot.pendingCount"),
+      value: String(pendingSummary.running),
+    },
+  ];
+
   const loadPending = useCallback(async () => {
     try {
       const [quiz, wordpass] = await Promise.all([
@@ -296,6 +416,15 @@ export function HotfixPanel({ session, context, density }: HotfixPanelProps) {
     <section className={`m3-card ui-panel-shell ${compact ? "p-4" : "p-5"}`}>
       <h2 className={`m3-title ${compact ? "text-lg" : "text-xl"}`}>{t("hotfix.title")}</h2>
       <p className={`mb-4 text-[var(--md-sys-color-on-surface-variant)] ${compact ? "text-xs" : "text-sm"}`}>{t("hotfix.subtitle")}</p>
+
+      <div className={`mb-4 grid gap-2 ${compact ? "grid-cols-2" : "sm:grid-cols-2 xl:grid-cols-4"}`}>
+        {operationalSnapshot.map((item) => (
+          <article key={item.label} className="ui-metric-tile ui-metric-tile--neutral rounded-[1.2rem] p-3">
+            <p className="ui-metric-label">{item.label}</p>
+            <p className="ui-metric-value mt-2 text-[1.2rem] break-words">{item.value}</p>
+          </article>
+        ))}
+      </div>
 
       {!modifyEnabled && (
         <p className="ui-feedback ui-feedback--warn mb-4">
@@ -423,34 +552,79 @@ export function HotfixPanel({ session, context, density }: HotfixPanelProps) {
         {!pendingError && pendingProcesses.length === 0 ? (
           <p className="text-sm text-[var(--md-sys-color-on-surface-variant)]">{t("hotfix.pending.empty")}</p>
         ) : (
-          <div className="space-y-2">
-            {pendingProcesses.map((item) => {
-              const ratio = item.task.progress?.ratio ?? (item.task.requested > 0 ? item.task.processed / item.task.requested : 0);
-              const percent = Math.max(0, Math.min(100, Math.round(ratio * 100)));
-              return (
-                <div key={`${item.service}-${item.task.taskId}`} className="ui-summary-band rounded-[1.1rem] p-2.5">
+          <div className="space-y-3">
+            <div className={`grid gap-2 ${compact ? "grid-cols-2" : "sm:grid-cols-2 xl:grid-cols-5"}`}>
+              <article className="ui-summary-band rounded-[1.1rem] p-2.5 text-xs">
+                <p className="font-semibold">{t("hotfix.pending.summary.running")}</p>
+                <p className="mt-1 text-base font-semibold text-[var(--md-sys-color-on-surface)]">{pendingSummary.running}</p>
+              </article>
+              <article className="ui-summary-band rounded-[1.1rem] p-2.5 text-xs">
+                <p className="font-semibold">{t("hotfix.pending.summary.requested")}</p>
+                <p className="mt-1 text-base font-semibold text-[var(--md-sys-color-on-surface)]">{pendingSummary.requested}</p>
+              </article>
+              <article className="ui-summary-band rounded-[1.1rem] p-2.5 text-xs">
+                <p className="font-semibold">{t("hotfix.pending.summary.processed")}</p>
+                <p className="mt-1 text-base font-semibold text-[var(--md-sys-color-on-surface)]">{pendingSummary.processed}</p>
+              </article>
+              <article className="ui-summary-band rounded-[1.1rem] p-2.5 text-xs">
+                <p className="font-semibold">{t("hotfix.pending.summary.created")}</p>
+                <p className="mt-1 text-base font-semibold text-[var(--md-sys-color-on-surface)]">{pendingSummary.created}</p>
+              </article>
+              <article className="ui-summary-band rounded-[1.1rem] p-2.5 text-xs">
+                <p className="font-semibold">{t("hotfix.pending.summary.failed")}</p>
+                <p className="mt-1 text-base font-semibold text-[var(--md-sys-color-on-surface)]">{pendingSummary.failed}</p>
+              </article>
+            </div>
+
+            {pendingGroups.map((group) => (
+              <section key={group.gameType} className="space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h4 className="text-sm font-semibold text-[var(--md-sys-color-on-surface)]">{group.label}</h4>
                   <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
-                    {t("hotfix.pending.item", {
-                      gameType: item.gameType,
-                      taskId: item.task.taskId,
-                    })}
-                  </p>
-                  <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-[var(--md-sys-color-surface-container)]">
-                    <div className="h-full rounded-full bg-[var(--md-sys-color-primary)] transition-all duration-300" style={{ width: `${percent}%` }} />
-                  </div>
-                  <p className="mt-1 text-xs text-[var(--md-sys-color-on-surface-variant)]">
-                    {t("hotfix.pending.progress", {
-                      processed: item.task.processed,
-                      requested: item.task.requested,
-                      percent,
-                      created: item.task.created,
-                      duplicates: item.task.duplicates,
-                      failed: item.task.failed,
-                    })}
+                    {t("hotfix.pending.group.count", { count: group.items.length })}
                   </p>
                 </div>
-              );
-            })}
+
+                <div className="space-y-2">
+                  {group.items.map((item) => {
+                    const ratio = item.task.progress?.ratio ?? (item.task.requested > 0 ? item.task.processed / item.task.requested : 0);
+                    const percent = Math.max(0, Math.min(100, Math.round(ratio * 100)));
+                    const risk = describePendingRisk(item.task);
+                    return (
+                      <div
+                        key={`${item.service}-${item.task.taskId}`}
+                        className={`${risk.containerClassName} rounded-[1.1rem] p-2.5`}
+                        data-testid={`hotfix-pending-task-${group.gameType}`}
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
+                            {t("hotfix.pending.item", {
+                              gameType: item.gameType,
+                              taskId: item.task.taskId,
+                            })}
+                          </p>
+                          <span className={`rounded-full ${risk.pillClassName}`}>{risk.label}</span>
+                        </div>
+                        <p className="mt-1 text-xs text-[var(--md-sys-color-on-surface-variant)]">{describePendingMeta(item)}</p>
+                        <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-[var(--md-sys-color-surface-container)]">
+                          <div className="h-full rounded-full bg-[var(--md-sys-color-primary)] transition-all duration-300" style={{ width: `${percent}%` }} />
+                        </div>
+                        <p className="mt-1 text-xs text-[var(--md-sys-color-on-surface-variant)]">
+                          {t("hotfix.pending.progress", {
+                            processed: item.task.processed,
+                            requested: item.task.requested,
+                            percent,
+                            created: item.task.created,
+                            duplicates: item.task.duplicates,
+                            failed: item.task.failed,
+                          })}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            ))}
           </div>
         )}
       </article>

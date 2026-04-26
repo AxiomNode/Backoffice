@@ -39,6 +39,27 @@ type AiRagStats = {
   }>;
 };
 
+type HistoryCategoryInsight = {
+  id: string;
+  name: string;
+  count: number;
+  percentage: number;
+};
+
+type HistoryLanguageInsight = {
+  code: string;
+  count: number;
+  percentage: number;
+};
+
+type HistoryDataInsights = {
+  sampleSize: number;
+  categories: HistoryCategoryInsight[];
+  languages: HistoryLanguageInsight[];
+  deficitCategories: HistoryCategoryInsight[];
+  deficitLanguages: HistoryLanguageInsight[];
+};
+
 function parseIntParam(value: string | null, fallback: number, min: number, max: number): number {
   if (!value) return fallback;
   const parsed = Number(value);
@@ -122,7 +143,7 @@ function simplifyGameHistoryRows(
     const primaryWords = responseWords
       .map((item) => {
         const record = asRecord(item);
-        return asString(record.answer || record.word).trim();
+        return asString(record.word || record.answer).trim();
       })
       .filter((value) => value.length > 0)
       .slice(0, 6)
@@ -141,6 +162,80 @@ function simplifyGameHistoryRows(
       response,
     };
   });
+}
+
+function parseHistoryCategoryInsightArray(value: unknown): HistoryCategoryInsight[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((entry) => {
+      const payload = asRecord(entry);
+      const id = asString(payload.id).trim();
+      const name = asString(payload.name).trim();
+      const count = asNumber(payload.count);
+      const percentage = asNumber(payload.percentage);
+
+      if (!id || !name || count === null || percentage === null) {
+        return null;
+      }
+
+      return {
+        id,
+        name,
+        count,
+        percentage,
+      };
+    })
+    .filter((entry): entry is HistoryCategoryInsight => entry !== null);
+}
+
+function parseHistoryLanguageInsightArray(value: unknown): HistoryLanguageInsight[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((entry) => {
+      const payload = asRecord(entry);
+      const code = asString(payload.code).trim();
+      const count = asNumber(payload.count);
+      const percentage = asNumber(payload.percentage);
+
+      if (!code || count === null || percentage === null) {
+        return null;
+      }
+
+      return {
+        code,
+        count,
+        percentage,
+      };
+    })
+    .filter((entry): entry is HistoryLanguageInsight => entry !== null);
+}
+
+function parseHistoryDataInsights(value: unknown): HistoryDataInsights | null {
+  const payload = asRecord(value);
+  const sampleSize = asNumber(payload.sampleSize);
+
+  if (sampleSize === null || sampleSize <= 0) {
+    return null;
+  }
+
+  const categories = parseHistoryCategoryInsightArray(payload.categories);
+  const languages = parseHistoryLanguageInsightArray(payload.languages);
+  const deficitCategories = parseHistoryCategoryInsightArray(payload.deficitCategories);
+  const deficitLanguages = parseHistoryLanguageInsightArray(payload.deficitLanguages);
+
+  return {
+    sampleSize,
+    categories,
+    languages,
+    deficitCategories,
+    deficitLanguages,
+  };
 }
 
 /** I18n message keys consumed by the service console hook. */
@@ -169,6 +264,7 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
   const [logsRows, setLogsRows] = useState<Array<Record<string, unknown>>>([]);
   const [aiRagStats, setAiRagStats] = useState<AiRagStats | null>(null);
   const [dataRows, setDataRows] = useState<Array<Record<string, unknown>>>([]);
+  const [dataInsights, setDataInsights] = useState<HistoryDataInsights | null>(null);
   const [dataTotal, setDataTotal] = useState(0);
   const [dataPage, setDataPage] = useState(1);
   const [dataPageSize, setDataPageSize] = useState(5);
@@ -223,6 +319,7 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
     setLogsRows([]);
     setAiRagStats(null);
     setDataRows([]);
+    setDataInsights(null);
     setDataTotal(0);
     setDataPage(1);
     setDataPageSize(5);
@@ -566,6 +663,7 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
       if (!supportsTabularData || !serviceConfig.datasets || serviceConfig.datasets.length === 0) {
         if (requestVersion !== dataRequestVersionRef.current) return;
         setDataRows([]);
+        setDataInsights(null);
         setDataTotal(0);
         setDataPage(page);
         setDataPageSize(pageSize);
@@ -585,7 +683,13 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
       });
 
       const dataResult = await asSectionResult(
-        fetchJson<{ rows: Array<Record<string, unknown>>; total?: number; page?: number; pageSize?: number }>(
+        fetchJson<{
+          rows: Array<Record<string, unknown>>;
+          total?: number;
+          page?: number;
+          pageSize?: number;
+          insights?: unknown;
+        }>(
           `${EDGE_API_BASE}/v1/backoffice/services/${serviceConfig.service}/data?${query.toString()}`,
           { headers: composeAuthHeaders(context), signal: abortController.signal },
         ),
@@ -595,6 +699,7 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
 
       if (!dataResult.ok) {
         setDataRows([]);
+        setDataInsights(null);
         setDataTotal(0);
         setDataPage(page);
         setDataPageSize(pageSize);
@@ -604,6 +709,7 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
       }
 
       let nextRows = dataResult.data.rows ?? [];
+      const nextInsights = parseHistoryDataInsights(dataResult.data.insights);
       const nextTotal = typeof dataResult.data.total === "number" ? dataResult.data.total : nextRows.length;
       const nextPage = typeof dataResult.data.page === "number" ? dataResult.data.page : page;
       const nextResolvedPageSize = typeof dataResult.data.pageSize === "number" ? dataResult.data.pageSize : pageSize;
@@ -641,6 +747,7 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
 
       setLastDataSyncAt(Date.now());
       setDataRows(nextRows);
+      setDataInsights(nextInsights);
       setDataTotal(nextTotal);
       setDataPage(nextPage);
       setDataPageSize(nextResolvedPageSize);
@@ -650,6 +757,7 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
       }
       if (requestVersion !== dataRequestVersionRef.current) return;
       setDataRows([]);
+      setDataInsights(null);
       setDataTotal(0);
       setDataPage(page);
       setDataPageSize(pageSize);
@@ -812,6 +920,7 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
     serviceConfig,
     // Data
     catalog, metricsRows, logsRows, aiRagStats, dataRows, dataTotal, dataPage, dataPageSize,
+    dataInsights,
     // Filter / pagination
     dataset, setDataset,
     metric, setMetric,

@@ -352,6 +352,69 @@ describe("ServiceConsolePanel integration", () => {
     });
   });
 
+  it("renders content insights and recommendations for game history datasets", async () => {
+    window.location.hash = "#/backoffice/svc-quiz?dataset=history";
+
+    fetchJsonMock.mockImplementation((url: string) => {
+      if (url.endsWith("/v1/backoffice/services")) {
+        return Promise.resolve({
+          services: [{ key: "microservice-quiz", title: "Quiz", domain: "games", supportsData: true }],
+        });
+      }
+      if (url.includes("/metrics")) {
+        return Promise.resolve({ metrics: { traffic: { requestsReceivedTotal: 10 } } });
+      }
+      if (url.includes("/logs")) {
+        return Promise.resolve({ logs: [] });
+      }
+      if (url.includes("/catalogs")) {
+        return Promise.resolve({
+          catalogs: {
+            categories: [{ id: "22", name: "Science" }],
+            languages: [{ code: "en", name: "English" }],
+          },
+        });
+      }
+      if (url.includes("/data?")) {
+        return Promise.resolve({
+          rows: [{ id: "entry-1", categoryId: "22", categoryName: "Science", language: "es", status: "manual", request: {}, response: {} }],
+          insights: {
+            sampleSize: 12,
+            categories: [
+              { id: "22", name: "Science", count: 7, percentage: 58.3 },
+              { id: "41", name: "History", count: 3, percentage: 25 },
+              { id: "51", name: "Sports", count: 2, percentage: 16.7 },
+            ],
+            languages: [
+              { code: "es", count: 8, percentage: 66.7 },
+              { code: "en", count: 4, percentage: 33.3 },
+            ],
+            deficitCategories: [
+              { id: "51", name: "Sports", count: 2, percentage: 16.7 },
+            ],
+            deficitLanguages: [
+              { code: "en", count: 4, percentage: 33.3 },
+            ],
+          },
+        });
+      }
+      return Promise.reject(new Error(`Unhandled URL: ${url}`));
+    });
+
+    renderPanel("svc-quiz");
+
+    fireEvent.click(screen.getByRole("tab", { name: "Datos" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Distribucion de contenido por categoria e idioma")).toBeInTheDocument();
+      expect(screen.getByText("Muestra: 12")).toBeInTheDocument();
+      expect(screen.getByText("Categorias")).toBeInTheDocument();
+      expect(screen.getByText("Lenguajes")).toBeInTheDocument();
+      expect(screen.getByText("Refuerza generacion en categorias: Sports.")).toBeInTheDocument();
+      expect(screen.getByText("Prioriza contenido para idiomas: EN.")).toBeInTheDocument();
+    });
+  });
+
   it("toggles the inline manual editor inside the data section for game history datasets", async () => {
     window.location.hash = "#/backoffice/svc-quiz?dataset=history";
 
@@ -665,7 +728,7 @@ describe("ServiceConsolePanel integration", () => {
         return Promise.resolve({ item: { id: "entry-1" } });
       }
       if (url.includes("/data?")) {
-        return Promise.resolve({ rows: [{ id: "entry-1", categoryId: "22", categoryName: "Science", language: "en", status: "manual", request: { categoryId: "22", language: "en", difficulty_percentage: 55 }, response: { questions: [{ question: "Q", options: ["A1", "A2"], correct_index: 0 }] } }] });
+        return Promise.resolve({ rows: [{ id: "entry-1", categoryId: "22", categoryName: "Science", language: "en", status: "manual", request: { categoryId: "22", language: "en", difficulty_percentage: 55 }, response: { questions: [{ question: "Q", answers: ["A1", "A2"], correctIndex: 0 }] } }] });
       }
       return Promise.reject(new Error(`Unhandled URL: ${url}`));
     });
@@ -720,7 +783,7 @@ describe("ServiceConsolePanel integration", () => {
             language: "en",
             difficultyPercentage: 55,
             content: {
-              questions: [{ question: "Pregunta creada desde backoffice", options: ["Madrid", "Barcelona"], correct_index: 1 }],
+              questions: [{ question: "Pregunta creada desde backoffice", answers: ["Madrid", "Barcelona"], correctIndex: 1 }],
             },
             status: "validated",
           }),
@@ -807,8 +870,8 @@ describe("ServiceConsolePanel integration", () => {
                 questions: [
                   {
                     question: "Quiz row action",
-                    options: ["One", "Two"],
-                    correct_index: 1,
+                    answers: ["One", "Two"],
+                    correctIndex: 1,
                   },
                 ],
               },
@@ -902,6 +965,115 @@ describe("ServiceConsolePanel integration", () => {
 
     await waitFor(() => {
       expect(fetchJsonMock.mock.calls.filter(([url]) => String(url).includes("/data?")).length).toBeGreaterThan(dataLoads);
+    });
+  });
+
+  it("renders observability summary cards for route metrics and recent logs", async () => {
+    fetchJsonMock.mockImplementation((url: string) => {
+      if (url.endsWith("/v1/backoffice/services")) {
+        return Promise.resolve({
+          services: [{ key: "microservice-users", title: "Users", domain: "core", supportsData: true }],
+        });
+      }
+      if (url.includes("/metrics")) {
+        return Promise.resolve({
+          metrics: {
+            traffic: { requestsReceivedTotal: 42 },
+            requestsByRoute: [
+              { method: "POST", route: "/v1/backoffice/services", statusCode: 200, total: 30 },
+              { method: "GET", route: "/v1/backoffice/services/microservice-users/logs", statusCode: 200, total: 12 },
+            ],
+          },
+        });
+      }
+      if (url.includes("/logs")) {
+        return Promise.resolve({
+          logs: [
+            { createdAt: "2026-04-24T11:00:00Z", level: "warn", message: "slow route" },
+            { createdAt: "2026-04-24T12:00:00Z", level: "error", message: "upstream timeout" },
+            { createdAt: "2026-04-24T13:00:00Z", level: "info", message: "cache warm" },
+          ],
+        });
+      }
+      if (url.includes("/data?")) {
+        return Promise.resolve({ rows: [], total: 0, page: 1, pageSize: 20 });
+      }
+      return Promise.reject(new Error(`Unhandled URL: ${url}`));
+    });
+
+    renderPanel("svc-users");
+
+    await waitFor(() => {
+      expect(screen.getByText("Rutas observadas")).toBeInTheDocument();
+      expect(screen.getByText("Volumen total")).toBeInTheDocument();
+      expect(screen.getByText("Ruta dominante")).toBeInTheDocument();
+      expect(screen.getByText("Errores recientes")).toBeInTheDocument();
+      expect(screen.getByText("Warnings recientes")).toBeInTheDocument();
+      expect(screen.getByText("Ultimo evento")).toBeInTheDocument();
+      expect(screen.getByText("Agrupado por severidad")).toBeInTheDocument();
+      expect(screen.getByText("Alertas recientes")).toBeInTheDocument();
+      expect(screen.getByText("Error: 1")).toBeInTheDocument();
+      expect(screen.getByText("Warning: 1")).toBeInTheDocument();
+      expect(screen.getByText("POST /v1/backoffice/services")).toBeInTheDocument();
+      expect(screen.getAllByText("upstream timeout").length).toBeGreaterThan(0);
+      expect(screen.getByText("slow route")).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText("Metodo HTTP"), {
+      target: { value: "GET" },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Rutas observadas")).toBeInTheDocument();
+      expect(screen.getByText("GET /v1/backoffice/services/microservice-users/logs")).toBeInTheDocument();
+      expect(screen.queryByText("POST /v1/backoffice/services")).not.toBeInTheDocument();
+      expect(screen.getAllByTestId("first-row")[1]).toHaveTextContent('"method":"GET"');
+    });
+
+    fireEvent.change(screen.getByLabelText("Buscar ruta"), {
+      target: { value: "204" },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("No hay rutas para el filtro actual.")).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText("Metodo HTTP"), {
+      target: { value: "all" },
+    });
+    fireEvent.change(screen.getByLabelText("Buscar ruta"), {
+      target: { value: "services" },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("POST /v1/backoffice/services")).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText("Severidad"), {
+      target: { value: "error" },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Error: 1")).toBeInTheDocument();
+      expect(screen.queryByText("Warning: 1")).not.toBeInTheDocument();
+      expect(screen.getAllByText("upstream timeout").length).toBeGreaterThan(0);
+      expect(screen.queryByText("slow route")).not.toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText("Buscar en logs"), {
+      target: { value: "cache" },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("No hay logs para el filtro actual.")).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText("Severidad"), {
+      target: { value: "all" },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("cache warm")).toBeInTheDocument();
     });
   });
 
@@ -1128,7 +1300,7 @@ describe("ServiceConsolePanel integration", () => {
             response: {
               game_type: "word-pass",
               game: {
-                words: [{ letter: "A", hint: "Primera pista", answer: "Atomo" }],
+                words: [{ definition: "Primera pista", word: "Atomo" }],
               },
             },
           }],
@@ -1147,9 +1319,8 @@ describe("ServiceConsolePanel integration", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Edicion manual" }));
 
     await waitFor(() => {
-      expect((screen.getByLabelText("Letra") as HTMLInputElement).value).toBe("A");
-      expect((screen.getByLabelText("Pista") as HTMLInputElement).value).toBe("Primera pista");
-      expect((screen.getByLabelText("Respuesta") as HTMLInputElement).value).toBe("Atomo");
+      expect((screen.getByLabelText("Definicion") as HTMLInputElement).value).toBe("Primera pista");
+      expect((screen.getByLabelText("Palabra") as HTMLInputElement).value).toBe("Atomo");
     });
   });
 
@@ -1189,15 +1360,15 @@ describe("ServiceConsolePanel integration", () => {
     });
 
     fireEvent.click(screen.getByRole("tab", { name: "Edicion manual" }));
-    fireEvent.change(screen.getByLabelText("Letra"), { target: { value: "B" } });
-    fireEvent.change(screen.getByLabelText("Pista"), { target: { value: "Segunda pista" } });
+    fireEvent.change(screen.getByLabelText("Definicion"), { target: { value: "Segunda pista" } });
+    fireEvent.change(screen.getByLabelText("Palabra"), { target: { value: "Beta" } });
 
     fireEvent.click(screen.getByRole("tab", { name: "Observabilidad" }));
     fireEvent.click(screen.getByRole("tab", { name: "Edicion manual" }));
 
     await waitFor(() => {
-      expect((screen.getByLabelText("Letra") as HTMLInputElement).value).toBe("B");
-      expect((screen.getByLabelText("Pista") as HTMLInputElement).value).toBe("Segunda pista");
+      expect((screen.getByLabelText("Definicion") as HTMLInputElement).value).toBe("Segunda pista");
+      expect((screen.getByLabelText("Palabra") as HTMLInputElement).value).toBe("Beta");
     });
   });
 
@@ -1364,8 +1535,8 @@ describe("ServiceConsolePanel integration", () => {
                 questions: [
                   {
                     question: "Pregunta compacta",
-                    options: ["Opcion A", "Opcion B"],
-                    correct_index: 0,
+                    answers: ["Opcion A", "Opcion B"],
+                    correctIndex: 0,
                   },
                 ],
               },
@@ -1512,9 +1683,8 @@ describe("ServiceConsolePanel integration", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Edicion manual" }));
 
     await waitFor(() => {
-      expect((screen.getByLabelText("Letra") as HTMLInputElement).value).toBe("");
-      expect((screen.getByLabelText("Pista") as HTMLInputElement).value).toBe("");
-      expect((screen.getByLabelText("Respuesta") as HTMLInputElement).value).toBe("");
+      expect((screen.getByLabelText("Definicion") as HTMLInputElement).value).toBe("");
+      expect((screen.getByLabelText("Palabra") as HTMLInputElement).value).toBe("");
       expect((screen.getByLabelText("Dificultad (0-100)") as HTMLInputElement).value).toBe("12");
       expect((screen.getByLabelText("Estado editorial") as HTMLSelectElement).value).toBe("manual");
     });

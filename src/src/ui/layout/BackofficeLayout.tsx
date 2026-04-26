@@ -2,8 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSPropertie
 import { createPortal } from "react-dom";
 
 import type { BackofficeSession } from "../../auth";
-import { fetchServiceOperationalSummary } from "../../application/services/operationalSummary";
-import deploymentHistory from "../../data/deployment-history.json";
+import { fetchDeploymentHistory, fetchServiceOperationalSummary, type DeploymentHistory } from "../../application/services/operationalSummary";
 import { navItemsForRole, roleCanManageUsers, roleCanModify } from "../../application/services/rolePolicies";
 import { SERVICE_NAV_KEYS } from "../../domain/constants/navigation";
 import { UI_DENSITY_STORAGE_KEY, UI_SERVICE_ROUTE_QUERY_STORAGE_PREFIX } from "../../domain/constants/ui";
@@ -45,6 +44,15 @@ type BackofficeLayoutProps = {
   onToggleTheme: () => void;
   onTypographyChange: (value: UiTypography) => void;
 };
+
+function buildInitialDeploymentHistory(mode: SessionContext["mode"]): DeploymentHistory {
+  return {
+    environment: mode,
+    currentVersion: "--",
+    currentDeployedAt: "--",
+    history: [],
+  };
+}
 
 const TYPOGRAPHY_OPTIONS: UiTypography[] = ["sm", "normal", "lg", "xl", "xxl"];
 const TYPOGRAPHY_LABEL_KEYS: Record<UiTypography, LabelKey> = {
@@ -156,6 +164,7 @@ export function BackofficeLayout({
   const [preferencesOpen, setPreferencesOpen] = useState(false);
   const [globalHealth, setGlobalHealth] = useState<"healthy" | "warning" | "critical" | "unknown">("unknown");
   const [globalHealthText, setGlobalHealthText] = useState<string>("--");
+  const [deploymentHistory, setDeploymentHistory] = useState<DeploymentHistory>(() => buildInitialDeploymentHistory(context.mode));
   const [density, setDensity] = useState<UiDensity>(() => {
     if (typeof window === "undefined") {
       return "comfortable";
@@ -173,6 +182,29 @@ export function BackofficeLayout({
   const preferencesPopoverRef = useRef<HTMLDivElement | null>(null);
   const [releaseHistoryStyle, setReleaseHistoryStyle] = useState<CSSProperties | undefined>(undefined);
   const [preferencesStyle, setPreferencesStyle] = useState<CSSProperties | undefined>(undefined);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadDeploymentHistory = async () => {
+      try {
+        const nextHistory = await fetchDeploymentHistory(context);
+        if (!cancelled) {
+          setDeploymentHistory(nextHistory);
+        }
+      } catch {
+        if (!cancelled) {
+          setDeploymentHistory(buildInitialDeploymentHistory(context.mode));
+        }
+      }
+    };
+
+    void loadDeploymentHistory();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [context]);
 
   useEffect(() => {
     if (!mobileMenuOpen) {

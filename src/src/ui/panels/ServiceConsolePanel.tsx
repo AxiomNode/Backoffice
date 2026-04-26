@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 
 import type { DataDataset, NavKey, SessionContext, UiDensity } from "../../domain/types/backoffice";
 import { useI18n } from "../../i18n/context";
@@ -21,9 +21,8 @@ type QuizManualDraft = {
 };
 
 type WordpassManualDraft = {
-  letter: string;
-  hint: string;
-  answer: string;
+  definition: string;
+  word: string;
 };
 
 const EMPTY_QUIZ_MANUAL_DRAFT: QuizManualDraft = {
@@ -36,9 +35,8 @@ const EMPTY_QUIZ_MANUAL_DRAFT: QuizManualDraft = {
 };
 
 const EMPTY_WORDPASS_MANUAL_DRAFT: WordpassManualDraft = {
-  letter: "",
-  hint: "",
-  answer: "",
+  definition: "",
+  word: "",
 };
 
 function resolveGamePayload(content: unknown): Record<string, unknown> {
@@ -59,8 +57,8 @@ function buildQuizManualContent(draft: QuizManualDraft): Record<string, unknown>
     questions: [
       {
         question: draft.question.trim(),
-        options: options.map((item) => item.value),
-        correct_index: normalizedCorrectIndex,
+        answers: options.map((item) => item.value),
+        correctIndex: normalizedCorrectIndex,
       },
     ],
   };
@@ -70,9 +68,8 @@ function buildWordpassManualContent(draft: WordpassManualDraft): Record<string, 
   return {
     words: [
       {
-        letter: draft.letter.trim(),
-        hint: draft.hint.trim(),
-        answer: draft.answer.trim(),
+        definition: draft.definition.trim(),
+        word: draft.word.trim(),
       },
     ],
   };
@@ -82,8 +79,16 @@ function parseQuizManualDraft(content: unknown): QuizManualDraft {
   const payload = resolveGamePayload(content);
   const questions = Array.isArray(payload.questions) ? payload.questions : [];
   const firstQuestion = questions[0] && typeof questions[0] === "object" ? (questions[0] as Record<string, unknown>) : {};
-  const options = Array.isArray(firstQuestion.options) ? firstQuestion.options : [];
-  const correctIndex = typeof firstQuestion.correct_index === "number" ? firstQuestion.correct_index : 0;
+  const options = Array.isArray(firstQuestion.answers)
+    ? firstQuestion.answers
+    : Array.isArray(firstQuestion.options)
+      ? firstQuestion.options
+      : [];
+  const correctIndex = typeof firstQuestion.correctIndex === "number"
+    ? firstQuestion.correctIndex
+    : typeof firstQuestion.correct_index === "number"
+      ? firstQuestion.correct_index
+      : 0;
 
   return {
     question: typeof firstQuestion.question === "string" ? firstQuestion.question : "",
@@ -101,9 +106,16 @@ function parseWordpassManualDraft(content: unknown): WordpassManualDraft {
   const firstWord = words[0] && typeof words[0] === "object" ? (words[0] as Record<string, unknown>) : {};
 
   return {
-    letter: typeof firstWord.letter === "string" ? firstWord.letter : "",
-    hint: typeof firstWord.hint === "string" ? firstWord.hint : "",
-    answer: typeof firstWord.answer === "string" ? firstWord.answer : "",
+    definition: typeof firstWord.definition === "string"
+      ? firstWord.definition
+      : typeof firstWord.hint === "string"
+        ? firstWord.hint
+        : "",
+    word: typeof firstWord.word === "string"
+      ? firstWord.word
+      : typeof firstWord.answer === "string"
+        ? firstWord.answer
+        : "",
   };
 }
 
@@ -205,6 +217,10 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
   const [inlineManualEditorExpanded, setInlineManualEditorExpanded] = useState(false);
   const [refreshSettingsExpanded, setRefreshSettingsExpanded] = useState(!compactViewport);
   const [contextExpanded, setContextExpanded] = useState(!compactViewport);
+  const [logSeverityFilter, setLogSeverityFilter] = useState<"all" | "error" | "warn" | "info" | "debug">("all");
+  const [logSearchTerm, setLogSearchTerm] = useState("");
+  const [routeMethodFilter, setRouteMethodFilter] = useState<"all" | "GET" | "POST" | "PUT" | "PATCH" | "DELETE">("all");
+  const [routeSearchTerm, setRouteSearchTerm] = useState("");
 
   const isQuizHistoryDataset = serviceConfig?.service === "microservice-quiz" && state.dataset === "history";
   const isWordpassHistoryDataset = serviceConfig?.service === "microservice-wordpass" && state.dataset === "history";
@@ -460,6 +476,153 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
     });
   }, [serviceConfig.service, state.metricsRows]);
 
+  const filteredRouteMetricsRows = useMemo(() => {
+    const search = routeSearchTerm.trim().toLowerCase();
+    return routeMetricsRows.filter((row) => {
+      const method = String(row.method ?? "--").toUpperCase();
+      const route = String(row.route ?? "--").toLowerCase();
+      const statusCode = String(row.statusCode ?? "--").toLowerCase();
+      const matchesMethod = routeMethodFilter === "all" || method === routeMethodFilter;
+      const matchesSearch = !search || route.includes(search) || statusCode.includes(search);
+      return matchesMethod && matchesSearch;
+    });
+  }, [routeMethodFilter, routeMetricsRows, routeSearchTerm]);
+
+  const metricsSummary = useMemo(() => {
+    const asNumber = (value: unknown): number | null => {
+      if (typeof value === "number" && Number.isFinite(value)) return value;
+      if (typeof value === "string") {
+        const parsed = Number(value);
+        if (Number.isFinite(parsed)) return parsed;
+      }
+      return null;
+    };
+
+    const requestsFromRoutes = filteredRouteMetricsRows.reduce((sum, row) => sum + (asNumber(row.total) ?? 0), 0);
+    const fallbackRequests = state.metricsRows.reduce((sum, row) => {
+      const traffic = row.traffic && typeof row.traffic === "object" ? (row.traffic as Record<string, unknown>) : null;
+      return sum + (asNumber(row.requestsReceivedTotal ?? row.totalRequests ?? traffic?.requestsReceivedTotal) ?? 0);
+    }, 0);
+    const hottestRoute = filteredRouteMetricsRows.reduce<Record<string, unknown> | null>((current, row) => {
+      const rowTotal = asNumber(row.total) ?? 0;
+      const currentTotal = current ? asNumber(current.total) ?? 0 : -1;
+      return rowTotal > currentTotal ? row : current;
+    }, null);
+
+    return {
+      routeCount: filteredRouteMetricsRows.length,
+      requestVolume: requestsFromRoutes > 0 ? requestsFromRoutes : fallbackRequests,
+      hottestRoute: hottestRoute ? `${String(hottestRoute.method ?? "--")} ${String(hottestRoute.route ?? "--")}` : "--",
+    };
+  }, [filteredRouteMetricsRows, state.metricsRows]);
+
+  const readLogLevel = useCallback((row: Record<string, unknown>): string => {
+    const value = row.level ?? row.severity ?? row.status;
+    return typeof value === "string" ? value.toLowerCase() : "info";
+  }, []);
+
+  const classifyLogSeverity = useCallback((row: Record<string, unknown>): "error" | "warn" | "info" | "debug" => {
+    const normalized = readLogLevel(row);
+    if (normalized.includes("error")) return "error";
+    if (normalized.includes("warn")) return "warn";
+    if (normalized.includes("debug")) return "debug";
+    return "info";
+  }, [readLogLevel]);
+
+  const readLogMessage = useCallback((row: Record<string, unknown>): string => {
+    const value = row.message ?? row.event ?? row.value ?? row.msg;
+    return typeof value === "string" && value.trim().length > 0 ? value : "--";
+  }, []);
+
+  const readLogTimestamp = useCallback((row: Record<string, unknown>): string => {
+    const value = row.createdAt ?? row.timestamp ?? row.time;
+    return typeof value === "string" ? value : "";
+  }, []);
+
+  const filteredLogsRows = useMemo(() => {
+    const search = logSearchTerm.trim().toLowerCase();
+
+    return state.logsRows.filter((row) => {
+      const matchesSeverity = logSeverityFilter === "all" || classifyLogSeverity(row) === logSeverityFilter;
+      if (!matchesSeverity) {
+        return false;
+      }
+
+      if (!search) {
+        return true;
+      }
+
+      const haystack = [readLogMessage(row), readLogLevel(row), readLogTimestamp(row)]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(search);
+    });
+  }, [classifyLogSeverity, logSearchTerm, logSeverityFilter, readLogLevel, readLogMessage, readLogTimestamp, state.logsRows]);
+
+  const logsSummary = useMemo(() => {
+    const readTimestamp = (row: Record<string, unknown>): number => {
+      const value = readLogTimestamp(row);
+      if (typeof value !== "string") return Number.NEGATIVE_INFINITY;
+      const parsed = Date.parse(value);
+      return Number.isFinite(parsed) ? parsed : Number.NEGATIVE_INFINITY;
+    };
+
+    let errorCount = 0;
+    let warningCount = 0;
+    let latestRow: Record<string, unknown> | null = null;
+    let latestTs = Number.NEGATIVE_INFINITY;
+
+    for (const row of filteredLogsRows) {
+      const severity = classifyLogSeverity(row);
+      if (severity === "error") errorCount += 1;
+      if (severity === "warn") warningCount += 1;
+
+      const timestamp = readTimestamp(row);
+      if (timestamp >= latestTs) {
+        latestTs = timestamp;
+        latestRow = row;
+      }
+    }
+
+    return {
+      errorCount,
+      warningCount,
+      latestMessage: latestRow ? readLogMessage(latestRow) : "--",
+    };
+  }, [classifyLogSeverity, filteredLogsRows, readLogMessage, readLogTimestamp]);
+
+  const logSeverityGroups = useMemo(() => {
+    const groups = new Map<string, number>();
+
+    for (const row of filteredLogsRows) {
+      const severity = classifyLogSeverity(row);
+      groups.set(severity, (groups.get(severity) ?? 0) + 1);
+    }
+
+    return ["error", "warn", "info", "debug"]
+      .filter((severity) => groups.has(severity))
+      .map((severity) => ({ severity, total: groups.get(severity) ?? 0 }));
+  }, [classifyLogSeverity, filteredLogsRows]);
+
+  const recentLogAlerts = useMemo(() => {
+    return filteredLogsRows
+      .map((row) => {
+        const severity = classifyLogSeverity(row);
+        return severity
+          && severity !== "info"
+          && severity !== "debug"
+          ? {
+              severity,
+              message: readLogMessage(row),
+              timestamp: readLogTimestamp(row),
+            }
+          : null;
+      })
+      .filter((entry): entry is { severity: "error" | "warn"; message: string; timestamp: string } => !!entry)
+      .sort((left, right) => Date.parse(right.timestamp || "") - Date.parse(left.timestamp || ""))
+      .slice(0, 3);
+  }, [classifyLogSeverity, filteredLogsRows, readLogMessage, readLogTimestamp]);
+
   const isAiServicePage = serviceConfig.service === "ai-engine-api" || serviceConfig.service === "ai-engine-stats";
   const hasAiAdvancedSection = serviceConfig.service === "ai-engine-api";
 
@@ -616,6 +779,39 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
     [serviceTestChecks],
   );
 
+  const dataInsightsConclusions = useMemo(() => {
+    const insights = state.dataInsights;
+    if (!insights) {
+      return [] as string[];
+    }
+
+    const conclusions: string[] = [];
+
+    if (insights.deficitCategories.length > 0) {
+      const targets = insights.deficitCategories.map((entry) => entry.name).join(", ");
+      conclusions.push(t("service.data.insights.recoCategory", { targets }));
+    }
+
+    if (insights.deficitLanguages.length > 0) {
+      const targets = insights.deficitLanguages.map((entry) => entry.code.toUpperCase()).join(", ");
+      conclusions.push(t("service.data.insights.recoLanguage", { targets }));
+    }
+
+    if (insights.languages.length <= 1) {
+      conclusions.push(t("service.data.insights.recoSingleLanguage"));
+    }
+
+    if (insights.categories.length <= 1) {
+      conclusions.push(t("service.data.insights.recoSingleCategory"));
+    }
+
+    if (conclusions.length === 0) {
+      conclusions.push(t("service.data.insights.recoBalanced"));
+    }
+
+    return conclusions;
+  }, [state.dataInsights, t]);
+
   const renderManualEditorFields = () => (
     <div className="space-y-3">
       <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
@@ -720,28 +916,20 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
       )}
 
       {isWordpassHistoryDataset && (
-        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-          <label className="text-sm text-[var(--md-sys-color-on-surface-variant)]">
-            {t("service.data.manual.wordLetter")}
-            <input
-              value={wordpassDraft.letter}
-              onChange={(event) => setWordpassDraft((current) => ({ ...current, letter: event.target.value }))}
-              className="control-input mt-1 w-full px-2 py-1.5 text-sm"
-            />
-          </label>
-          <label className="text-sm xl:col-span-2">
+        <div className="grid gap-2 md:grid-cols-2">
+          <label className="text-sm md:col-span-2">
             {t("service.data.manual.wordHint")}
             <input
-              value={wordpassDraft.hint}
-              onChange={(event) => setWordpassDraft((current) => ({ ...current, hint: event.target.value }))}
+              value={wordpassDraft.definition}
+              onChange={(event) => setWordpassDraft((current) => ({ ...current, definition: event.target.value }))}
               className="control-input mt-1 w-full px-2 py-1.5 text-sm"
             />
           </label>
-          <label className="text-sm md:col-span-2 xl:col-span-3">
+          <label className="text-sm md:col-span-2">
             {t("service.data.manual.wordAnswer")}
             <input
-              value={wordpassDraft.answer}
-              onChange={(event) => setWordpassDraft((current) => ({ ...current, answer: event.target.value }))}
+              value={wordpassDraft.word}
+              onChange={(event) => setWordpassDraft((current) => ({ ...current, word: event.target.value }))}
               className="control-input mt-1 w-full px-2 py-1.5 text-sm"
             />
           </label>
@@ -1056,6 +1244,37 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
               <p className="ui-feedback ui-feedback--error">{state.metricsError}</p>
             ) : state.metricsRows.length ? (
               <div className="space-y-3">
+                {routeMetricsRows.length > 0 && (
+                  <div className={`grid gap-3 ${compactViewport ? "grid-cols-1" : "sm:grid-cols-[minmax(180px,220px)_minmax(220px,1fr)]"}`}>
+                    <label className="ui-control-label text-xs">
+                      {t("service.metrics.routeFilterLabel")}
+                      <select value={routeMethodFilter} onChange={(event) => setRouteMethodFilter(event.target.value as "all" | "GET" | "POST" | "PUT" | "PATCH" | "DELETE")} className={controlClass}>
+                        {(["all", "GET", "POST", "PUT", "PATCH", "DELETE"] as const).map((method) => (
+                          <option key={method} value={method}>{t(`service.metrics.routeFilter.${method}`)}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="ui-control-label text-xs">
+                      {t("service.metrics.routeSearchLabel")}
+                      <input value={routeSearchTerm} onChange={(event) => setRouteSearchTerm(event.target.value)} className={controlClass} placeholder={t("service.metrics.routeSearchPlaceholder")} />
+                    </label>
+                  </div>
+                )}
+
+                <div className={`grid gap-2 ${compactViewport ? "grid-cols-1" : "sm:grid-cols-3"}`}>
+                  <div className="ui-summary-band rounded-2xl p-3 text-xs">
+                    <p className="font-semibold">{t("service.metrics.routeCount")}</p>
+                    <p className="mt-1 text-lg font-semibold text-[var(--md-sys-color-on-surface)]">{metricsSummary.routeCount}</p>
+                  </div>
+                  <div className="ui-summary-band rounded-2xl p-3 text-xs">
+                    <p className="font-semibold">{t("service.metrics.requestVolume")}</p>
+                    <p className="mt-1 text-lg font-semibold text-[var(--md-sys-color-on-surface)]">{metricsSummary.requestVolume}</p>
+                  </div>
+                  <div className="ui-summary-band rounded-2xl p-3 text-xs">
+                    <p className="font-semibold">{t("service.metrics.routeHotspot")}</p>
+                    <p className="mt-1 text-sm font-semibold text-[var(--md-sys-color-on-surface)] break-words">{metricsSummary.hottestRoute}</p>
+                  </div>
+                </div>
                 <PaginatedFilterableTable
                   rows={state.metricsRows}
                   defaultPageSize={5}
@@ -1064,14 +1283,21 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
                   controlsInitiallyExpanded={false}
                 />
                 {routeMetricsRows.length > 0 && (
-                  <PaginatedFilterableTable
-                    rows={routeMetricsRows}
-                    defaultPageSize={5}
-                    defaultSortDirection="desc"
-                    density={density}
-                    collapsibleControls
-                    controlsInitiallyExpanded={false}
-                  />
+                  filteredRouteMetricsRows.length > 0 ? (
+                    <PaginatedFilterableTable
+                      rows={filteredRouteMetricsRows}
+                      defaultPageSize={5}
+                      defaultSortDirection="desc"
+                      density={density}
+                      collapsibleControls
+                      controlsInitiallyExpanded={false}
+                    />
+                  ) : (
+                    <div className="ui-subtle-card rounded-2xl border border-dashed px-4 py-3 text-sm">
+                      <p className="font-medium">{t("service.metrics.filteredNone")}</p>
+                      <p className="mt-1 text-xs text-[var(--md-sys-color-on-surface-variant)]">{t("service.metrics.emptyHint")}</p>
+                    </div>
+                  )
                 )}
               </div>
             ) : (
@@ -1089,14 +1315,89 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
             {state.logsError ? (
               <p className="ui-feedback ui-feedback--error">{state.logsError}</p>
             ) : state.logsRows.length ? (
-              <PaginatedFilterableTable
-                rows={state.logsRows}
-                defaultPageSize={5}
-                defaultSortDirection="desc"
-                density={density}
-                collapsibleControls
-                controlsInitiallyExpanded={false}
-              />
+              <div className="space-y-3">
+                <div className={`grid gap-3 ${compactViewport ? "grid-cols-1" : "sm:grid-cols-[minmax(180px,220px)_minmax(220px,1fr)]"}`}>
+                  <label className="ui-control-label text-xs">
+                    {t("service.logs.filterLabel")}
+                    <select value={logSeverityFilter} onChange={(event) => setLogSeverityFilter(event.target.value as "all" | "error" | "warn" | "info" | "debug")} className={controlClass}>
+                      {(["all", "error", "warn", "info", "debug"] as const).map((value) => (
+                        <option key={value} value={value}>{t(`service.logs.filter.${value}`)}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="ui-control-label text-xs">
+                    {t("service.logs.searchLabel")}
+                    <input value={logSearchTerm} onChange={(event) => setLogSearchTerm(event.target.value)} className={controlClass} placeholder={t("service.logs.searchPlaceholder")} />
+                  </label>
+                </div>
+
+                <div className={`grid gap-2 ${compactViewport ? "grid-cols-1" : "sm:grid-cols-3"}`}>
+                  <div className="ui-summary-band rounded-2xl p-3 text-xs">
+                    <p className="font-semibold">{t("service.logs.errorCount")}</p>
+                    <p className="mt-1 text-lg font-semibold text-[var(--md-sys-color-on-surface)]">{logsSummary.errorCount}</p>
+                  </div>
+                  <div className="ui-summary-band rounded-2xl p-3 text-xs">
+                    <p className="font-semibold">{t("service.logs.warningCount")}</p>
+                    <p className="mt-1 text-lg font-semibold text-[var(--md-sys-color-on-surface)]">{logsSummary.warningCount}</p>
+                  </div>
+                  <div className="ui-summary-band rounded-2xl p-3 text-xs">
+                    <p className="font-semibold">{t("service.logs.latestEntry")}</p>
+                    <p className="mt-1 text-sm font-semibold text-[var(--md-sys-color-on-surface)] break-words">{logsSummary.latestMessage}</p>
+                  </div>
+                </div>
+
+                {logSeverityGroups.length > 0 && (
+                  <div className="rounded-2xl border border-[var(--md-sys-color-outline-variant)] bg-[color:var(--md-sys-color-surface-container-low)]/70 p-3 text-xs">
+                    <p className="font-semibold text-[var(--md-sys-color-on-surface)]">{t("service.logs.groupedBySeverity")}</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {logSeverityGroups.map((group) => (
+                        <span
+                          key={group.severity}
+                          className={`ui-status-chip ${group.severity === "error" ? "ui-status-chip--error" : group.severity === "warn" ? "ui-status-chip--warn" : "ui-status-chip--neutral"}`}
+                        >
+                          {t(`service.logs.severity.${group.severity}`)}: {group.total}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {recentLogAlerts.length > 0 && (
+                  <div className="rounded-2xl border border-[var(--md-sys-color-outline-variant)] bg-[var(--md-sys-color-surface)]/75 p-3 text-xs">
+                    <p className="font-semibold text-[var(--md-sys-color-on-surface)]">{t("service.logs.recentAlerts")}</p>
+                    <ul className="mt-2 space-y-2">
+                      {recentLogAlerts.map((entry, index) => (
+                        <li
+                          key={`${entry.timestamp}-${entry.message}-${index}`}
+                          className={`rounded-xl border px-3 py-2 ${entry.severity === "error" ? "border-rose-300 bg-rose-50 text-rose-950" : "border-amber-300 bg-amber-50 text-amber-950"}`}
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span className="font-semibold">{t(`service.logs.severity.${entry.severity}`)}</span>
+                            <span>{entry.timestamp ? new Date(entry.timestamp).toLocaleString() : "--"}</span>
+                          </div>
+                          <p className="mt-1 break-words">{entry.message}</p>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {filteredLogsRows.length > 0 ? (
+                  <PaginatedFilterableTable
+                    rows={filteredLogsRows}
+                    defaultPageSize={5}
+                    defaultSortDirection="desc"
+                    density={density}
+                    collapsibleControls
+                    controlsInitiallyExpanded={false}
+                  />
+                ) : (
+                  <div className="ui-subtle-card rounded-2xl border border-dashed px-4 py-3 text-sm">
+                    <p className="font-medium">{t("service.logs.filteredNone")}</p>
+                    <p className="mt-1 text-xs text-[var(--md-sys-color-on-surface-variant)]">{t("service.logs.emptyHint")}</p>
+                  </div>
+                )}
+              </div>
             ) : (
               <div className="ui-subtle-card rounded-2xl border border-dashed px-4 py-3 text-sm">
                 <p className="font-medium">{t("service.logs.none")}</p>
@@ -1321,6 +1622,55 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
             >
               {renderManualEditorFields()}
             </CollapsibleSection>
+          )}
+
+          {isGameHistoryDataset && state.dataInsights && (
+            <div className="ui-subtle-card space-y-3 rounded-2xl p-3">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <p className="text-sm font-semibold">{t("service.data.insights.title")}</p>
+                  <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">{t("service.data.insights.subtitle")}</p>
+                </div>
+                <span className="ui-action-pill ui-action-pill--quiet min-h-0 px-2.5 py-1 text-xs">
+                  {t("service.data.insights.sample", { total: state.dataInsights.sampleSize })}
+                </span>
+              </div>
+
+              <div className="grid gap-2 md:grid-cols-2">
+                <div className="rounded-xl border border-[var(--md-sys-color-outline-variant)] p-2.5">
+                  <p className="text-xs font-semibold text-[var(--md-sys-color-on-surface-variant)]">{t("service.data.insights.byCategory")}</p>
+                  <ul className="mt-2 space-y-1 text-sm">
+                    {state.dataInsights.categories.map((entry) => (
+                      <li key={entry.id} className="flex items-center justify-between gap-2">
+                        <span className="truncate">{entry.name}</span>
+                        <span className="text-xs text-[var(--md-sys-color-on-surface-variant)]">{entry.count} ({entry.percentage}%)</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="rounded-xl border border-[var(--md-sys-color-outline-variant)] p-2.5">
+                  <p className="text-xs font-semibold text-[var(--md-sys-color-on-surface-variant)]">{t("service.data.insights.byLanguage")}</p>
+                  <ul className="mt-2 space-y-1 text-sm">
+                    {state.dataInsights.languages.map((entry) => (
+                      <li key={entry.code} className="flex items-center justify-between gap-2">
+                        <span className="uppercase">{entry.code}</span>
+                        <span className="text-xs text-[var(--md-sys-color-on-surface-variant)]">{entry.count} ({entry.percentage}%)</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-[var(--md-sys-color-outline-variant)] p-2.5">
+                <p className="text-xs font-semibold text-[var(--md-sys-color-on-surface-variant)]">{t("service.data.insights.recoTitle")}</p>
+                <ul className="mt-2 space-y-1 text-sm">
+                  {dataInsightsConclusions.map((entry) => (
+                    <li key={entry}>{entry}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
           )}
 
           {state.dataError ? (

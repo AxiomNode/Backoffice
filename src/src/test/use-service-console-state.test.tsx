@@ -190,9 +190,9 @@ describe("useServiceConsoleState", () => {
                 game: {
                   difficulty_percentage: "42",
                   words: [
-                    { answer: "Alpha" },
+                    { word: "Alpha" },
                     { word: "Beta" },
-                    { answer: "" },
+                    { word: "" },
                   ],
                 },
               },

@@ -696,9 +696,13 @@ describe("AIDiagnosticsPanel integration", () => {
       expect(statusCalls).toBe(3);
       expect(screen.getByText("Completado")).toBeInTheDocument();
       expect(screen.getByText("Duracion: 1.5s")).toBeInTheDocument();
+      expect(screen.getByText("Omitidos")).toBeInTheDocument();
+      expect(screen.getByText("Errores")).toBeInTheDocument();
+      expect(screen.getByText("Checks fallidos")).toBeInTheDocument();
       expect(screen.getByText("Recomendaciones")).toBeInTheDocument();
       expect(screen.getByText("use deterministic prompts")).toBeInTheDocument();
-      expect(screen.getByText("hallucination guard")).toBeInTheDocument();
+      expect(screen.getAllByText("hallucination guard").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("semantic").length).toBeGreaterThan(0);
       expect(screen.getByText(/score=0.1235, retries=2, strict=true/)).toBeInTheDocument();
     });
   }, 12000);

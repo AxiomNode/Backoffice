@@ -305,6 +305,12 @@ describe("HotfixPanel integration", () => {
       expect(screen.getByRole("heading", { level: 2, name: "Modificacion en caliente" }).className).toContain("text-lg");
       expect(screen.getByLabelText("ID de categoria (texto)").tagName).toBe("INPUT");
       expect(screen.getByLabelText("Lenguaje").tagName).toBe("INPUT");
+      expect(screen.getByText("Acceso de escritura")).toBeInTheDocument();
+      expect(screen.getByText("Procesos activos")).toBeInTheDocument();
+      expect(screen.getByText("En ejecucion")).toBeInTheDocument();
+      expect(screen.getByText("Solicitados")).toBeInTheDocument();
+      expect(screen.getByText("Quiz en curso")).toBeInTheDocument();
+      expect(screen.getByText("Procesos: 1")).toBeInTheDocument();
       expect(screen.getByText(/pending-quiz/i)).toBeInTheDocument();
       expect(screen.getByText(/Procesados: 2\/4 \(50%\)/i)).toBeInTheDocument();
     });
@@ -398,7 +404,140 @@ describe("HotfixPanel integration", () => {
 
     await waitFor(() => {
       expect(screen.getByText(/pending-zero/i)).toBeInTheDocument();
+      expect(screen.getByText("Estable")).toBeInTheDocument();
       expect(screen.getByText(/Procesados: 3\/0 \(0%\)/i)).toBeInTheDocument();
+    });
+  });
+
+  it("prioritizes pending tasks with failures or duplicates using explicit risk labels", async () => {
+    fetchJsonMock.mockImplementation((url: string) => {
+      if (url.includes("/microservice-quiz/catalogs")) {
+        return Promise.resolve({
+          catalogs: {
+            categories: [{ id: "9", name: "General" }],
+            languages: [{ code: "es", name: "Español" }],
+          },
+        });
+      }
+      if (url.includes("/microservice-wordpass/catalogs")) {
+        return Promise.resolve({
+          catalogs: {
+            categories: [{ id: "11", name: "Vocabulario" }],
+            languages: [{ code: "en", name: "English" }],
+          },
+        });
+      }
+      if (url.includes("/microservice-quiz/generation/processes")) {
+        return Promise.resolve({
+          tasks: [
+            {
+              taskId: "quiz-risky",
+              status: "running",
+              requested: 5,
+              processed: 2,
+              created: 1,
+              duplicates: 0,
+              failed: 1,
+            },
+          ],
+        });
+      }
+      if (url.includes("/microservice-wordpass/generation/processes")) {
+        return Promise.resolve({
+          tasks: [
+            {
+              taskId: "wordpass-duplicates",
+              status: "running",
+              requested: 4,
+              processed: 3,
+              created: 2,
+              duplicates: 1,
+              failed: 0,
+            },
+          ],
+        });
+      }
+      return Promise.resolve({});
+    });
+
+    renderPanel();
+
+    await waitFor(() => {
+      expect(screen.getByText(/quiz-risky/i)).toBeInTheDocument();
+      expect(screen.getByText(/wordpass-duplicates/i)).toBeInTheDocument();
+      expect(screen.getByText("Con fallos")).toBeInTheDocument();
+      expect(screen.getByText("Con duplicados")).toBeInTheDocument();
+    });
+  });
+
+  it("orders pending tasks inside each group by risk first and then by most recent timestamp", async () => {
+    fetchJsonMock.mockImplementation((url: string) => {
+      if (url.includes("/microservice-quiz/catalogs")) {
+        return Promise.resolve({
+          catalogs: {
+            categories: [{ id: "9", name: "General" }],
+            languages: [{ code: "es", name: "Español" }],
+          },
+        });
+      }
+      if (url.includes("/microservice-wordpass/catalogs")) {
+        return Promise.resolve({
+          catalogs: {
+            categories: [{ id: "11", name: "Vocabulario" }],
+            languages: [{ code: "en", name: "English" }],
+          },
+        });
+      }
+      if (url.includes("/microservice-quiz/generation/processes")) {
+        return Promise.resolve({
+          tasks: [
+            {
+              taskId: "quiz-healthy-new",
+              status: "running",
+              requested: 5,
+              processed: 3,
+              created: 3,
+              duplicates: 0,
+              failed: 0,
+              updatedAt: "2026-04-21T13:00:00Z",
+            },
+            {
+              taskId: "quiz-failed-old",
+              status: "running",
+              requested: 5,
+              processed: 2,
+              created: 1,
+              duplicates: 0,
+              failed: 1,
+              updatedAt: "2026-04-21T09:00:00Z",
+            },
+            {
+              taskId: "quiz-duplicate-mid",
+              status: "running",
+              requested: 5,
+              processed: 2,
+              created: 1,
+              duplicates: 2,
+              failed: 0,
+              updatedAt: "2026-04-21T10:00:00Z",
+            },
+          ],
+        });
+      }
+      if (url.includes("/microservice-wordpass/generation/processes")) {
+        return Promise.resolve({ tasks: [] });
+      }
+      return Promise.resolve({});
+    });
+
+    renderPanel();
+
+    await waitFor(() => {
+      const quizCards = screen.getAllByTestId("hotfix-pending-task-quiz");
+      expect(quizCards).toHaveLength(3);
+      expect(quizCards[0]).toHaveTextContent("quiz-failed-old");
+      expect(quizCards[1]).toHaveTextContent("quiz-duplicate-mid");
+      expect(quizCards[2]).toHaveTextContent("quiz-healthy-new");
     });
   });
 
@@ -508,6 +647,9 @@ describe("HotfixPanel integration", () => {
               }),
         ),
       ).toBe(true);
+      expect(screen.getByText("Quiz en curso")).toBeInTheDocument();
+      expect(screen.getByText("Word-pass en curso")).toBeInTheDocument();
+      expect(screen.getAllByText("Procesos: 1").length).toBeGreaterThanOrEqual(2);
       expect(screen.getAllByText(/wordpass-running/i).length).toBeGreaterThan(0);
     });
 
@@ -748,6 +890,10 @@ describe("HotfixPanel integration", () => {
       expect(screen.getByText(/quiz-with-time/i)).toBeInTheDocument();
       expect(screen.getByText(/wordpass-with-time/i)).toBeInTheDocument();
       expect(screen.getByText(/wordpass-started-only/i)).toBeInTheDocument();
+      expect(screen.getByText(/Origen: microservice-quiz \| actualizada:/i)).toBeInTheDocument();
+      expect(screen.getByText(/Origen: microservice-wordpass \| actualizada:/i)).toBeInTheDocument();
+      expect(screen.getByText(/Origen: microservice-wordpass \| iniciada:/i)).toBeInTheDocument();
+      expect(screen.getByText("Origen: microservice-quiz | sin marca temporal")).toBeInTheDocument();
     });
 
     fireEvent.change(screen.getByLabelText("Cantidad de objetos a generar"), { target: { value: "" } });

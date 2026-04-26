@@ -570,6 +570,11 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
     ),
   );
   const hasRecommendations = Boolean(testStatus?.recommendations && testStatus.recommendations.length > 0);
+  const failedChecks = testStatus
+    ? Object.values(testStatus.suites)
+        .flatMap((suite) => suite.tests.filter((test) => !test.passed).map((test) => ({ suite: suite.suite, test })))
+        .slice(0, 4)
+    : [];
 
   return (
     <div className={`grid gap-4 ${compact ? "gap-3" : "gap-5"}`}>
@@ -1097,6 +1102,13 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
               </div>
             </div>
 
+            <div className={`grid gap-2 ${compact ? "grid-cols-2" : "sm:grid-cols-2 xl:grid-cols-4"}`}>
+              <StatCard label={t("diag.tests.passed")} value={testStatus.summary.passed} />
+              <StatCard label={t("diag.tests.failed")} value={testStatus.summary.failed} />
+              <StatCard label={t("diag.tests.skipped")} value={testStatus.summary.skipped} />
+              <StatCard label={t("diag.tests.errors")} value={testStatus.summary.errors} />
+            </div>
+
             {/* Progress bar for running tests */}
             {(testStatus.status === "running" || progressPercent > 0) && (
               <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--md-sys-color-surface-container)]">
@@ -1109,6 +1121,23 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
 
             {testStatus.progress?.message && (
               <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">{testStatus.progress.message}</p>
+            )}
+
+            {failedChecks.length > 0 && (
+              <div className="rounded-[1.2rem] border border-rose-300 bg-rose-50 p-3 text-xs text-rose-950">
+                <p className="font-semibold">{t("diag.tests.failedChecks")}</p>
+                <ul className="mt-2 space-y-2">
+                  {failedChecks.map(({ suite, test }, index) => (
+                    <li key={`${suite}-${test.name}-${index}`} className="rounded-xl border border-rose-200 bg-white/70 px-3 py-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-semibold">{test.name}</span>
+                        <span>{suite}</span>
+                      </div>
+                      {test.error && <p className="mt-1">{test.error}</p>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
           </div>
         )}

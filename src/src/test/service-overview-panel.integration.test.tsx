@@ -6,10 +6,12 @@ import type { SessionContext } from "../domain/types/backoffice";
 import { ServiceOverviewPanel } from "../ui/panels/ServiceOverviewPanel";
 
 const fetchServiceOperationalSummaryMock = vi.hoisted(() => vi.fn());
+const fetchKubernetesOverviewMock = vi.hoisted(() => vi.fn());
 const fetchJsonMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../application/services/operationalSummary", () => ({
   fetchServiceOperationalSummary: fetchServiceOperationalSummaryMock,
+  fetchKubernetesOverview: fetchKubernetesOverviewMock,
 }));
 
 vi.mock("../infrastructure/http/apiClient", () => ({
@@ -50,6 +52,7 @@ describe("ServiceOverviewPanel integration", () => {
 
   beforeEach(() => {
     fetchServiceOperationalSummaryMock.mockReset();
+    fetchKubernetesOverviewMock.mockReset();
     fetchJsonMock.mockReset();
     fetchServiceOperationalSummaryMock.mockResolvedValue({
       rows: [
@@ -74,6 +77,80 @@ describe("ServiceOverviewPanel integration", () => {
       ],
       totals: { total: 1, onlineCount: 1, accessIssues: 0, connectionErrors: 0 },
     });
+    fetchKubernetesOverviewMock.mockResolvedValue({
+      enabled: true,
+      fetchedAt: "2026-04-27T10:00:00.000Z",
+      namespace: "axiomnode-stg",
+      source: "cluster",
+      message: null,
+      cluster: {
+        apiBaseUrl: "https://kubernetes.default.svc",
+        nodeCount: 1,
+        readyNodeCount: 1,
+        deploymentCount: 2,
+        podCount: 5,
+        runningPodCount: 5,
+        notReadyPodCount: 0,
+        restartCount: 1,
+        cpuUsageMillicores: 500,
+        cpuCapacityMillicores: 2000,
+        cpuUsageRatio: 0.25,
+        memoryUsageBytes: 805306368,
+        memoryCapacityBytes: 4294967296,
+        memoryUsageRatio: 0.1875,
+        namespaceCpuRequestMillicores: 800,
+        namespaceCpuLimitMillicores: 1200,
+        namespaceMemoryRequestBytes: 536870912,
+        namespaceMemoryLimitBytes: 1073741824,
+      },
+      nodes: [
+        {
+          name: "node-a",
+          ready: true,
+          podCount: 5,
+          cpuUsageMillicores: 500,
+          cpuCapacityMillicores: 2000,
+          cpuUsageRatio: 0.25,
+          memoryUsageBytes: 805306368,
+          memoryCapacityBytes: 4294967296,
+          memoryUsageRatio: 0.1875,
+        },
+      ],
+      workloads: [
+        {
+          name: "microservice-quizz-api",
+          image: "ghcr.io/axiomnode/microservice-quizz-api:stg",
+          desiredReplicas: 1,
+          readyReplicas: 1,
+          availableReplicas: 1,
+          updatedReplicas: 1,
+          podCount: 1,
+          readyPodCount: 1,
+          restartCount: 0,
+          cpuUsageMillicores: 120,
+          memoryUsageBytes: 134217728,
+          cpuRequestMillicores: 200,
+          cpuLimitMillicores: 400,
+          memoryRequestBytes: 134217728,
+          memoryLimitBytes: 268435456,
+          status: "healthy",
+        },
+      ],
+      topPods: [
+        {
+          name: "microservice-quizz-api-123",
+          workload: "microservice-quizz-api",
+          nodeName: "node-a",
+          phase: "Running",
+          ready: true,
+          restartCount: 0,
+          cpuUsageMillicores: 120,
+          memoryUsageBytes: 134217728,
+          cpuRequestMillicores: 200,
+          memoryRequestBytes: 134217728,
+        },
+      ],
+    });
 
     presetsState = [
       {
@@ -95,10 +172,78 @@ describe("ServiceOverviewPanel integration", () => {
     ];
 
     fetchJsonMock.mockImplementation((url: string, options?: RequestInit) => {
+      if (url.includes("/v1/backoffice/services/microservice-quiz/generation/processes")) {
+        return Promise.resolve({
+          tasks: [
+            {
+              taskId: "quiz-risky",
+              status: "running",
+              requested: 10,
+              processed: 4,
+              created: 3,
+              duplicates: 0,
+              failed: 1,
+              updatedAt: "2026-04-26T10:00:00.000Z",
+            },
+          ],
+        });
+      }
+
+      if (url.includes("/v1/backoffice/services/microservice-wordpass/generation/processes")) {
+        return Promise.resolve({
+          tasks: [
+            {
+              taskId: "wordpass-dup",
+              status: "running",
+              requested: 6,
+              processed: 2,
+              created: 1,
+              duplicates: 2,
+              failed: 0,
+              updatedAt: "2026-04-26T09:00:00.000Z",
+            },
+          ],
+        });
+      }
+
       if (url.endsWith("/v1/backoffice/ai-engine/presets") && (!options?.method || options.method === "GET")) {
         return Promise.resolve({
           total: presetsState.length,
           presets: presetsState,
+        });
+      }
+
+      if (url.includes("/v1/backoffice/routing/history")) {
+        return Promise.resolve({
+          total: 2,
+          history: [
+            {
+              recordedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+              action: "service-target-set",
+              service: "api-gateway",
+              state: {
+                version: 3,
+                overrides: {
+                  "api-gateway": {
+                    baseUrl: "http://api-gateway:7005",
+                    label: "cluster",
+                    updatedAt: "2026-04-26T09:00:00.000Z",
+                  },
+                },
+                aiEnginePresets: presetsState,
+              },
+            },
+            {
+              recordedAt: new Date(Date.now() - 9 * 24 * 60 * 60 * 1000).toISOString(),
+              action: "ai-engine-preset-set",
+              presetId: "workstation-public",
+              state: {
+                version: 3,
+                overrides: {},
+                aiEnginePresets: presetsState,
+              },
+            },
+          ],
         });
       }
 
@@ -214,6 +359,45 @@ describe("ServiceOverviewPanel integration", () => {
     });
   });
 
+  it("shows an active generation spotlight with risk summary on the overview", async () => {
+    renderPanel();
+
+    await waitFor(() => {
+      expect(screen.getByText("Procesos activos de generacion")).toBeInTheDocument();
+      expect(screen.getByText("Activos")).toBeInTheDocument();
+      expect(screen.getAllByText("Con fallos").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("Con duplicados").length).toBeGreaterThan(0);
+      expect(screen.getByText("Progreso agregado")).toBeInTheDocument();
+      expect(screen.getByText(/quiz \| quiz-risky/i)).toBeInTheDocument();
+      expect(screen.getByText(/wordpass \| wordpass-dup/i)).toBeInTheDocument();
+      expect(screen.getByText(/microservice-quiz \| 4\/10 procesados/i)).toBeInTheDocument();
+      expect(screen.getByText(/microservice-wordpass \| 2\/6 procesados/i)).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Abrir proceso" })[0]!);
+
+    await waitFor(() => {
+      expect(window.location.hash).toContain("#/backoffice/svc-quiz?dataset=processes&followTaskId=quiz-risky");
+    });
+  });
+
+  it("renders the kubernetes tab with workload and pod consumption", async () => {
+    renderPanel();
+
+    await waitFor(() => {
+      expect(fetchKubernetesOverviewMock).toHaveBeenCalledTimes(1);
+      expect(screen.getByRole("button", { name: "Kubernetes" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Kubernetes" }));
+
+    await waitFor(() => {
+      expect(screen.getAllByText("microservice-quizz-api").length).toBeGreaterThan(0);
+      expect(screen.getByText("microservice-quizz-api-123")).toBeInTheDocument();
+      expect(screen.getByText(/Namespace axiomnode-stg/i)).toBeInTheDocument();
+    });
+  });
+
   it("triggers auto refresh according to interval", async () => {
     vi.useFakeTimers();
     renderPanel();
@@ -259,6 +443,45 @@ describe("ServiceOverviewPanel integration", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Etiqueta actual")).toBeInTheDocument();
+      expect(screen.getByText("Historial operativo")).toBeInTheDocument();
+      expect(screen.getByText(/api-gateway -> http:\/\/api-gateway:7005/i)).toBeInTheDocument();
+      expect(screen.getAllByText("Workstation publica (195.35.48.40)").length).toBeGreaterThan(0);
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Servicios" }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/api-gateway -> http:\/\/api-gateway:7005/i)).toBeInTheDocument();
+      expect(screen.queryByText("Preset IA guardado")).not.toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Presets IA" }));
+
+    await waitFor(() => {
+      expect(screen.queryByText(/api-gateway -> http:\/\/api-gateway:7005/i)).not.toBeInTheDocument();
+      expect(screen.getByText("Preset IA guardado")).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText("Ventana temporal"), {
+      target: { value: "24h" },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("No hay cambios para el filtro actual.")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Todo" }));
+    fireEvent.change(screen.getByLabelText("Ventana temporal"), {
+      target: { value: "all" },
+    });
+    fireEvent.change(screen.getByLabelText("Orden"), {
+      target: { value: "oldest" },
+    });
+
+    await waitFor(() => {
+      const presetEntry = screen.getByText("Preset IA guardado");
+      const serviceEntry = screen.getByText("Override de destino aplicado");
+      expect(presetEntry.compareDocumentPosition(serviceEntry) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
     await waitFor(() => {

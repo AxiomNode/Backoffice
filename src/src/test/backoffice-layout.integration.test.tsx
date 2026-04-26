@@ -8,8 +8,10 @@ import type { SessionContext, UiLanguage, UiTypography } from "../domain/types/b
 import { BackofficeLayout } from "../ui/layout/BackofficeLayout";
 
 const fetchServiceOperationalSummaryMock = vi.hoisted(() => vi.fn());
+const fetchDeploymentHistoryMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../application/services/operationalSummary", () => ({
+  fetchDeploymentHistory: fetchDeploymentHistoryMock,
   fetchServiceOperationalSummary: fetchServiceOperationalSummaryMock,
   storeServiceLastError: vi.fn(),
 }));
@@ -113,6 +115,26 @@ describe("BackofficeLayout integration", () => {
     window.location.hash = "#/backoffice/svc-overview";
     setViewportWidth(1280);
     fetchServiceOperationalSummaryMock.mockReset();
+    fetchDeploymentHistoryMock.mockReset();
+    fetchDeploymentHistoryMock.mockResolvedValue({
+      environment: "stg",
+      currentVersion: "7f9015b",
+      currentDeployedAt: "2026-04-19 22:00 UTC",
+      history: [
+        {
+          version: "7f9015b",
+          deployedAt: "2026-04-19 22:00 UTC",
+          commitSha: "7f9015b",
+          summary: "Kubernetes observability baseline",
+        },
+        {
+          version: "28f3fd9",
+          deployedAt: "2026-04-19 18:20 UTC",
+          commitSha: "28f3fd9",
+          summary: "Compatibilidad con payloads legacy del target/probe de IA",
+        },
+      ],
+    });
   });
 
   afterEach(() => {
@@ -259,15 +281,17 @@ describe("BackofficeLayout integration", () => {
 
     renderLayout();
 
-    expect(screen.getByText(/Version: 7f9015b/i)).toBeInTheDocument();
-    expect(screen.getByText(/Desplegada: 2026-04-19 22:00 UTC/i)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText(/Version: 7f9015b/i)).toBeInTheDocument();
+      expect(screen.getByText(/Desplegada: 2026-04-19 22:00 UTC/i)).toBeInTheDocument();
+    });
 
     fireEvent.click(screen.getByRole("button", { name: /Historico de versiones/i }));
 
     await waitFor(() => {
       expect(screen.getByText("Versiones desplegadas")).toBeInTheDocument();
       expect(screen.getByText("Compatibilidad con payloads legacy del target/probe de IA")).toBeInTheDocument();
-      expect(screen.getByText("28f3fd9")).toBeInTheDocument();
+      expect(screen.getAllByText("28f3fd9").length).toBeGreaterThan(0);
     });
 
     const historyPanel = document.getElementById("deployment-history-panel");
