@@ -8,6 +8,8 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Workflow-level permissions stay read-only: this pipeline validates frontend
+# code and uploads coverage without mutating repositories or Actions state.
 permissions:
   contents: read
 
