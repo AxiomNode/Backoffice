@@ -915,7 +915,7 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
           onClick={() => setSelectedTab("operations")}
           className={`${selectedTab === "operations" ? "ui-action-pill ui-action-pill--tonal" : "ui-action-pill ui-action-pill--quiet"} min-h-0 px-3 py-1.5 text-xs`}
         >
-          Operaciones
+          Operations
         </button>
         <button
           type="button"
