@@ -213,40 +213,6 @@ describe("ServiceOverviewPanel integration", () => {
         });
       }
 
-      if (url.includes("/v1/backoffice/routing/history")) {
-        return Promise.resolve({
-          total: 2,
-          history: [
-            {
-              recordedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-              action: "service-target-set",
-              service: "api-gateway",
-              state: {
-                version: 3,
-                overrides: {
-                  "api-gateway": {
-                    baseUrl: "http://api-gateway:7005",
-                    label: "cluster",
-                    updatedAt: "2026-04-26T09:00:00.000Z",
-                  },
-                },
-                aiEnginePresets: presetsState,
-              },
-            },
-            {
-              recordedAt: new Date(Date.now() - 9 * 24 * 60 * 60 * 1000).toISOString(),
-              action: "ai-engine-preset-set",
-              presetId: "workstation-public",
-              state: {
-                version: 3,
-                overrides: {},
-                aiEnginePresets: presetsState,
-              },
-            },
-          ],
-        });
-      }
-
       if (url.endsWith("/v1/backoffice/ai-engine/presets") && options?.method === "POST") {
         const payload = JSON.parse(String(options.body)) as {
           name: string;
@@ -443,45 +409,7 @@ describe("ServiceOverviewPanel integration", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Etiqueta actual")).toBeInTheDocument();
-      expect(screen.getByText("Historial operativo")).toBeInTheDocument();
-      expect(screen.getByText(/api-gateway -> http:\/\/api-gateway:7005/i)).toBeInTheDocument();
       expect(screen.getAllByText("Workstation publica (195.35.48.40)").length).toBeGreaterThan(0);
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: "Servicios" }));
-
-    await waitFor(() => {
-      expect(screen.getByText(/api-gateway -> http:\/\/api-gateway:7005/i)).toBeInTheDocument();
-      expect(screen.queryByText("Preset IA guardado")).not.toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: "Presets IA" }));
-
-    await waitFor(() => {
-      expect(screen.queryByText(/api-gateway -> http:\/\/api-gateway:7005/i)).not.toBeInTheDocument();
-      expect(screen.getByText("Preset IA guardado")).toBeInTheDocument();
-    });
-
-    fireEvent.change(screen.getByLabelText("Ventana temporal"), {
-      target: { value: "24h" },
-    });
-
-    await waitFor(() => {
-      expect(screen.getByText("No hay cambios para el filtro actual.")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: "Todo" }));
-    fireEvent.change(screen.getByLabelText("Ventana temporal"), {
-      target: { value: "all" },
-    });
-    fireEvent.change(screen.getByLabelText("Orden"), {
-      target: { value: "oldest" },
-    });
-
-    await waitFor(() => {
-      const presetEntry = screen.getByText("Preset IA guardado");
-      const serviceEntry = screen.getByText("Override de destino aplicado");
-      expect(presetEntry.compareDocumentPosition(serviceEntry) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
     await waitFor(() => {

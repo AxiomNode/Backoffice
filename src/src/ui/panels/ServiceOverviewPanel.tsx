@@ -49,29 +49,6 @@ type AiEngineProbeResult = {
   llama: AiEngineProbeEndpointStatus;
 };
 
-type RoutingHistoryState = {
-  version?: number;
-  overrides?: Record<string, { baseUrl?: string; label?: string; updatedAt?: string }>;
-  aiEnginePresets?: Array<{ id?: string; name?: string; host?: string; protocol?: "http" | "https"; port?: number }>;
-};
-
-type RoutingHistoryEntry = {
-  recordedAt: string;
-  action: "service-target-set" | "service-target-delete" | "ai-engine-preset-set" | "ai-engine-preset-delete";
-  service?: string;
-  presetId?: string;
-  state: RoutingHistoryState;
-};
-
-type RoutingHistoryResponse = {
-  total: number;
-  history: RoutingHistoryEntry[];
-};
-
-type RoutingHistoryFilter = "all" | "service-targets" | "ai-presets";
-type RoutingHistoryWindow = "all" | "24h" | "7d";
-type RoutingHistoryOrder = "newest" | "oldest";
-
 type GenerationTaskSnapshot = {
   taskId: string;
   status: "running" | "completed" | "failed";
@@ -155,60 +132,6 @@ function normalizeAiProbeResponse(payload: unknown): AiEngineProbeResult {
     port,
     reachable: record.reachable === true,
     llama: normalizeProbeEndpointStatus(record.llama ?? record.api, fallbackUrl),
-  };
-}
-
-function normalizeRoutingHistoryResponse(payload: unknown): RoutingHistoryResponse {
-  const record = asRecord(payload) ?? {};
-  const history = Array.isArray(record.history) ? record.history : [];
-
-  return {
-    total: readNullableNumber(record.total) ?? history.length,
-    history: history
-      .filter((entry): entry is Record<string, unknown> => !!entry && typeof entry === "object")
-      .map((entry) => {
-        const state = asRecord(entry.state) ?? {};
-        const overrides = asRecord(state.overrides) ?? {};
-        const presets = Array.isArray(state.aiEnginePresets) ? state.aiEnginePresets : [];
-
-        return {
-          recordedAt: readNullableString(entry.recordedAt) ?? "",
-          action:
-            entry.action === "service-target-set" ||
-            entry.action === "service-target-delete" ||
-            entry.action === "ai-engine-preset-set" ||
-            entry.action === "ai-engine-preset-delete"
-              ? entry.action
-              : "service-target-set",
-          service: readNullableString(entry.service) ?? undefined,
-          presetId: readNullableString(entry.presetId) ?? undefined,
-          state: {
-            version: readNullableNumber(state.version) ?? undefined,
-            overrides: Object.fromEntries(
-              Object.entries(overrides).map(([key, value]) => {
-                const parsed = asRecord(value) ?? {};
-                return [
-                  key,
-                  {
-                    baseUrl: readNullableString(parsed.baseUrl) ?? undefined,
-                    label: readNullableString(parsed.label) ?? undefined,
-                    updatedAt: readNullableString(parsed.updatedAt) ?? undefined,
-                  },
-                ];
-              }),
-            ),
-            aiEnginePresets: presets
-              .filter((preset): preset is Record<string, unknown> => !!preset && typeof preset === "object")
-              .map((preset) => ({
-                id: readNullableString(preset.id) ?? undefined,
-                name: readNullableString(preset.name) ?? undefined,
-                host: readNullableString(preset.host) ?? undefined,
-                protocol: readProtocol(preset.protocol) ?? undefined,
-                port: readNullableNumber(preset.port) ?? undefined,
-              })),
-          },
-        } satisfies RoutingHistoryEntry;
-      }),
   };
 }
 
@@ -303,11 +226,6 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
   const [presetPort, setPresetPort] = useState("7002");
   const [aiProbeLoading, setAiProbeLoading] = useState(false);
   const [aiProbeResult, setAiProbeResult] = useState<AiEngineProbeResult | null>(null);
-  const [routingHistory, setRoutingHistory] = useState<RoutingHistoryEntry[]>([]);
-  const [routingHistoryLoading, setRoutingHistoryLoading] = useState(false);
-  const [routingHistoryFilter, setRoutingHistoryFilter] = useState<RoutingHistoryFilter>("all");
-  const [routingHistoryWindow, setRoutingHistoryWindow] = useState<RoutingHistoryWindow>("all");
-  const [routingHistoryOrder, setRoutingHistoryOrder] = useState<RoutingHistoryOrder>("newest");
   const [activeGenerations, setActiveGenerations] = useState<ActiveGenerationRow[]>([]);
   const [activeGenerationsLoading, setActiveGenerationsLoading] = useState(false);
   const [selectedTab, setSelectedTab] = useState<OverviewTab>("operations");
@@ -408,20 +326,6 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
     }
   }, [authHeaders, t]);
 
-  const loadRoutingHistory = useCallback(async () => {
-    setRoutingHistoryLoading(true);
-    try {
-      const payload = await fetchJson<unknown>(`${EDGE_API_BASE}/v1/backoffice/routing/history?limit=8`, {
-        headers: authHeaders(),
-      });
-      setRoutingHistory(normalizeRoutingHistoryResponse(payload).history);
-    } catch {
-      setRoutingHistory([]);
-    } finally {
-      setRoutingHistoryLoading(false);
-    }
-  }, [authHeaders]);
-
   const loadSummary = useCallback(async () => {
     const requestVersion = ++requestVersionRef.current;
     setLoading(true);
@@ -512,9 +416,8 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
     void loadKubernetes();
     void loadAiTarget();
     void loadPresets();
-    void loadRoutingHistory();
     void loadActiveGenerations();
-  }, [loadActiveGenerations, loadAiTarget, loadKubernetes, loadPresets, loadRoutingHistory, loadSummary]);
+  }, [loadActiveGenerations, loadAiTarget, loadKubernetes, loadPresets, loadSummary]);
 
   useEffect(() => {
     if (isCreatingPreset) {
@@ -779,71 +682,6 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
     syncPresetForm(null);
   }, [syncPresetForm]);
 
-  const describeRoutingHistoryEntry = useCallback((entry: RoutingHistoryEntry) => {
-    if (entry.action === "service-target-set") {
-      const override = entry.service ? entry.state.overrides?.[entry.service] : undefined;
-      return {
-        title: t("overview.routingHistory.serviceTargetSet"),
-        detail: `${entry.service ?? "--"} -> ${override?.baseUrl ?? "--"}`,
-      };
-    }
-
-    if (entry.action === "service-target-delete") {
-      return {
-        title: t("overview.routingHistory.serviceTargetDelete"),
-        detail: `${entry.service ?? "--"} · ${t("overview.routingHistory.resetToEnv")}`,
-      };
-    }
-
-    if (entry.action === "ai-engine-preset-set") {
-      const preset = entry.state.aiEnginePresets?.find((item) => item.id === entry.presetId);
-      return {
-        title: t("overview.routingHistory.aiPresetSet"),
-        detail: preset?.name ?? entry.presetId ?? "--",
-      };
-    }
-
-    return {
-      title: t("overview.routingHistory.aiPresetDelete"),
-      detail: entry.presetId ?? "--",
-    };
-  }, [t]);
-
-  const filteredRoutingHistory = useMemo(() => {
-    const now = Date.now();
-
-    const filtered = routingHistory.filter((entry) => {
-      const isServiceTarget = entry.action === "service-target-set" || entry.action === "service-target-delete";
-      const matchesType = routingHistoryFilter === "all"
-        ? true
-        : routingHistoryFilter === "service-targets"
-          ? isServiceTarget
-          : !isServiceTarget;
-
-      if (!matchesType) {
-        return false;
-      }
-
-      if (routingHistoryWindow === "all") {
-        return true;
-      }
-
-      const recordedAt = Date.parse(entry.recordedAt || "");
-      if (!Number.isFinite(recordedAt)) {
-        return false;
-      }
-
-      const maxAge = routingHistoryWindow === "24h" ? 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000;
-      return now - recordedAt <= maxAge;
-    });
-
-    return filtered.sort((left, right) => {
-      const leftTime = Date.parse(left.recordedAt || "");
-      const rightTime = Date.parse(right.recordedAt || "");
-      return routingHistoryOrder === "newest" ? rightTime - leftTime : leftTime - rightTime;
-    });
-  }, [routingHistory, routingHistoryFilter, routingHistoryOrder, routingHistoryWindow]);
-
   return (
     <section className={`m3-card ui-panel-shell ui-fade-in ${narrowViewport ? "p-3 space-y-3" : compactPanel ? "p-3.5 space-y-3.5" : compact ? "p-3 sm:p-4 xl:p-5 space-y-4" : "p-4 sm:p-5 xl:p-6 space-y-5"}`}>
       <div className={`ui-summary-band rounded-[1.6rem] ${narrowViewport ? "p-3" : compactPanel ? "p-3.5" : "p-4 xl:p-5"}`}>
@@ -1000,7 +838,6 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
                   onClick={() => {
                     void loadAiTarget();
                     void loadPresets();
-                    void loadRoutingHistory();
                   }}
                   disabled={aiTargetLoading || aiTargetSaving || presetsLoading}
                   className="ui-action-pill ui-action-pill--quiet min-h-0 px-3 py-1.5 text-xs"
@@ -1140,71 +977,6 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
               </div>
             )}
 
-            <div className="rounded-2xl border border-[var(--md-sys-color-outline-variant)] bg-[color:var(--md-sys-color-surface-container-low)]/70 p-3">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-[var(--md-sys-color-on-surface)]">{t("overview.routingHistory.title")}</p>
-                  <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">{t("overview.routingHistory.subtitle")}</p>
-                </div>
-                <span className="text-xs text-[var(--md-sys-color-on-surface-variant)]">{routingHistoryLoading ? "..." : routingHistory.length}</span>
-              </div>
-
-              <div className="mt-3 flex flex-wrap gap-2">
-                {(["all", "service-targets", "ai-presets"] as const).map((filter) => {
-                  const active = routingHistoryFilter === filter;
-                  return (
-                    <button
-                      key={filter}
-                      type="button"
-                      onClick={() => setRoutingHistoryFilter(filter)}
-                      className={`${active ? "ui-action-pill ui-action-pill--tonal" : "ui-action-pill ui-action-pill--quiet"} min-h-0 px-3 py-1.5 text-xs`}
-                    >
-                      {t(`overview.routingHistory.filter.${filter}`)}
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                <label className="text-xs text-[var(--md-sys-color-on-surface)]">
-                  {t("overview.routingHistory.windowLabel")}
-                  <select value={routingHistoryWindow} onChange={(event) => setRoutingHistoryWindow(event.target.value as RoutingHistoryWindow)} className="control-input mt-1 w-full px-2 py-2 text-sm">
-                    {(["all", "24h", "7d"] as const).map((window) => (
-                      <option key={window} value={window}>{t(`overview.routingHistory.window.${window}`)}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className="text-xs text-[var(--md-sys-color-on-surface)]">
-                  {t("overview.routingHistory.orderLabel")}
-                  <select value={routingHistoryOrder} onChange={(event) => setRoutingHistoryOrder(event.target.value as RoutingHistoryOrder)} className="control-input mt-1 w-full px-2 py-2 text-sm">
-                    {(["newest", "oldest"] as const).map((order) => (
-                      <option key={order} value={order}>{t(`overview.routingHistory.order.${order}`)}</option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-
-              {filteredRoutingHistory.length > 0 ? (
-                <ul className="mt-3 space-y-2">
-                  {filteredRoutingHistory.map((entry, index) => {
-                    const descriptor = describeRoutingHistoryEntry(entry);
-                    return (
-                      <li key={`${entry.recordedAt}-${entry.action}-${entry.service ?? entry.presetId ?? index}`} className="rounded-xl border border-[var(--md-sys-color-outline-variant)] bg-[var(--md-sys-color-surface)]/75 px-3 py-2 text-xs text-[var(--md-sys-color-on-surface)]">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <p className="font-semibold">{descriptor.title}</p>
-                          <span className="text-[var(--md-sys-color-on-surface-variant)]">{entry.recordedAt ? new Date(entry.recordedAt).toLocaleString() : "--"}</span>
-                        </div>
-                        <p className="mt-1 text-[var(--md-sys-color-on-surface-variant)]">{descriptor.detail}</p>
-                      </li>
-                    );
-                  })}
-                </ul>
-              ) : (
-                <p className="mt-3 text-xs text-[var(--md-sys-color-on-surface-variant)]">
-                  {routingHistory.length > 0 ? t("overview.routingHistory.noMatches") : t("overview.routingHistory.none")}
-                </p>
-              )}
-            </div>
             </>
             )}
           </div>
