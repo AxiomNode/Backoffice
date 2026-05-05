@@ -1,14 +1,18 @@
 # backoffice
 
+Last updated: 2026-05-03.
+
 [![codecov](https://codecov.io/gh/AxiomNode/backoffice/branch/main/graph/badge.svg)](https://codecov.io/gh/AxiomNode/backoffice)
 
 React-based operations console for the AxiomNode ecosystem.
 
-## Architectural role
+## Responsibility
 
 `backoffice` is the operator-facing interface for the platform. It is not just an admin dashboard; it is the visible surface for runtime inspection and AI-related operational diagnostics.
 
-## Runtime context
+## Runtime role
+
+### Runtime context
 
 ```mermaid
 flowchart LR
@@ -18,39 +22,35 @@ flowchart LR
 	BFF --> Services[Internal services and runtime routing state]
 ```
 
-## Responsibilities
+### Main responsibilities
 
 - Provide visibility for health, traffic, and service-level metrics.
 - Enable controlled operational actions for admin users.
 - Offer a secure UI layer over edge APIs.
 
-## Operator-facing scope
+Detailed architecture and operational guidance now live under `docs/` so the root README stays a landing page rather than a second full manual.
+
+## Runtime surface
+
+### Operator-facing scope
 
 `backoffice` is the main operator UI for observing and changing effective runtime behavior.
 
-Concrete concerns owned here:
-
-- diagnostics and metrics visualization
-- service overview and AI diagnostics workflows
-- operator-visible distinction between defaults, overrides, and effective targets
-- authenticated administration UX for AI runtime actions
-
-## Tech stack
+### Tech stack
 
 - React
 - TypeScript
 - Vite
 - Tailwind CSS
 
-## Key modules
+### Key modules
 
-1. Observability dashboards.
-2. Control/administration views.
-3. AI generation control actions.
-4. Role-gated access (`SuperAdmin`, `Admin`, `Viewer`, `Gamer`).
-5. Runtime destination management for AI inference targeting.
+- observability dashboards and service overview panels
+- operational controls and administration views
+- AI diagnostics and runtime-target management
+- role-gated operator access
 
-## Primary operational use cases
+### Primary operational use cases
 
 - inspect service summary and operational health
 - inspect AI diagnostics and RAG coverage
@@ -58,17 +58,11 @@ Concrete concerns owned here:
 - manage shared ai-engine presets for repeated operator use
 - switch the llama server destination dynamically (workstation host/IP) for diagnostics and manual recovery flows
 
-## Runtime integration model
+See `docs/architecture/README.md` for the runtime integration model and local source layout.
 
-The browser should never call private services directly.
+## Local setup
 
-Effective path:
-
-1. browser -> `api-gateway`
-2. `api-gateway` -> `bff-backoffice`
-3. `bff-backoffice` -> downstream services and persisted routing state
-
-## Local development
+### Local development
 
 ```bash
 npm install
@@ -82,7 +76,7 @@ Build for production:
 npm run build
 ```
 
-## Edge integration (dev)
+### Edge integration (dev)
 
 ```bash
 cd ../secrets
@@ -92,45 +86,15 @@ cd ../platform-infra/environments/dev
 docker compose -f docker-compose.edge-integration.yml up -d --build
 ```
 
-## CI/CD workflow behavior
+## Deployment and operations notes
 
-- `.github/workflows/ci.yml`
-	- Trigger: push (`main`, `develop`), pull request, manual dispatch.
-	- Job `validate`: installs dependencies, blocks tracked build artifacts, runs tests, typechecks, builds the app, and audits production dependencies.
-	- Job `trigger-platform-infra-build`:
-		- Runs on push to `main`.
-		- Waits for `validate` to succeed before dispatching `platform-infra`.
-		- Dispatches `platform-infra/.github/workflows/build-push.yaml` with `service=backoffice`.
-		- Requires `PLATFORM_INFRA_DISPATCH_TOKEN` in this repo.
+- CI validation and local verification commands are documented in `docs/operations/README.md`.
+- Cross-repo operator behavior is documented in `../docs/guides/capabilities/operations/backoffice-operational-diagnostics.md`.
+- Runtime routing and targeting semantics are documented in `../docs/guides/capabilities/operations/runtime-routing-control.md`.
 
-## Deployment automation chain
+## Dependencies and contracts
 
-Push to `main` triggers image rebuild in `platform-infra`. For the covered runtime chain, successful validation and packaging lead to automatic rollout to `stg`.
-
-## Runtime integration notes
-
-- The overview panel exposes shared ai-engine destination presets backed by `bff-backoffice` persistence.
-- Diagnostics panels can reflect effective runtime state, not only static environment configuration.
-- AI diagnostics test runs display backend progress (`suite`, percentage, status message) while executing and render recommendation hints after completion.
-- Every service page now uses a shared tab model (`Observability`, `Tests`, and `Data` when available), with service-specific extra tabs when needed.
-- `svc-ai-api` keeps the same shared tabs and adds an in-page `Advanced AI` tab that embeds the diagnostics lab, while `ai-diagnostics` remains the dedicated standalone route.
-- AI observability data for service pages includes direct RAG stats (coverage, chunk/doc volume, and source breakdown) in the service-level observability tab.
-- The shell header is split into two tiers: a compact global operator bar (session, environment health, release metadata, and preferences) and a route-level module header to keep context visible without hero-style vertical bloat.
-- AI diagnostics keeps dynamic llama target control, while operational services in stg are assumed to run on VPS Kubernetes without per-service backoffice overrides.
-
-## Failure boundaries
-
-- UI healthy but backend runtime state stale or inconsistent
-- diagnostics degraded because downstream services are unreachable
-- external llama workstation connectivity or reachability affecting diagnostics
-
-## Maintainability notes
-
-- Keep operator-facing controls explicit and reversible.
-- Prefer shared backend persistence for team-wide runtime options.
-- Use UI copy that distinguishes environment defaults from runtime overrides.
-
-## Environment variables
+### Environment variables
 
 - `VITE_API_BASE_URL`
 - `VITE_EDGE_API_TOKEN`
@@ -138,8 +102,16 @@ Push to `main` triggers image rebuild in `platform-infra`. For the covered runti
 - `VITE_FIREBASE_*`
 - `VITE_ADMIN_DEV_UID`
 
-## Related documents
+## Documentation
+
+- `docs/README.md`
+- `docs/architecture/README.md`
+- `docs/operations/README.md`
+- `docs/guides/README.md`
+
+## References
 
 - `docs/architecture/`
 - `docs/operations/`
+- `../docs/guides/capabilities/operations/backoffice-operational-diagnostics.md`
 - `../docs/operations/runtime-routing-and-service-targeting.md` (historical reference)

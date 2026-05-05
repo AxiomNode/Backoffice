@@ -85,6 +85,38 @@ type AiEngineTarget = {
   updatedAt: string | null;
 };
 
+type AiEngineConnection = {
+  id: string;
+  name: string;
+  host: string;
+  protocol: "http" | "https";
+  port: number;
+  updatedAt: string;
+  active?: boolean;
+};
+
+type AiEngineConnectionsResponse = {
+  total: number;
+  activeConnectionId: string | null;
+  target: AiEngineTarget;
+  connections: AiEngineConnection[];
+};
+
+type AiEnginePluginCapabilities = {
+  status?: string;
+  pluginType?: string;
+  target?: unknown;
+  capabilities?: {
+    pluginMode?: string;
+    models?: string[];
+    jsonModeRequested?: boolean;
+    contextSize?: number | null;
+    timeoutSeconds?: number | null;
+    maxConcurrentRequests?: number | null;
+  };
+  error?: string;
+};
+
 type GameGeneratorKey = "quiz" | "wordpass";
 
 type RuntimeDifficultyLevel = "easy" | "medium" | "hard";
@@ -223,6 +255,11 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
   const [targetProtocol, setTargetProtocol] = useState<"http" | "https">("http");
   const [targetPort, setTargetPort] = useState("7002");
   const [targetLabel, setTargetLabel] = useState("");
+  const [connections, setConnections] = useState<AiEngineConnection[]>([]);
+  const [selectedConnectionId, setSelectedConnectionId] = useState("");
+  const [creatingConnection, setCreatingConnection] = useState(false);
+  const [pluginCapabilities, setPluginCapabilities] = useState<AiEnginePluginCapabilities | null>(null);
+  const [pluginLoading, setPluginLoading] = useState(false);
 
   const [generatorState, setGeneratorState] = useState<Record<GameGeneratorKey, GeneratorUiState>>({
     quiz: {
@@ -264,6 +301,13 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
     setTargetProtocol(nextTarget.protocol ?? "http");
     setTargetPort(String(nextTarget.port ?? 7002));
     setTargetLabel(nextTarget.label ?? "");
+  }, []);
+
+  const syncConnectionForm = useCallback((connection: AiEngineConnection | null) => {
+    setTargetHost(connection?.host ?? "");
+    setTargetProtocol(connection?.protocol ?? "http");
+    setTargetPort(String(connection?.port ?? 7002));
+    setTargetLabel(connection?.name ?? "");
   }, []);
 
   const setGeneratorPatch = useCallback(
@@ -404,12 +448,29 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
     setTargetLoading(true);
     setTargetError(null);
     try {
-      const data = await fetchJson<AiEngineTarget>(
-        `${EDGE_API_BASE}/v1/backoffice/ai-engine/target`,
-        { headers: headers() },
-      );
-      setTarget(data);
-      syncTargetForm(data);
+      try {
+        const data = await fetchJson<AiEngineConnectionsResponse>(
+          `${EDGE_API_BASE}/v1/backoffice/ai-engine/connections`,
+          { headers: headers() },
+        );
+        setTarget(data.target);
+        setConnections(data.connections);
+        setSelectedConnectionId((current) => {
+          if (current && data.connections.some((entry) => entry.id === current)) {
+            return current;
+          }
+          return data.activeConnectionId ?? data.connections[0]?.id ?? "";
+        });
+      } catch {
+        const data = await fetchJson<AiEngineTarget>(
+          `${EDGE_API_BASE}/v1/backoffice/ai-engine/target`,
+          { headers: headers() },
+        );
+        setTarget(data);
+        setConnections([]);
+        setSelectedConnectionId("");
+        syncTargetForm(data);
+      }
       setTargetError(null);
     } catch (err) {
       setTargetError(err instanceof Error ? err.message : String(err));
@@ -418,6 +479,35 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
     }
   }, [headers, syncTargetForm]);
 
+  const loadPluginCapabilities = useCallback(async () => {
+    setPluginLoading(true);
+    try {
+      const data = await fetchJson<AiEnginePluginCapabilities>(
+        `${EDGE_API_BASE}/v1/backoffice/ai-engine/plugin/capabilities`,
+        { headers: headers() },
+      );
+      setPluginCapabilities(data);
+    } catch (err) {
+      setPluginCapabilities({ status: "unreachable", error: err instanceof Error ? err.message : String(err) });
+    } finally {
+      setPluginLoading(false);
+    }
+  }, [headers]);
+
+  useEffect(() => {
+    if (creatingConnection) {
+      syncConnectionForm(null);
+      return;
+    }
+
+    const selected = connections.find((entry) => entry.id === selectedConnectionId) ?? null;
+    if (selected) {
+      syncConnectionForm(selected);
+    } else if (target) {
+      syncTargetForm(target);
+    }
+  }, [connections, creatingConnection, selectedConnectionId, syncConnectionForm, syncTargetForm, target]);
+
   useEffect(() => {
     setTargetError(null);
   }, [targetHost, targetLabel, targetPort, targetProtocol]);
@@ -425,8 +515,9 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
   useEffect(() => {
     loadRagStats();
     loadTarget();
+    loadPluginCapabilities();
     loadGeneratorStatus();
-  }, [loadGeneratorStatus, loadRagStats, loadTarget]);
+  }, [loadGeneratorStatus, loadPluginCapabilities, loadRagStats, loadTarget]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -458,13 +549,96 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
       setTarget(nextTarget);
       syncTargetForm(nextTarget);
       setTargetError(null);
+      await loadTarget();
+      await loadPluginCapabilities();
       await loadRagStats();
     } catch (err) {
       setTargetError(err instanceof Error ? err.message : String(err));
     } finally {
       setTargetSaving(false);
     }
-  }, [headers, loadRagStats, syncTargetForm, targetHost, targetLabel, targetPort, targetProtocol]);
+  }, [headers, loadPluginCapabilities, loadRagStats, loadTarget, syncTargetForm, targetHost, targetLabel, targetPort, targetProtocol]);
+
+  const saveConnection = useCallback(async () => {
+    setTargetSaving(true);
+    setTargetError(null);
+    try {
+      const payload = {
+        name: targetLabel.trim(),
+        host: targetHost.trim(),
+        protocol: targetProtocol,
+        port: Number(targetPort),
+      };
+      const selected = connections.find((entry) => entry.id === selectedConnectionId) ?? null;
+      const nextState = selected && !creatingConnection
+        ? await fetchJson<AiEngineConnectionsResponse>(`${EDGE_API_BASE}/v1/backoffice/ai-engine/connections/${encodeURIComponent(selected.id)}`, {
+            method: "PUT",
+            headers: headers(),
+            body: JSON.stringify(payload),
+          })
+        : await fetchJson<AiEngineConnectionsResponse>(`${EDGE_API_BASE}/v1/backoffice/ai-engine/connections`, {
+            method: "POST",
+            headers: headers(),
+            body: JSON.stringify(payload),
+          });
+      setTarget(nextState.target);
+      setConnections(nextState.connections);
+      setSelectedConnectionId(nextState.connections.find((entry) => entry.name === payload.name && entry.host === payload.host)?.id ?? nextState.activeConnectionId ?? "");
+      setCreatingConnection(false);
+    } catch (err) {
+      setTargetError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setTargetSaving(false);
+    }
+  }, [connections, creatingConnection, headers, selectedConnectionId, targetHost, targetLabel, targetPort, targetProtocol]);
+
+  const activateConnection = useCallback(async () => {
+    if (!selectedConnectionId) {
+      return;
+    }
+
+    setTargetSaving(true);
+    setTargetError(null);
+    try {
+      const nextState = await fetchJson<AiEngineConnectionsResponse>(
+        `${EDGE_API_BASE}/v1/backoffice/ai-engine/connections/${encodeURIComponent(selectedConnectionId)}/activate`,
+        { method: "POST", headers: headers() },
+      );
+      setTarget(nextState.target);
+      setConnections(nextState.connections);
+      setSelectedConnectionId(nextState.activeConnectionId ?? selectedConnectionId);
+      setCreatingConnection(false);
+      await loadPluginCapabilities();
+      await loadRagStats();
+    } catch (err) {
+      setTargetError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setTargetSaving(false);
+    }
+  }, [headers, loadPluginCapabilities, loadRagStats, selectedConnectionId]);
+
+  const deleteConnection = useCallback(async () => {
+    if (!selectedConnectionId) {
+      return;
+    }
+
+    setTargetSaving(true);
+    setTargetError(null);
+    try {
+      const nextState = await fetchJson<AiEngineConnectionsResponse>(
+        `${EDGE_API_BASE}/v1/backoffice/ai-engine/connections/${encodeURIComponent(selectedConnectionId)}`,
+        { method: "DELETE", headers: headers() },
+      );
+      setTarget(nextState.target);
+      setConnections(nextState.connections);
+      setSelectedConnectionId(nextState.activeConnectionId ?? nextState.connections[0]?.id ?? "");
+      setCreatingConnection(false);
+    } catch (err) {
+      setTargetError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setTargetSaving(false);
+    }
+  }, [headers, selectedConnectionId]);
 
   const resetTarget = useCallback(async () => {
     setTargetSaving(true);
@@ -480,13 +654,15 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
       setTarget(nextTarget);
       syncTargetForm(nextTarget);
       setTargetError(null);
+      await loadTarget();
+      await loadPluginCapabilities();
       await loadRagStats();
     } catch (err) {
       setTargetError(err instanceof Error ? err.message : String(err));
     } finally {
       setTargetSaving(false);
     }
-  }, [headers, loadRagStats, syncTargetForm]);
+  }, [headers, loadPluginCapabilities, loadRagStats, loadTarget, syncTargetForm]);
 
   // ---- Test runner --------------------------------------------------------
 
@@ -856,7 +1032,45 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
               </div>
             </div>
 
+            <div className="grid gap-3 xl:grid-cols-[minmax(220px,320px)_1fr]">
+              <label className="ui-control-label text-xs">
+                {t("diag.target.savedConnection")}
+                <select
+                  value={selectedConnectionId}
+                  onChange={(event) => {
+                    setCreatingConnection(false);
+                    setSelectedConnectionId(event.target.value);
+                  }}
+                  className="control-input mt-1 w-full"
+                >
+                  {connections.length === 0 && <option value="">--</option>}
+                  {connections.map((entry) => (
+                    <option key={entry.id} value={entry.id}>
+                      {entry.active ? "* " : ""}{entry.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <StatCard label={t("diag.target.savedCount")} value={connections.length} />
+                <StatCard label={t("diag.target.activeConnection")} value={connections.find((entry) => entry.active)?.name ?? target.label ?? "--"} />
+                <StatCard label={t("diag.target.pluginStatus")} value={pluginLoading ? "..." : pluginCapabilities?.status ?? "--"} />
+                <StatCard label={t("diag.target.pluginMode")} value={pluginCapabilities?.capabilities?.pluginMode ?? pluginCapabilities?.pluginType ?? "--"} />
+              </div>
+            </div>
+
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <label className="ui-control-label text-xs">
+                {t("diag.target.label")}
+                <input
+                  value={targetLabel}
+                  onChange={(event) => setTargetLabel(event.target.value)}
+                  placeholder={t("diag.target.labelHint")}
+                  className="control-input mt-1 w-full"
+                />
+              </label>
+
               <label className="ui-control-label text-xs">
                 {t("diag.target.host")}
                 <input
@@ -888,26 +1102,51 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
                   className="control-input mt-1 w-full"
                 />
               </label>
-
-              <label className="ui-control-label text-xs">
-                {t("diag.target.label")}
-                <input
-                  value={targetLabel}
-                  onChange={(event) => setTargetLabel(event.target.value)}
-                  placeholder={t("diag.target.labelHint")}
-                  className="control-input mt-1 w-full"
-                />
-              </label>
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
               <button
                 type="button"
-                onClick={applyTarget}
-                disabled={targetSaving || targetHost.trim().length === 0}
+                onClick={() => {
+                  setCreatingConnection(true);
+                  setSelectedConnectionId("");
+                }}
+                disabled={targetSaving}
+                className="ui-action-pill ui-action-pill--quiet text-xs"
+              >
+                {t("diag.target.newConnectionBtn")}
+              </button>
+              <button
+                type="button"
+                onClick={() => void saveConnection()}
+                disabled={targetSaving || targetLabel.trim().length === 0 || targetHost.trim().length === 0}
+                className="ui-action-pill ui-action-pill--quiet text-xs"
+              >
+                {t("diag.target.saveConnectionBtn")}
+              </button>
+              <button
+                type="button"
+                onClick={() => void activateConnection()}
+                disabled={targetSaving || !selectedConnectionId || creatingConnection}
                 className="ui-action-pill ui-action-pill--tonal text-xs"
               >
-                {targetSaving ? t("diag.tests.running") : t("diag.target.applyBtn")}
+                {targetSaving ? t("diag.tests.running") : t("diag.target.activateConnectionBtn")}
+              </button>
+              <button
+                type="button"
+                onClick={applyTarget}
+                disabled={targetSaving || targetHost.trim().length === 0}
+                className="ui-action-pill ui-action-pill--quiet text-xs"
+              >
+                {t("diag.target.applyBtn")}
+              </button>
+              <button
+                type="button"
+                onClick={() => void deleteConnection()}
+                disabled={targetSaving || !selectedConnectionId || creatingConnection}
+                className="ui-action-pill ui-action-pill--quiet text-xs"
+              >
+                {t("diag.target.deleteConnectionBtn")}
               </button>
               <button
                 type="button"
@@ -925,6 +1164,13 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
             <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
               {t("diag.target.runtimeOnly")}
             </p>
+
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <StatCard label={t("diag.target.models")} value={(pluginCapabilities?.capabilities?.models ?? []).join(", ") || "--"} />
+              <StatCard label={t("diag.target.jsonMode")} value={pluginCapabilities?.capabilities?.jsonModeRequested === undefined ? "--" : (pluginCapabilities.capabilities.jsonModeRequested ? "yes" : "no")} />
+              <StatCard label={t("diag.target.contextSize")} value={pluginCapabilities?.capabilities?.contextSize ?? "--"} />
+              <StatCard label={t("diag.target.timeoutSeconds")} value={pluginCapabilities?.capabilities?.timeoutSeconds ?? "--"} />
+            </div>
           </div>
         )}
       </div>

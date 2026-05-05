@@ -198,3 +198,17 @@ export async function fetchDeploymentHistory(context: SessionContext): Promise<D
     headers: composeAuthHeaders(context),
   });
 }
+
+export async function createDeploymentHistoryEntry(
+  context: SessionContext,
+  entry: DeploymentHistoryEntry,
+): Promise<DeploymentHistory> {
+  return fetchJson<DeploymentHistory>(`${EDGE_API_BASE}/v1/backoffice/deployment-history`, {
+    body: JSON.stringify(entry),
+    headers: {
+      ...composeAuthHeaders(context),
+      "content-type": "application/json",
+    },
+    method: "POST",
+  });
+}

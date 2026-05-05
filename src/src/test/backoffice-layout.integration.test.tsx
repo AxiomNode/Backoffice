@@ -9,8 +9,10 @@ import { BackofficeLayout } from "../ui/layout/BackofficeLayout";
 
 const fetchServiceOperationalSummaryMock = vi.hoisted(() => vi.fn());
 const fetchDeploymentHistoryMock = vi.hoisted(() => vi.fn());
+const createDeploymentHistoryEntryMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../application/services/operationalSummary", () => ({
+  createDeploymentHistoryEntry: createDeploymentHistoryEntryMock,
   fetchDeploymentHistory: fetchDeploymentHistoryMock,
   fetchServiceOperationalSummary: fetchServiceOperationalSummaryMock,
   storeServiceLastError: vi.fn(),
@@ -116,6 +118,7 @@ describe("BackofficeLayout integration", () => {
     setViewportWidth(1280);
     fetchServiceOperationalSummaryMock.mockReset();
     fetchDeploymentHistoryMock.mockReset();
+    createDeploymentHistoryEntryMock.mockReset();
     fetchDeploymentHistoryMock.mockResolvedValue({
       environment: "stg",
       currentVersion: "7f9015b",
@@ -301,6 +304,50 @@ describe("BackofficeLayout integration", () => {
     expect(historyPanel?.style.maxHeight).toBeTruthy();
     expect(historyPanel?.style.zIndex).toBeTruthy();
     expect(historyPanel?.className).toContain("overflow-hidden");
+  });
+
+  it("records a persistent deployment history entry from the header popover", async () => {
+    fetchServiceOperationalSummaryMock.mockResolvedValue({
+      rows: [],
+      totals: { total: 1, onlineCount: 1, accessIssues: 0, connectionErrors: 0 },
+    });
+    createDeploymentHistoryEntryMock.mockResolvedValue({
+      environment: "stg",
+      currentVersion: "manual-1",
+      currentDeployedAt: "2026-05-05T10:30:00.000Z",
+      history: [
+        {
+          version: "manual-1",
+          deployedAt: "2026-05-05T10:30:00.000Z",
+          commitSha: "manualsha",
+          summary: "Manual backoffice registration",
+        },
+      ],
+    });
+
+    renderLayout();
+
+    fireEvent.click(screen.getByRole("button", { name: /Historico de versiones/i }));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Version")).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText("Version"), { target: { value: "manual-1" } });
+    fireEvent.change(screen.getByLabelText("Fecha despliegue"), { target: { value: "2026-05-05T10:30:00.000Z" } });
+    fireEvent.change(screen.getByLabelText("Commit"), { target: { value: "manualsha" } });
+    fireEvent.change(screen.getByLabelText("Resumen"), { target: { value: "Manual backoffice registration" } });
+    fireEvent.click(screen.getByRole("button", { name: "Registrar version" }));
+
+    await waitFor(() => {
+      expect(createDeploymentHistoryEntryMock).toHaveBeenCalledWith(context, {
+        version: "manual-1",
+        deployedAt: "2026-05-05T10:30:00.000Z",
+        commitSha: "manualsha",
+        summary: "Manual backoffice registration",
+      });
+      expect(screen.getByText(/Version: manual-1/i)).toBeInTheDocument();
+    });
   });
 
   it("opens the UI preferences panel without overloading the main header", async () => {

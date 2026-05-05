@@ -2,7 +2,13 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSPropertie
 import { createPortal } from "react-dom";
 
 import type { BackofficeSession } from "../../auth";
-import { fetchDeploymentHistory, fetchServiceOperationalSummary, type DeploymentHistory } from "../../application/services/operationalSummary";
+import {
+  createDeploymentHistoryEntry,
+  fetchDeploymentHistory,
+  fetchServiceOperationalSummary,
+  type DeploymentHistory,
+  type DeploymentHistoryEntry,
+} from "../../application/services/operationalSummary";
 import { navItemsForRole, roleCanManageUsers, roleCanModify } from "../../application/services/rolePolicies";
 import { SERVICE_NAV_KEYS } from "../../domain/constants/navigation";
 import { UI_DENSITY_STORAGE_KEY, UI_SERVICE_ROUTE_QUERY_STORAGE_PREFIX } from "../../domain/constants/ui";
@@ -12,6 +18,7 @@ import type { LabelKey } from "../../i18n/labels";
 import { useHashRoute, routeFromNavKey } from "../hooks/useHashRoute";
 import { useMaxWidth } from "../hooks/useMaxWidth";
 import { useVisibilityPolling } from "../hooks/useVisibilityPolling";
+import { DeploymentHistoryDropdown } from "../components/DeploymentHistoryDropdown";
 import { Sidebar } from "../components/Sidebar";
 
 /** @module BackofficeLayout - Main authenticated layout with sidebar, header, and lazy-loaded panels. */
@@ -51,6 +58,15 @@ function buildInitialDeploymentHistory(mode: SessionContext["mode"]): Deployment
     currentVersion: "--",
     currentDeployedAt: "--",
     history: [],
+  };
+}
+
+function buildEmptyDeploymentHistoryEntry(): DeploymentHistoryEntry {
+  return {
+    version: "",
+    deployedAt: new Date().toISOString(),
+    commitSha: "",
+    summary: "",
   };
 }
 
@@ -165,6 +181,9 @@ export function BackofficeLayout({
   const [globalHealth, setGlobalHealth] = useState<"healthy" | "warning" | "critical" | "unknown">("unknown");
   const [globalHealthText, setGlobalHealthText] = useState<string>("--");
   const [deploymentHistory, setDeploymentHistory] = useState<DeploymentHistory>(() => buildInitialDeploymentHistory(context.mode));
+  const [deploymentHistoryForm, setDeploymentHistoryForm] = useState<DeploymentHistoryEntry>(() => buildEmptyDeploymentHistoryEntry());
+  const [deploymentHistorySaving, setDeploymentHistorySaving] = useState(false);
+  const [deploymentHistoryError, setDeploymentHistoryError] = useState<string | null>(null);
   const [density, setDensity] = useState<UiDensity>(() => {
     if (typeof window === "undefined") {
       return "comfortable";
@@ -400,6 +419,38 @@ export function BackofficeLayout({
   useVisibilityPolling(updateGlobalHealth, 30000);
 
   const toggleDensity = () => setDensity((v) => (v === "comfortable" ? "dense" : "comfortable"));
+  const canRecordDeploymentHistory = roleCanModify(session.role);
+
+  const updateDeploymentHistoryForm = (field: keyof DeploymentHistoryEntry, value: string) => {
+    setDeploymentHistoryForm((currentValue) => ({ ...currentValue, [field]: value }));
+  };
+
+  const saveDeploymentHistoryEntry = async () => {
+    const payload: DeploymentHistoryEntry = {
+      version: deploymentHistoryForm.version.trim(),
+      deployedAt: deploymentHistoryForm.deployedAt.trim(),
+      commitSha: deploymentHistoryForm.commitSha.trim(),
+      summary: deploymentHistoryForm.summary.trim(),
+    };
+
+    if (!payload.version || !payload.deployedAt || !payload.commitSha || !payload.summary) {
+      setDeploymentHistoryError(t("layout.release.formError"));
+      return;
+    }
+
+    setDeploymentHistorySaving(true);
+    setDeploymentHistoryError(null);
+
+    try {
+      const nextHistory = await createDeploymentHistoryEntry(context, payload);
+      setDeploymentHistory(nextHistory);
+      setDeploymentHistoryForm(buildEmptyDeploymentHistoryEntry());
+    } catch {
+      setDeploymentHistoryError(t("layout.release.saveError"));
+    } finally {
+      setDeploymentHistorySaving(false);
+    }
+  };
 
   const onNavigate = (key: NavKey) => {
     if (typeof window !== "undefined") {
@@ -569,29 +620,17 @@ export function BackofficeLayout({
                     releaseHistoryStyle &&
                     canRenderFloatingPanels &&
                     createPortal(
-                      <div
-                        id="deployment-history-panel"
-                        ref={releaseHistoryPopoverRef}
+                      <DeploymentHistoryDropdown
+                        canRecord={canRecordDeploymentHistory}
+                        error={deploymentHistoryError}
+                        form={deploymentHistoryForm}
+                        history={deploymentHistory}
+                        onFormChange={updateDeploymentHistoryForm}
+                        onSave={saveDeploymentHistoryEntry}
+                        panelRef={releaseHistoryPopoverRef}
+                        saving={deploymentHistorySaving}
                         style={releaseHistoryStyle}
-                        className="ui-popover-panel overflow-hidden rounded-[1.75rem] p-4"
-                      >
-                        <p className="text-sm font-semibold text-[var(--md-sys-color-on-surface)]">{t("layout.release.historyTitle")}</p>
-                        <div className="mt-3 space-y-2 overflow-y-auto pr-1" style={{ maxHeight: releaseHistoryStyle.maxHeight ? Math.max(120, Number(releaseHistoryStyle.maxHeight) - 76) : undefined }}>
-                          {deploymentHistory.history.map((entry) => (
-                            <article
-                              key={`${entry.version}-${entry.deployedAt}`}
-                              className="ui-subtle-card rounded-2xl px-3 py-3"
-                            >
-                              <div className="flex flex-wrap items-center justify-between gap-2">
-                                <p className="text-sm font-semibold text-[var(--md-sys-color-on-surface)]">{entry.version}</p>
-                                <p className="text-[11px] text-[var(--md-sys-color-on-surface-variant)]">{entry.deployedAt}</p>
-                              </div>
-                              <p className="mt-1 text-xs text-[var(--md-sys-color-on-surface-variant)]">{entry.summary}</p>
-                              <p className="mt-1 text-[11px] text-[var(--md-sys-color-on-surface-variant)]">{entry.commitSha}</p>
-                            </article>
-                          ))}
-                        </div>
-                      </div>,
+                      />,
                       document.body,
                     )}
                 </div>

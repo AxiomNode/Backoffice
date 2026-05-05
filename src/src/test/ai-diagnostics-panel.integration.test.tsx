@@ -126,6 +126,48 @@ describe("AIDiagnosticsPanel integration", () => {
         });
       }
 
+      if (url.endsWith("/v1/backoffice/ai-engine/connections") && (!options?.method || options.method === "GET")) {
+        return Promise.resolve({
+          total: 1,
+          activeConnectionId: "local",
+          target: {
+            source: "env",
+            label: null,
+            host: "localhost",
+            protocol: "http",
+            port: 7002,
+            llamaBaseUrl: "http://localhost:7002/v1/completions",
+            envLlamaBaseUrl: "http://localhost:7002/v1/completions",
+            updatedAt: null,
+          },
+          connections: [
+            {
+              id: "local",
+              name: "Local",
+              host: "localhost",
+              protocol: "http",
+              port: 7002,
+              updatedAt: "2026-04-18T17:00:00.000Z",
+              active: true,
+            },
+          ],
+        });
+      }
+
+      if (url.endsWith("/v1/backoffice/ai-engine/plugin/capabilities")) {
+        return Promise.resolve({
+          status: "ready",
+          pluginType: "thin-llm-runtime",
+          capabilities: {
+            pluginMode: "http-openai-compatible",
+            models: ["local-model"],
+            jsonModeRequested: true,
+            contextSize: 4096,
+            timeoutSeconds: 30,
+          },
+        });
+      }
+
       if (url.endsWith("/v1/backoffice/ai-engine/target") && options?.method === "PUT") {
         return Promise.resolve({
           source: "override",
@@ -254,6 +296,42 @@ describe("AIDiagnosticsPanel integration", () => {
           llamaBaseUrl: "http://localhost:7002/v1/completions",
           envLlamaBaseUrl: "http://localhost:7002/v1/completions",
           updatedAt: null,
+        });
+      }
+
+      if (url.endsWith("/v1/backoffice/ai-engine/connections") && (!options?.method || options.method === "GET")) {
+        return Promise.resolve({
+          total: 1,
+          activeConnectionId: "local",
+          target: {
+            source: "env",
+            label: null,
+            host: "localhost",
+            protocol: "http",
+            port: 7002,
+            llamaBaseUrl: "http://localhost:7002/v1/completions",
+            envLlamaBaseUrl: "http://localhost:7002/v1/completions",
+            updatedAt: null,
+          },
+          connections: [
+            {
+              id: "local",
+              name: "Local",
+              host: "localhost",
+              protocol: "http",
+              port: 7002,
+              updatedAt: "2026-04-18T17:00:00.000Z",
+              active: true,
+            },
+          ],
+        });
+      }
+
+      if (url.endsWith("/v1/backoffice/ai-engine/plugin/capabilities")) {
+        return Promise.resolve({
+          status: "ready",
+          pluginType: "thin-llm-runtime",
+          capabilities: { pluginMode: "http-openai-compatible", models: ["local-model"] },
         });
       }
 
