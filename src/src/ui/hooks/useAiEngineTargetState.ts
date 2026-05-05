@@ -131,6 +131,11 @@ export function parseAiEnginePort(value: string, fallback: number) {
   return Number.isInteger(parsed) && parsed > 0 && parsed <= 65535 ? parsed : fallback;
 }
 
+function describeProbeFailure(applyBlockedLabel: string, probe: AiEngineProbeResult) {
+  const detail = probe.llama.message ?? (probe.llama.status !== null ? `HTTP ${probe.llama.status}` : "unreachable");
+  return `${applyBlockedLabel} Endpoint: ${probe.llama.url}. Detail: ${detail}.`;
+}
+
 export function useAiEngineTargetState({
   context,
   unknownErrorLabel,
@@ -303,17 +308,26 @@ export function useAiEngineTargetState({
     }
   }, [authHeaders, buildDraftTarget, missingHostLabel, unknownErrorLabel]);
 
-  const applyDraftTarget = useCallback(async () => {
+  const applyDraftTarget = useCallback(async (options?: { probeFirst?: boolean }) => {
     setTargetSaving(true);
     setTargetError(null);
     try {
+      const draftTarget = buildDraftTarget();
+      if (options?.probeFirst) {
+        const probe = await probeTarget(draftTarget);
+
+        if (!probe.reachable) {
+          throw new Error(describeProbeFailure(applyBlockedLabel, probe));
+        }
+      }
+
       const nextTarget = await fetchJson<unknown>(`${EDGE_API_BASE}/v1/backoffice/ai-engine/target`, {
         method: "PUT",
         headers: authHeaders(),
         body: JSON.stringify({
-          host: presetHostRef.current.trim(),
-          protocol: presetProtocolRef.current,
-          port: parseAiEnginePort(presetPortRef.current, 7002),
+          host: draftTarget.host,
+          protocol: draftTarget.protocol,
+          port: draftTarget.port,
           label: presetNameRef.current.trim(),
         }),
       });
@@ -325,7 +339,7 @@ export function useAiEngineTargetState({
     } finally {
       setTargetSaving(false);
     }
-  }, [authHeaders, refresh, unknownErrorLabel]);
+  }, [applyBlockedLabel, authHeaders, buildDraftTarget, probeTarget, refresh, unknownErrorLabel]);
 
   const savePreset = useCallback(async () => {
     setTargetSaving(true);
@@ -378,7 +392,7 @@ export function useAiEngineTargetState({
         });
 
         if (!probe.reachable) {
-          throw new Error(applyBlockedLabel);
+          throw new Error(describeProbeFailure(applyBlockedLabel, probe));
         }
       }
 

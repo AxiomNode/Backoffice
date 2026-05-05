@@ -984,7 +984,7 @@ describe("ServiceOverviewPanel integration", () => {
             status: null,
             url: "http://10.0.0.99:7002/v1/models",
             latencyMs: null,
-            message: null,
+            message: "connection timed out",
           },
         });
       }
@@ -1004,6 +1004,8 @@ describe("ServiceOverviewPanel integration", () => {
 
     await waitFor(() => {
       expect(screen.getByText(/El destino no paso la verificacion/i)).toBeInTheDocument();
+      expect(screen.getByText(/Endpoint: http:\/\/10\.0\.0\.99:7002\/v1\/models/i)).toBeInTheDocument();
+      expect(screen.getByText(/Detail: connection timed out/i)).toBeInTheDocument();
       expect(
         fetchJsonMock.mock.calls.some(
           ([url, requestOptions]) =>

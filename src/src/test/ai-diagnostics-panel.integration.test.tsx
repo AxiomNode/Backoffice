@@ -152,6 +152,21 @@ describe("AIDiagnosticsPanel integration", () => {
         });
       }
 
+      if (url.endsWith("/v1/backoffice/ai-engine/probe") && options?.method === "POST") {
+        const payload = JSON.parse(String(options.body)) as { host: string; protocol: "http" | "https"; port: number };
+        return Promise.resolve({
+          ...payload,
+          reachable: true,
+          llama: {
+            ok: true,
+            status: 200,
+            url: `${payload.protocol}://${payload.host}:${payload.port}/v1/models`,
+            latencyMs: 14,
+            message: null,
+          },
+        });
+      }
+
       if (url.endsWith("/v1/backoffice/ai-diagnostics/tests/status")) {
         return Promise.resolve({
           status: "idle",
@@ -407,6 +422,21 @@ describe("AIDiagnosticsPanel integration", () => {
 
       if (url.endsWith("/v1/backoffice/ai-engine/target") && options?.method === "DELETE") {
         return Promise.reject("reset-target-down");
+      }
+
+      if (url.endsWith("/v1/backoffice/ai-engine/probe") && options?.method === "POST") {
+        const payload = JSON.parse(String(options.body)) as { host: string; protocol: "http" | "https"; port: number };
+        return Promise.resolve({
+          ...payload,
+          reachable: true,
+          llama: {
+            ok: true,
+            status: 200,
+            url: `${payload.protocol}://${payload.host}:${payload.port}/v1/models`,
+            latencyMs: 11,
+            message: null,
+          },
+        });
       }
 
       if (url.endsWith("/v1/backoffice/ai-diagnostics/tests/status")) {

@@ -878,7 +878,7 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
               </button>
               <button
                 type="button"
-                onClick={() => void activateConnection()}
+                onClick={() => void activateConnection({ probeFirst: true })}
                 disabled={targetSaving || !selectedConnectionId || creatingConnection}
                 className="ui-action-pill ui-action-pill--tonal text-xs"
               >
@@ -886,7 +886,7 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
               </button>
               <button
                 type="button"
-                onClick={applyTarget}
+                onClick={() => void applyTarget({ probeFirst: true })}
                 disabled={targetSaving || targetHost.trim().length === 0}
                 className="ui-action-pill ui-action-pill--quiet text-xs"
               >
