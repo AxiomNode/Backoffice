@@ -584,7 +584,12 @@ export function BackofficeLayout({
       )}
 
       <div className="relative z-10 min-w-0 xl:z-0">
-        <Sidebar current={current} onChange={onNavigate} items={navItems} className="hidden h-fit xl:block xl:sticky xl:top-4" />
+        <Sidebar
+          current={current}
+          onChange={onNavigate}
+          items={navItems}
+          className="hidden overscroll-contain xl:sticky xl:top-4 xl:block xl:h-[calc(100vh-2rem)] xl:max-h-[calc(100vh-2rem)] xl:overflow-y-auto"
+        />
       </div>
 
       <main className={`relative z-20 min-w-0 overflow-visible ${compactViewport ? "space-y-2.5" : "space-y-3 sm:space-y-4 xl:space-y-4"}`}>
