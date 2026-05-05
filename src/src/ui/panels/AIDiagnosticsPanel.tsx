@@ -7,6 +7,7 @@ import {
   fetchJson,
 } from "../../infrastructure/http/apiClient";
 import { useI18n } from "../../i18n/context";
+import { useAiEngineTargetState } from "../hooks/useAiEngineTargetState";
 
 /** @module AIDiagnosticsPanel - AI diagnostics with RAG coverage stats and hallucination test runner. */
 
@@ -72,32 +73,6 @@ type TestRunStatus = {
     skipped: number;
     errors: number;
   };
-};
-
-type AiEngineTarget = {
-  source: "env" | "override";
-  label: string | null;
-  host: string | null;
-  protocol: "http" | "https" | null;
-  port: number | null;
-  llamaBaseUrl: string | null;
-  envLlamaBaseUrl: string | null;
-  updatedAt: string | null;
-};
-
-type AiEngineConnection = {
-  id: string;
-  name: string;
-  host: string;
-  protocol: "http" | "https";
-  port: number;
-  updatedAt: string;
-  active?: boolean;
-};
-
-type AiEnginePresetListResponse = {
-  total: number;
-  presets: AiEngineConnection[];
 };
 
 type GameGeneratorKey = "quiz" | "wordpass";
@@ -230,17 +205,35 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
   const [ragLoading, setRagLoading] = useState(false);
   const [ragError, setRagError] = useState<string | null>(null);
 
-  const [target, setTarget] = useState<AiEngineTarget | null>(null);
-  const [targetLoading, setTargetLoading] = useState(false);
-  const [targetSaving, setTargetSaving] = useState(false);
-  const [targetError, setTargetError] = useState<string | null>(null);
-  const [targetHost, setTargetHost] = useState("");
-  const [targetProtocol, setTargetProtocol] = useState<"http" | "https">("http");
-  const [targetPort, setTargetPort] = useState("7002");
-  const [targetLabel, setTargetLabel] = useState("");
-  const [connections, setConnections] = useState<AiEngineConnection[]>([]);
-  const [selectedConnectionId, setSelectedConnectionId] = useState("");
-  const [creatingConnection, setCreatingConnection] = useState(false);
+  const {
+    target,
+    targetLoading,
+    targetSaving,
+    targetError,
+    presets: connections,
+    selectedPresetId: selectedConnectionId,
+    setSelectedPresetId: setSelectedConnectionId,
+    isCreatingPreset: creatingConnection,
+    setIsCreatingPreset: setCreatingConnection,
+    presetName: targetLabel,
+    setPresetName: setTargetLabel,
+    presetHost: targetHost,
+    setPresetHost: setTargetHost,
+    presetProtocol: targetProtocol,
+    setPresetProtocol: setTargetProtocol,
+    presetPort: targetPort,
+    setPresetPort: setTargetPort,
+    refresh: loadTarget,
+    applyDraftTarget: applyTarget,
+    savePreset: saveConnection,
+    activateSelectedPreset: activateConnection,
+    deleteSelectedPreset: deleteConnection,
+    resetTarget,
+    startNewPreset,
+  } = useAiEngineTargetState({
+    context,
+    unknownErrorLabel: t("roles.errorUnknown"),
+  });
 
   const [generatorState, setGeneratorState] = useState<Record<GameGeneratorKey, GeneratorUiState>>({
     quiz: {
@@ -276,20 +269,6 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
   const pollDelayMsRef = useRef(1000);
 
   const headers = useCallback(() => composeAuthHeaders(context), [context]);
-
-  const syncTargetForm = useCallback((nextTarget: AiEngineTarget) => {
-    setTargetHost(nextTarget.host ?? "");
-    setTargetProtocol(nextTarget.protocol ?? "http");
-    setTargetPort(String(nextTarget.port ?? 7002));
-    setTargetLabel(nextTarget.label ?? "");
-  }, []);
-
-  const syncConnectionForm = useCallback((connection: AiEngineConnection | null) => {
-    setTargetHost(connection?.host ?? "");
-    setTargetProtocol(connection?.protocol ?? "http");
-    setTargetPort(String(connection?.port ?? 7002));
-    setTargetLabel(connection?.name ?? "");
-  }, []);
 
   const setGeneratorPatch = useCallback(
     (game: GameGeneratorKey, patch: GeneratorUiPatch) => {
@@ -425,72 +404,10 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
     }
   }, [headers]);
 
-  const loadTarget = useCallback(async () => {
-    setTargetLoading(true);
-    setTargetError(null);
-    try {
-      const data = await fetchJson<AiEngineTarget>(
-        `${EDGE_API_BASE}/v1/backoffice/ai-engine/target`,
-        { headers: headers() },
-      );
-      let presetState: AiEnginePresetListResponse = { total: 0, presets: [] };
-      try {
-        presetState = await fetchJson<AiEnginePresetListResponse>(
-          `${EDGE_API_BASE}/v1/backoffice/ai-engine/presets`,
-          { headers: headers() },
-        );
-      } catch {
-        presetState = { total: 0, presets: [] };
-      }
-      const activeConnectionId = presetState.presets.find((entry) => (
-        entry.host === data.host &&
-        entry.protocol === (data.protocol ?? "http") &&
-        entry.port === data.port
-      ))?.id ?? null;
-      const nextConnections = presetState.presets.map((entry) => ({
-        ...entry,
-        active: entry.id === activeConnectionId,
-      }));
-      setTarget(data);
-      setConnections(nextConnections);
-      setSelectedConnectionId((current) => {
-        if (current && nextConnections.some((entry) => entry.id === current)) {
-          return current;
-        }
-        return activeConnectionId ?? nextConnections[0]?.id ?? "";
-      });
-      syncTargetForm(data);
-      setTargetError(null);
-    } catch (err) {
-      setTargetError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setTargetLoading(false);
-    }
-  }, [headers, syncTargetForm]);
-
-  useEffect(() => {
-    if (creatingConnection) {
-      syncConnectionForm(null);
-      return;
-    }
-
-    const selected = connections.find((entry) => entry.id === selectedConnectionId) ?? null;
-    if (selected) {
-      syncConnectionForm(selected);
-    } else if (target) {
-      syncTargetForm(target);
-    }
-  }, [connections, creatingConnection, selectedConnectionId, syncConnectionForm, syncTargetForm, target]);
-
-  useEffect(() => {
-    setTargetError(null);
-  }, [targetHost, targetLabel, targetPort, targetProtocol]);
-
   useEffect(() => {
     loadRagStats();
-    loadTarget();
     loadGeneratorStatus();
-  }, [loadGeneratorStatus, loadRagStats, loadTarget]);
+  }, [loadGeneratorStatus, loadRagStats]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -501,148 +418,6 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
       clearInterval(timer);
     };
   }, [loadGeneratorStatus]);
-
-  const applyTarget = useCallback(async () => {
-    setTargetSaving(true);
-    setTargetError(null);
-    try {
-      const nextTarget = await fetchJson<AiEngineTarget>(
-        `${EDGE_API_BASE}/v1/backoffice/ai-engine/target`,
-        {
-          method: "PUT",
-          headers: headers(),
-          body: JSON.stringify({
-            host: targetHost,
-            protocol: targetProtocol,
-            port: Number(targetPort),
-            label: targetLabel,
-          }),
-        },
-      );
-      setTarget(nextTarget);
-      syncTargetForm(nextTarget);
-      setTargetError(null);
-      await loadTarget();
-      await loadRagStats();
-    } catch (err) {
-      setTargetError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setTargetSaving(false);
-    }
-  }, [headers, loadRagStats, loadTarget, syncTargetForm, targetHost, targetLabel, targetPort, targetProtocol]);
-
-  const saveConnection = useCallback(async () => {
-    setTargetSaving(true);
-    setTargetError(null);
-    try {
-      const payload = {
-        name: targetLabel.trim(),
-        host: targetHost.trim(),
-        protocol: targetProtocol,
-        port: Number(targetPort),
-      };
-      const selected = connections.find((entry) => entry.id === selectedConnectionId) ?? null;
-      const saved = selected && !creatingConnection
-        ? await fetchJson<AiEngineConnection>(`${EDGE_API_BASE}/v1/backoffice/ai-engine/presets/${encodeURIComponent(selected.id)}`, {
-            method: "PUT",
-            headers: headers(),
-            body: JSON.stringify(payload),
-          })
-        : await fetchJson<AiEngineConnection>(`${EDGE_API_BASE}/v1/backoffice/ai-engine/presets`, {
-            method: "POST",
-            headers: headers(),
-            body: JSON.stringify(payload),
-          });
-      await loadTarget();
-      setSelectedConnectionId(saved.id);
-      setCreatingConnection(false);
-    } catch (err) {
-      setTargetError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setTargetSaving(false);
-    }
-  }, [connections, creatingConnection, headers, selectedConnectionId, targetHost, targetLabel, targetPort, targetProtocol]);
-
-  const activateConnection = useCallback(async () => {
-    if (!selectedConnectionId) {
-      return;
-    }
-
-    setTargetSaving(true);
-    setTargetError(null);
-    try {
-      const selected = connections.find((entry) => entry.id === selectedConnectionId);
-      if (!selected) {
-        return;
-      }
-      const nextTarget = await fetchJson<AiEngineTarget>(
-        `${EDGE_API_BASE}/v1/backoffice/ai-engine/target`,
-        {
-          method: "PUT",
-          headers: headers(),
-          body: JSON.stringify({
-            host: selected.host,
-            protocol: selected.protocol,
-            port: selected.port,
-            label: selected.name,
-          }),
-        },
-      );
-      setTarget(nextTarget);
-      syncTargetForm(nextTarget);
-      setCreatingConnection(false);
-      await loadTarget();
-      await loadRagStats();
-    } catch (err) {
-      setTargetError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setTargetSaving(false);
-    }
-  }, [connections, headers, loadRagStats, loadTarget, selectedConnectionId, syncTargetForm]);
-
-  const deleteConnection = useCallback(async () => {
-    if (!selectedConnectionId) {
-      return;
-    }
-
-    setTargetSaving(true);
-    setTargetError(null);
-    try {
-      await fetchJson<{ deleted: boolean; presetId: string }>(
-        `${EDGE_API_BASE}/v1/backoffice/ai-engine/presets/${encodeURIComponent(selectedConnectionId)}`,
-        { method: "DELETE", headers: headers() },
-      );
-      await loadTarget();
-      setCreatingConnection(false);
-    } catch (err) {
-      setTargetError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setTargetSaving(false);
-    }
-  }, [headers, loadTarget, selectedConnectionId]);
-
-  const resetTarget = useCallback(async () => {
-    setTargetSaving(true);
-    setTargetError(null);
-    try {
-      const nextTarget = await fetchJson<AiEngineTarget>(
-        `${EDGE_API_BASE}/v1/backoffice/ai-engine/target`,
-        {
-          method: "DELETE",
-          headers: headers(),
-        },
-      );
-      setTarget(nextTarget);
-      syncTargetForm(nextTarget);
-      setTargetError(null);
-      await loadTarget();
-      await loadRagStats();
-    } catch (err) {
-      setTargetError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setTargetSaving(false);
-    }
-  }, [headers, loadRagStats, loadTarget, syncTargetForm]);
 
   // ---- Test runner --------------------------------------------------------
 
@@ -1087,10 +862,7 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
             <div className="flex flex-wrap items-center gap-3">
               <button
                 type="button"
-                onClick={() => {
-                  setCreatingConnection(true);
-                  setSelectedConnectionId("");
-                }}
+                onClick={startNewPreset}
                 disabled={targetSaving}
                 className="ui-action-pill ui-action-pill--quiet text-xs"
               >

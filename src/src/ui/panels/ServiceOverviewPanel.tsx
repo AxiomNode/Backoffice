@@ -6,13 +6,14 @@ import {
   type KubernetesOverview,
   type ServiceOperationalRow,
 } from "../../application/services/operationalSummary";
-import type { AiEngineTarget, AiEngineTargetPreset, SessionContext, UiDensity } from "../../domain/types/backoffice";
+import type { SessionContext, UiDensity } from "../../domain/types/backoffice";
 import { composeAuthHeaders } from "../../infrastructure/backoffice/authHeaders";
 import { EDGE_API_BASE, fetchJson } from "../../infrastructure/http/apiClient";
 import { useI18n } from "../../i18n/context";
 import { AutoRefreshCountdown } from "../components/AutoRefreshCountdown";
 import { useMaxWidth } from "../hooks/useMaxWidth";
 import { useAutoRefreshScheduler } from "../hooks/useAutoRefreshScheduler";
+import { useAiEngineTargetState, type AiEngineProbeEndpointStatus } from "../hooks/useAiEngineTargetState";
 
 /** @module ServiceOverviewPanel - Dashboard showing real-time operational status of all services. */
 
@@ -26,27 +27,6 @@ type KpiCardProps = {
   value: string | number;
   tone?: "neutral" | "ok" | "warn" | "error";
   compact?: boolean;
-};
-
-type AiEnginePresetListResponse = {
-  total: number;
-  presets: AiEngineTargetPreset[];
-};
-
-type AiEngineProbeEndpointStatus = {
-  ok: boolean;
-  status: number | null;
-  url: string;
-  latencyMs: number | null;
-  message: string | null;
-};
-
-type AiEngineProbeResult = {
-  host: string;
-  protocol: "http" | "https";
-  port: number;
-  reachable: boolean;
-  llama: AiEngineProbeEndpointStatus;
 };
 
 type GenerationTaskSnapshot = {
@@ -73,67 +53,6 @@ type ActiveGenerationRow = {
 };
 
 type OverviewTab = "operations" | "kubernetes";
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
-}
-
-function readNullableString(value: unknown): string | null {
-  return typeof value === "string" ? value : null;
-}
-
-function readNullableNumber(value: unknown): number | null {
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
-
-function readProtocol(value: unknown): "http" | "https" | null {
-  return value === "http" || value === "https" ? value : null;
-}
-
-function normalizeAiTargetResponse(payload: unknown): AiEngineTarget {
-  const record = asRecord(payload) ?? {};
-  const apiBaseUrl = readNullableString(record.apiBaseUrl);
-  const statsBaseUrl = readNullableString(record.statsBaseUrl);
-
-  return {
-    source: record.source === "env" ? "env" : "override",
-    label: readNullableString(record.label),
-    host: readNullableString(record.host),
-    protocol: readProtocol(record.protocol),
-    port: readNullableNumber(record.port) ?? readNullableNumber(record.apiPort),
-    llamaBaseUrl: readNullableString(record.llamaBaseUrl) ?? (apiBaseUrl ? `${apiBaseUrl}/v1/completions` : null),
-    envLlamaBaseUrl: readNullableString(record.envLlamaBaseUrl) ?? statsBaseUrl,
-    updatedAt: readNullableString(record.updatedAt),
-  };
-}
-
-function normalizeProbeEndpointStatus(payload: unknown, fallbackUrl: string): AiEngineProbeEndpointStatus {
-  const record = asRecord(payload) ?? {};
-
-  return {
-    ok: record.ok === true,
-    status: readNullableNumber(record.status),
-    url: readNullableString(record.url) ?? fallbackUrl,
-    latencyMs: readNullableNumber(record.latencyMs),
-    message: readNullableString(record.message),
-  };
-}
-
-function normalizeAiProbeResponse(payload: unknown): AiEngineProbeResult {
-  const record = asRecord(payload) ?? {};
-  const protocol = readProtocol(record.protocol) ?? "http";
-  const host = readNullableString(record.host) ?? "";
-  const port = readNullableNumber(record.port) ?? readNullableNumber(record.apiPort) ?? 7002;
-  const fallbackUrl = `${protocol}://${host}:${port}/v1/models`;
-
-  return {
-    host,
-    protocol,
-    port,
-    reachable: record.reachable === true,
-    llama: normalizeProbeEndpointStatus(record.llama ?? record.api, fallbackUrl),
-  };
-}
 
 function KpiCard({ label, value, tone = "neutral", compact = false }: KpiCardProps) {
   return (
@@ -212,20 +131,40 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
   const [refreshIntervalSeconds, setRefreshIntervalSeconds] = useState(10);
   const [error, setError] = useState<string | null>(null);
   const [refreshCycleVersion, setRefreshCycleVersion] = useState(0);
-  const [aiTarget, setAiTarget] = useState<AiEngineTarget | null>(null);
-  const [aiTargetLoading, setAiTargetLoading] = useState(false);
-  const [aiTargetSaving, setAiTargetSaving] = useState(false);
-  const [aiTargetError, setAiTargetError] = useState<string | null>(null);
-  const [presets, setPresets] = useState<AiEngineTargetPreset[]>([]);
-  const [presetsLoading, setPresetsLoading] = useState(false);
-  const [selectedPresetId, setSelectedPresetId] = useState("");
-  const [isCreatingPreset, setIsCreatingPreset] = useState(false);
-  const [presetName, setPresetName] = useState("");
-  const [presetHost, setPresetHost] = useState("");
-  const [presetProtocol, setPresetProtocol] = useState<"http" | "https">("http");
-  const [presetPort, setPresetPort] = useState("7002");
-  const [aiProbeLoading, setAiProbeLoading] = useState(false);
-  const [aiProbeResult, setAiProbeResult] = useState<AiEngineProbeResult | null>(null);
+  const {
+    target: aiTarget,
+    targetLoading: aiTargetLoading,
+    targetSaving: aiTargetSaving,
+    targetError: aiTargetError,
+    presets,
+    presetsLoading,
+    selectedPresetId,
+    setSelectedPresetId,
+    isCreatingPreset,
+    setIsCreatingPreset,
+    presetName,
+    setPresetName,
+    presetHost,
+    setPresetHost,
+    presetProtocol,
+    setPresetProtocol,
+    presetPort,
+    setPresetPort,
+    activePreset,
+    probeLoading: aiProbeLoading,
+    probeResult: aiProbeResult,
+    refresh: refreshAiTarget,
+    probeTarget: probeAiTarget,
+    savePreset,
+    activateSelectedPreset,
+    deleteSelectedPreset: removePreset,
+    startNewPreset,
+  } = useAiEngineTargetState({
+    context,
+    unknownErrorLabel: t("roles.errorUnknown"),
+    missingHostLabel: t("overview.aiTarget.missingHost"),
+    applyBlockedLabel: t("overview.aiTarget.probeApplyBlocked"),
+  });
   const [activeGenerations, setActiveGenerations] = useState<ActiveGenerationRow[]>([]);
   const [activeGenerationsLoading, setActiveGenerationsLoading] = useState(false);
   const [selectedTab, setSelectedTab] = useState<OverviewTab>("operations");
@@ -239,47 +178,6 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
   const intervalOptions = [5, 10, 15, 30, 60];
   const authHeaders = useCallback(() => composeAuthHeaders(context), [context]);
 
-  const syncPresetForm = useCallback((preset: AiEngineTargetPreset | null) => {
-    setPresetName(preset?.name ?? "");
-    setPresetHost(preset?.host ?? "");
-    setPresetProtocol(preset?.protocol ?? "http");
-    setPresetPort(String(preset?.port ?? 7002));
-  }, []);
-
-  const findPresetMatch = useCallback((entries: AiEngineTargetPreset[], target: AiEngineTarget | null) => {
-    if (!target) {
-      return null;
-    }
-
-    const directMatch = entries.find(
-      (entry) =>
-        entry.host === (target.host ?? "") &&
-        entry.protocol === (target.protocol ?? "http") &&
-        entry.port === target.port,
-    );
-
-    if (directMatch) {
-      return directMatch;
-    }
-
-    const protocolPortMatches = entries.filter(
-      (entry) => entry.protocol === (target.protocol ?? "http") && entry.port === target.port,
-    );
-
-    return protocolPortMatches.length === 1 ? protocolPortMatches[0] : null;
-  }, []);
-
-  const parsePort = useCallback((value: string, fallback: number) => {
-    const parsed = Number(value);
-    return Number.isInteger(parsed) && parsed > 0 && parsed <= 65535 ? parsed : fallback;
-  }, []);
-
-  const buildDraftTarget = useCallback(() => ({
-    host: presetHost.trim(),
-    protocol: presetProtocol,
-    port: parsePort(presetPort, 7002),
-  }), [parsePort, presetHost, presetPort, presetProtocol]);
-
   const describeProbeStatus = useCallback((status: AiEngineProbeEndpointStatus) => {
     if (status.ok) {
       return `${status.url} OK${status.latencyMs !== null ? ` · ${status.latencyMs}ms` : ""}`;
@@ -287,44 +185,6 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
 
     return `${status.url} ${status.message ?? "sin respuesta"}`;
   }, []);
-
-  const loadPresets = useCallback(async () => {
-    setPresetsLoading(true);
-    setAiTargetError(null);
-    try {
-      const payload = await fetchJson<AiEnginePresetListResponse>(`${EDGE_API_BASE}/v1/backoffice/ai-engine/presets`, {
-        headers: authHeaders(),
-      });
-      setPresets(payload.presets);
-      setAiTargetError(null);
-      setSelectedPresetId((current) => {
-        if (current && payload.presets.some((entry) => entry.id === current)) {
-          return current;
-        }
-        return "";
-      });
-    } catch (loadError) {
-      setAiTargetError(loadError instanceof Error ? loadError.message : t("roles.errorUnknown"));
-    } finally {
-      setPresetsLoading(false);
-    }
-  }, [authHeaders, t]);
-
-  const loadAiTarget = useCallback(async () => {
-    setAiTargetLoading(true);
-    setAiTargetError(null);
-    try {
-      const payload = await fetchJson<unknown>(`${EDGE_API_BASE}/v1/backoffice/ai-engine/target`, {
-        headers: authHeaders(),
-      });
-      setAiTarget(normalizeAiTargetResponse(payload));
-      setAiTargetError(null);
-    } catch (loadError) {
-      setAiTargetError(loadError instanceof Error ? loadError.message : t("roles.errorUnknown"));
-    } finally {
-      setAiTargetLoading(false);
-    }
-  }, [authHeaders, t]);
 
   const loadSummary = useCallback(async () => {
     const requestVersion = ++requestVersionRef.current;
@@ -414,51 +274,8 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
   useEffect(() => {
     void loadSummary();
     void loadKubernetes();
-    void loadAiTarget();
-    void loadPresets();
     void loadActiveGenerations();
-  }, [loadActiveGenerations, loadAiTarget, loadKubernetes, loadPresets, loadSummary]);
-
-  useEffect(() => {
-    if (isCreatingPreset) {
-      return;
-    }
-
-    const matchedPreset = findPresetMatch(presets, aiTarget);
-    if (matchedPreset && !selectedPresetId) {
-      setSelectedPresetId(matchedPreset.id);
-      syncPresetForm(matchedPreset);
-      return;
-    }
-
-    const activePreset = presets.find((entry) => entry.id === selectedPresetId) ?? null;
-    if (activePreset) {
-      syncPresetForm(activePreset);
-      return;
-    }
-
-    if (!selectedPresetId && presets.length === 1) {
-      setSelectedPresetId(presets[0]!.id);
-      syncPresetForm(presets[0]!);
-      return;
-    }
-
-    if (matchedPreset) {
-      setSelectedPresetId(matchedPreset.id);
-      syncPresetForm(matchedPreset);
-      return;
-    }
-
-    syncPresetForm(null);
-  }, [aiTarget, findPresetMatch, isCreatingPreset, presets, selectedPresetId, syncPresetForm]);
-
-  useEffect(() => {
-    setAiProbeResult(null);
-  }, [isCreatingPreset, presetHost, presetName, presetPort, presetProtocol, selectedPresetId]);
-
-  useEffect(() => {
-    setAiTargetError(null);
-  }, [isCreatingPreset, presetHost, presetName, presetPort, presetProtocol, selectedPresetId]);
+  }, [loadActiveGenerations, loadKubernetes, loadSummary]);
 
   useAutoRefreshScheduler(
     () => {
@@ -488,7 +305,7 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
     }
     return "ui-status-chip ui-status-chip--error";
   };
-  const activePreset = isCreatingPreset ? null : presets.find((entry) => entry.id === selectedPresetId) ?? null;
+  const applyAiPreset = useCallback(() => activateSelectedPreset({ probeFirst: true }), [activateSelectedPreset]);
   const kubernetesSummary = useMemo(() => ({
     nodes: kubernetesOverview?.cluster.nodeCount ?? 0,
     readyNodes: kubernetesOverview?.cluster.readyNodeCount ?? 0,
@@ -556,131 +373,6 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
     });
     window.location.hash = `#/backoffice/${navKey}?${query.toString()}`;
   }, []);
-
-  const probeAiTarget = useCallback(async (targetOverride?: { host: string; protocol: "http" | "https"; port: number }) => {
-    const payload = targetOverride ?? buildDraftTarget();
-
-    if (!payload.host) {
-      throw new Error(t("overview.aiTarget.missingHost"));
-    }
-
-    setAiProbeLoading(true);
-    setAiTargetError(null);
-    try {
-      const probePayload = await fetchJson<unknown>(`${EDGE_API_BASE}/v1/backoffice/ai-engine/probe`, {
-        method: "POST",
-        headers: authHeaders(),
-        body: JSON.stringify(payload),
-      });
-      const probe = normalizeAiProbeResponse(probePayload);
-      setAiProbeResult(probe);
-      setAiTargetError(null);
-      return probe;
-    } catch (probeError) {
-      const message = probeError instanceof Error ? probeError.message : t("roles.errorUnknown");
-      setAiTargetError(message);
-      throw probeError;
-    } finally {
-      setAiProbeLoading(false);
-    }
-  }, [authHeaders, buildDraftTarget, t]);
-
-  const applyAiPreset = useCallback(async () => {
-    if (!activePreset) {
-      return;
-    }
-
-    setAiTargetSaving(true);
-    setAiTargetError(null);
-    try {
-      const probe = await probeAiTarget({
-        host: activePreset.host,
-        protocol: activePreset.protocol,
-        port: activePreset.port,
-      });
-
-      if (!probe.reachable) {
-        throw new Error(t("overview.aiTarget.probeApplyBlocked"));
-      }
-
-      const payload = await fetchJson<unknown>(`${EDGE_API_BASE}/v1/backoffice/ai-engine/target`, {
-        method: "PUT",
-        headers: authHeaders(),
-        body: JSON.stringify({
-          host: activePreset.host,
-          protocol: activePreset.protocol,
-          port: activePreset.port,
-          label: activePreset.name,
-        }),
-      });
-      setAiTarget(normalizeAiTargetResponse(payload));
-      setAiTargetError(null);
-    } catch (saveError) {
-      setAiTargetError(saveError instanceof Error ? saveError.message : t("roles.errorUnknown"));
-    } finally {
-      setAiTargetSaving(false);
-    }
-  }, [activePreset, authHeaders, probeAiTarget, t]);
-
-  const savePreset = useCallback(async () => {
-    setAiTargetSaving(true);
-    setAiTargetError(null);
-    try {
-      const payload = {
-        name: presetName.trim(),
-        host: presetHost.trim(),
-        protocol: presetProtocol,
-        port: parsePort(presetPort, 7002),
-      };
-      const nextPreset = activePreset && !isCreatingPreset
-        ? await fetchJson<AiEngineTargetPreset>(`${EDGE_API_BASE}/v1/backoffice/ai-engine/presets/${encodeURIComponent(activePreset.id)}`, {
-            method: "PUT",
-            headers: authHeaders(),
-            body: JSON.stringify(payload),
-          })
-        : await fetchJson<AiEngineTargetPreset>(`${EDGE_API_BASE}/v1/backoffice/ai-engine/presets`, {
-            method: "POST",
-            headers: authHeaders(),
-            body: JSON.stringify(payload),
-          });
-
-      await loadPresets();
-      setIsCreatingPreset(false);
-      setSelectedPresetId(nextPreset.id);
-      setAiTargetError(null);
-    } catch (saveError) {
-      setAiTargetError(saveError instanceof Error ? saveError.message : t("roles.errorUnknown"));
-    } finally {
-      setAiTargetSaving(false);
-    }
-  }, [activePreset, authHeaders, isCreatingPreset, loadPresets, parsePort, presetHost, presetName, presetPort, presetProtocol, t]);
-
-  const removePreset = useCallback(async () => {
-    if (!activePreset) {
-      return;
-    }
-
-    setAiTargetSaving(true);
-    setAiTargetError(null);
-    try {
-      await fetchJson<{ deleted: boolean; presetId: string }>(`${EDGE_API_BASE}/v1/backoffice/ai-engine/presets/${encodeURIComponent(activePreset.id)}`, {
-        method: "DELETE",
-        headers: authHeaders(),
-      });
-      await loadPresets();
-      setAiTargetError(null);
-    } catch (deleteError) {
-      setAiTargetError(deleteError instanceof Error ? deleteError.message : t("roles.errorUnknown"));
-    } finally {
-      setAiTargetSaving(false);
-    }
-  }, [activePreset, authHeaders, loadPresets, t]);
-
-  const startNewPreset = useCallback(() => {
-    setIsCreatingPreset(true);
-    setSelectedPresetId("");
-    syncPresetForm(null);
-  }, [syncPresetForm]);
 
   return (
     <section className={`m3-card ui-panel-shell ui-fade-in ${narrowViewport ? "p-3 space-y-3" : compactPanel ? "p-3.5 space-y-3.5" : compact ? "p-3 sm:p-4 xl:p-5 space-y-4" : "p-4 sm:p-5 xl:p-6 space-y-5"}`}>
@@ -836,8 +528,7 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
                 <button
                   type="button"
                   onClick={() => {
-                    void loadAiTarget();
-                    void loadPresets();
+                    void refreshAiTarget();
                   }}
                   disabled={aiTargetLoading || aiTargetSaving || presetsLoading}
                   className="ui-action-pill ui-action-pill--quiet min-h-0 px-3 py-1.5 text-xs"
