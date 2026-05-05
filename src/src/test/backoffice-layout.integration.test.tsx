@@ -8,12 +8,8 @@ import type { SessionContext, UiLanguage, UiTypography } from "../domain/types/b
 import { BackofficeLayout } from "../ui/layout/BackofficeLayout";
 
 const fetchServiceOperationalSummaryMock = vi.hoisted(() => vi.fn());
-const fetchDeploymentHistoryMock = vi.hoisted(() => vi.fn());
-const createDeploymentHistoryEntryMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../application/services/operationalSummary", () => ({
-  createDeploymentHistoryEntry: createDeploymentHistoryEntryMock,
-  fetchDeploymentHistory: fetchDeploymentHistoryMock,
   fetchServiceOperationalSummary: fetchServiceOperationalSummaryMock,
   storeServiceLastError: vi.fn(),
 }));
@@ -117,27 +113,6 @@ describe("BackofficeLayout integration", () => {
     window.location.hash = "#/backoffice/svc-overview";
     setViewportWidth(1280);
     fetchServiceOperationalSummaryMock.mockReset();
-    fetchDeploymentHistoryMock.mockReset();
-    createDeploymentHistoryEntryMock.mockReset();
-    fetchDeploymentHistoryMock.mockResolvedValue({
-      environment: "stg",
-      currentVersion: "7f9015b",
-      currentDeployedAt: "2026-04-19 22:00 UTC",
-      history: [
-        {
-          version: "7f9015b",
-          deployedAt: "2026-04-19 22:00 UTC",
-          commitSha: "7f9015b",
-          summary: "Kubernetes observability baseline",
-        },
-        {
-          version: "28f3fd9",
-          deployedAt: "2026-04-19 18:20 UTC",
-          commitSha: "28f3fd9",
-          summary: "Compatibilidad con payloads legacy del target/probe de IA",
-        },
-      ],
-    });
   });
 
   afterEach(() => {
@@ -276,7 +251,7 @@ describe("BackofficeLayout integration", () => {
     });
   });
 
-  it("shows deployed version metadata and toggles deployment history", async () => {
+  it("shows the packaged backoffice version", async () => {
     fetchServiceOperationalSummaryMock.mockResolvedValue({
       rows: [],
       totals: { total: 1, onlineCount: 1, accessIssues: 0, connectionErrors: 0 },
@@ -285,68 +260,7 @@ describe("BackofficeLayout integration", () => {
     renderLayout();
 
     await waitFor(() => {
-      expect(screen.getByText(/Version: 7f9015b/i)).toBeInTheDocument();
-      expect(screen.getByText(/Desplegada: 2026-04-19 22:00 UTC/i)).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: /Historico de versiones/i }));
-
-    await waitFor(() => {
-      expect(screen.getByText("Versiones desplegadas")).toBeInTheDocument();
-      expect(screen.getByText("Compatibilidad con payloads legacy del target/probe de IA")).toBeInTheDocument();
-      expect(screen.getAllByText("28f3fd9").length).toBeGreaterThan(0);
-    });
-
-    const historyPanel = document.getElementById("deployment-history-panel");
-    expect(historyPanel).toHaveStyle({ position: "fixed" });
-    expect(historyPanel?.style.left).toBeTruthy();
-    expect(historyPanel?.style.top).toBeTruthy();
-    expect(historyPanel?.style.maxHeight).toBeTruthy();
-    expect(historyPanel?.style.zIndex).toBeTruthy();
-    expect(historyPanel?.className).toContain("overflow-hidden");
-  });
-
-  it("records a persistent deployment history entry from the header popover", async () => {
-    fetchServiceOperationalSummaryMock.mockResolvedValue({
-      rows: [],
-      totals: { total: 1, onlineCount: 1, accessIssues: 0, connectionErrors: 0 },
-    });
-    createDeploymentHistoryEntryMock.mockResolvedValue({
-      environment: "stg",
-      currentVersion: "manual-1",
-      currentDeployedAt: "2026-05-05T10:30:00.000Z",
-      history: [
-        {
-          version: "manual-1",
-          deployedAt: "2026-05-05T10:30:00.000Z",
-          commitSha: "manualsha",
-          summary: "Manual backoffice registration",
-        },
-      ],
-    });
-
-    renderLayout();
-
-    fireEvent.click(screen.getByRole("button", { name: /Historico de versiones/i }));
-
-    await waitFor(() => {
-      expect(screen.getByLabelText("Version")).toBeInTheDocument();
-    });
-
-    fireEvent.change(screen.getByLabelText("Version"), { target: { value: "manual-1" } });
-    fireEvent.change(screen.getByLabelText("Fecha despliegue"), { target: { value: "2026-05-05T10:30:00.000Z" } });
-    fireEvent.change(screen.getByLabelText("Commit"), { target: { value: "manualsha" } });
-    fireEvent.change(screen.getByLabelText("Resumen"), { target: { value: "Manual backoffice registration" } });
-    fireEvent.click(screen.getByRole("button", { name: "Registrar version" }));
-
-    await waitFor(() => {
-      expect(createDeploymentHistoryEntryMock).toHaveBeenCalledWith(context, {
-        version: "manual-1",
-        deployedAt: "2026-05-05T10:30:00.000Z",
-        commitSha: "manualsha",
-        summary: "Manual backoffice registration",
-      });
-      expect(screen.getByText(/Version: manual-1/i)).toBeInTheDocument();
+      expect(screen.getByText(/Version: 0\.1\.1/i)).toBeInTheDocument();
     });
   });
 
@@ -375,110 +289,6 @@ describe("BackofficeLayout integration", () => {
     expect(preferencesPanel?.className).toContain("overflow-y-auto");
   });
 
-  it("adapts the deployment history popover width for compact mobile viewports", async () => {
-    fetchServiceOperationalSummaryMock.mockResolvedValue({
-      rows: [],
-      totals: { total: 1, onlineCount: 1, accessIssues: 0, connectionErrors: 0 },
-    });
-
-    const originalInnerWidth = window.innerWidth;
-    const originalInnerHeight = window.innerHeight;
-
-    try {
-      Object.defineProperty(window, "innerWidth", { configurable: true, value: 390 });
-      Object.defineProperty(window, "innerHeight", { configurable: true, value: 844 });
-
-      renderLayout();
-
-      const historyButton = screen.getByRole("button", { name: /Historico de versiones/i });
-      historyButton.getBoundingClientRect = vi.fn<() => DOMRect>().mockReturnValue({
-        x: 16,
-        y: 280,
-        width: 180,
-        height: 40,
-        top: 280,
-        right: 196,
-        bottom: 320,
-        left: 16,
-        toJSON: () => undefined,
-      } as DOMRect);
-
-      fireEvent.click(historyButton);
-
-      await waitFor(() => {
-        expect(screen.getByText("Versiones desplegadas")).toBeInTheDocument();
-      });
-
-      const historyPanel = document.getElementById("deployment-history-panel");
-      expect(historyPanel?.style.width).toBe("374px");
-      expect(historyPanel?.style.left).toBe("8px");
-      expect(historyPanel?.style.top).toBe("326px");
-      expect(historyPanel?.style.maxHeight).toBe("448px");
-    } finally {
-      Object.defineProperty(window, "innerWidth", { configurable: true, value: originalInnerWidth });
-      Object.defineProperty(window, "innerHeight", { configurable: true, value: originalInnerHeight });
-    }
-  });
-
-  it("closes floating header panels when their trigger leaves the viewport on scroll", async () => {
-    fetchServiceOperationalSummaryMock.mockResolvedValue({
-      rows: [],
-      totals: { total: 1, onlineCount: 1, accessIssues: 0, connectionErrors: 0 },
-    });
-
-    renderLayout();
-
-    const historyButton = screen.getByRole("button", { name: /Historico de versiones/i });
-    const originalGetBoundingClientRect = historyButton.getBoundingClientRect.bind(historyButton);
-
-    fireEvent.click(historyButton);
-
-    await waitFor(() => {
-      expect(screen.getByText("Versiones desplegadas")).toBeInTheDocument();
-    });
-
-    historyButton.getBoundingClientRect = vi
-      .fn<() => DOMRect>()
-      .mockImplementation(
-        () =>
-          ({
-            ...originalGetBoundingClientRect(),
-            bottom: -24,
-            height: 40,
-            left: 24,
-            right: 210,
-            top: -64,
-            width: 186,
-          }) as DOMRect,
-      );
-
-    fireEvent.scroll(window);
-
-    await waitFor(() => {
-      expect(screen.queryByText("Versiones desplegadas")).not.toBeInTheDocument();
-    });
-  });
-
-  it("closes the deployment history popover on page scroll even while the trigger remains visible", async () => {
-    fetchServiceOperationalSummaryMock.mockResolvedValue({
-      rows: [],
-      totals: { total: 1, onlineCount: 1, accessIssues: 0, connectionErrors: 0 },
-    });
-
-    renderLayout();
-
-    fireEvent.click(screen.getByRole("button", { name: /Historico de versiones/i }));
-
-    await waitFor(() => {
-      expect(screen.getByText("Versiones desplegadas")).toBeInTheDocument();
-    });
-
-    fireEvent.scroll(window);
-
-    await waitFor(() => {
-      expect(screen.queryByText("Versiones desplegadas")).not.toBeInTheDocument();
-    });
-  });
 
   it("closes floating header panels when navigating from the sidebar", async () => {
     fetchServiceOperationalSummaryMock.mockResolvedValue({
@@ -488,17 +298,17 @@ describe("BackofficeLayout integration", () => {
 
     renderLayout();
 
-    fireEvent.click(screen.getByRole("button", { name: /Historico de versiones/i }));
+    fireEvent.click(screen.getByRole("button", { name: "UI" }));
 
     await waitFor(() => {
-      expect(screen.getByText("Versiones desplegadas")).toBeInTheDocument();
+      expect(document.getElementById("layout-preferences-panel")).toBeInTheDocument();
     });
 
     const gatewayButtons = screen.getAllByRole("button", { name: /Entrada publica/i });
     fireEvent.click(gatewayButtons[0]);
 
     await waitFor(() => {
-      expect(screen.queryByText("Versiones desplegadas")).not.toBeInTheDocument();
+      expect(document.getElementById("layout-preferences-panel")).toBeNull();
       expect(screen.getByTestId("service-console-panel")).toHaveTextContent("console-panel:svc-api-gateway");
     });
   });
@@ -676,31 +486,6 @@ describe("BackofficeLayout integration", () => {
     expect(view.onTypographyChange).toHaveBeenCalledWith("xl");
   });
 
-  it("keeps release history open on internal interactions and closes it on external scroll", async () => {
-    fetchServiceOperationalSummaryMock.mockResolvedValue({
-      rows: [],
-      totals: { total: 1, onlineCount: 1, accessIssues: 0, connectionErrors: 0 },
-    });
-
-    renderLayout();
-
-    fireEvent.click(screen.getByRole("button", { name: /Historico de versiones/i }));
-
-    await waitFor(() => {
-      expect(screen.getByText("Versiones desplegadas")).toBeInTheDocument();
-    });
-
-    fireEvent.mouseDown(screen.getByText("Versiones desplegadas"));
-    fireEvent.scroll(screen.getByText("Versiones desplegadas"));
-    expect(screen.getByText("Versiones desplegadas")).toBeInTheDocument();
-
-    fireEvent.scroll(window);
-
-    await waitFor(() => {
-      expect(screen.queryByText("Versiones desplegadas")).not.toBeInTheDocument();
-    });
-  });
-
   it("routes UI preference callbacks and closes floating panels with outside interactions", async () => {
     fetchServiceOperationalSummaryMock.mockResolvedValue({
       rows: [],
@@ -709,17 +494,7 @@ describe("BackofficeLayout integration", () => {
 
     const view = renderLayoutWithOptions({ theme: "dark", typography: "normal" });
 
-    fireEvent.click(screen.getByRole("button", { name: /Historico de versiones/i }));
-
-    await waitFor(() => {
-      expect(screen.getByText("Versiones desplegadas")).toBeInTheDocument();
-    });
-
     fireEvent.click(screen.getByRole("button", { name: "UI" }));
-
-    await waitFor(() => {
-      expect(screen.queryByText("Versiones desplegadas")).not.toBeInTheDocument();
-    });
 
     const preferencesPanel = document.getElementById("layout-preferences-panel") as HTMLElement;
     expect(preferencesPanel).toBeInTheDocument();

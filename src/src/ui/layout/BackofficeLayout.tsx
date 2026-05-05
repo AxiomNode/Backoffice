@@ -1,14 +1,9 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties, type TouchEvent } from "react";
 import { createPortal } from "react-dom";
+import packageMetadata from "../../../package.json";
 
 import type { BackofficeSession } from "../../auth";
-import {
-  createDeploymentHistoryEntry,
-  fetchDeploymentHistory,
-  fetchServiceOperationalSummary,
-  type DeploymentHistory,
-  type DeploymentHistoryEntry,
-} from "../../application/services/operationalSummary";
+import { fetchServiceOperationalSummary } from "../../application/services/operationalSummary";
 import { navItemsForRole, roleCanManageUsers, roleCanModify } from "../../application/services/rolePolicies";
 import { SERVICE_NAV_KEYS } from "../../domain/constants/navigation";
 import { UI_DENSITY_STORAGE_KEY, UI_SERVICE_ROUTE_QUERY_STORAGE_PREFIX } from "../../domain/constants/ui";
@@ -18,7 +13,6 @@ import type { LabelKey } from "../../i18n/labels";
 import { useHashRoute, routeFromNavKey } from "../hooks/useHashRoute";
 import { useMaxWidth } from "../hooks/useMaxWidth";
 import { useVisibilityPolling } from "../hooks/useVisibilityPolling";
-import { DeploymentHistoryDropdown } from "../components/DeploymentHistoryDropdown";
 import { Sidebar } from "../components/Sidebar";
 
 /** @module BackofficeLayout - Main authenticated layout with sidebar, header, and lazy-loaded panels. */
@@ -52,25 +46,8 @@ type BackofficeLayoutProps = {
   onTypographyChange: (value: UiTypography) => void;
 };
 
-function buildInitialDeploymentHistory(mode: SessionContext["mode"]): DeploymentHistory {
-  return {
-    environment: mode,
-    currentVersion: "--",
-    currentDeployedAt: "--",
-    history: [],
-  };
-}
-
-function buildEmptyDeploymentHistoryEntry(): DeploymentHistoryEntry {
-  return {
-    version: "",
-    deployedAt: new Date().toISOString(),
-    commitSha: "",
-    summary: "",
-  };
-}
-
 const TYPOGRAPHY_OPTIONS: UiTypography[] = ["sm", "normal", "lg", "xl", "xxl"];
+const BACKOFFICE_VERSION = packageMetadata.version;
 const TYPOGRAPHY_LABEL_KEYS: Record<UiTypography, LabelKey> = {
   sm: "typography.sm",
   normal: "typography.normal",
@@ -130,24 +107,6 @@ function clampPopoverToViewport(trigger: HTMLElement, preferredWidth: number, pr
   };
 }
 
-function releaseHistoryPreferredWidth(): number {
-  const viewportWidth = window.innerWidth;
-
-  if (viewportWidth >= 1280) {
-    return 544;
-  }
-
-  if (viewportWidth >= 768) {
-    return 468;
-  }
-
-  return 420;
-}
-
-function releaseHistoryPreferredMaxHeight(): number {
-  return window.innerWidth < 640 ? 448 : 576;
-}
-
 /** Main backoffice layout with sidebar navigation, preferences, and routed panel content. */
 export function BackofficeLayout({
   session,
@@ -176,14 +135,9 @@ export function BackofficeLayout({
   const allowedKeys = useMemo(() => navItems.map((item) => item.key), [navItems]);
   const [current, navigate] = useHashRoute(allowedKeys, navItems[0]?.key ?? "svc-api-gateway");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [releaseHistoryOpen, setReleaseHistoryOpen] = useState(false);
   const [preferencesOpen, setPreferencesOpen] = useState(false);
   const [globalHealth, setGlobalHealth] = useState<"healthy" | "warning" | "critical" | "unknown">("unknown");
   const [globalHealthText, setGlobalHealthText] = useState<string>("--");
-  const [deploymentHistory, setDeploymentHistory] = useState<DeploymentHistory>(() => buildInitialDeploymentHistory(context.mode));
-  const [deploymentHistoryForm, setDeploymentHistoryForm] = useState<DeploymentHistoryEntry>(() => buildEmptyDeploymentHistoryEntry());
-  const [deploymentHistorySaving, setDeploymentHistorySaving] = useState(false);
-  const [deploymentHistoryError, setDeploymentHistoryError] = useState<string | null>(null);
   const [density, setDensity] = useState<UiDensity>(() => {
     if (typeof window === "undefined") {
       return "comfortable";
@@ -195,35 +149,9 @@ export function BackofficeLayout({
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
   const summaryBaselineRef = useRef<Record<string, { requestsTotal: number | null; fetchedAt: number }>>({});
-  const releaseHistoryButtonRef = useRef<HTMLButtonElement | null>(null);
   const preferencesButtonRef = useRef<HTMLButtonElement | null>(null);
-  const releaseHistoryPopoverRef = useRef<HTMLDivElement | null>(null);
   const preferencesPopoverRef = useRef<HTMLDivElement | null>(null);
-  const [releaseHistoryStyle, setReleaseHistoryStyle] = useState<CSSProperties | undefined>(undefined);
   const [preferencesStyle, setPreferencesStyle] = useState<CSSProperties | undefined>(undefined);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const loadDeploymentHistory = async () => {
-      try {
-        const nextHistory = await fetchDeploymentHistory(context);
-        if (!cancelled) {
-          setDeploymentHistory(nextHistory);
-        }
-      } catch {
-        if (!cancelled) {
-          setDeploymentHistory(buildInitialDeploymentHistory(context.mode));
-        }
-      }
-    };
-
-    void loadDeploymentHistory();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [context]);
 
   useEffect(() => {
     if (!mobileMenuOpen) {
@@ -244,21 +172,6 @@ export function BackofficeLayout({
       window.removeEventListener("keydown", onKeyDown);
     };
   }, [mobileMenuOpen]);
-
-  useEffect(() => {
-    if (!releaseHistoryOpen) {
-      return;
-    }
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setReleaseHistoryOpen(false);
-      }
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [releaseHistoryOpen]);
 
   useEffect(() => {
     if (!preferencesOpen) {
@@ -282,14 +195,8 @@ export function BackofficeLayout({
         return;
       }
 
-      const insideReleaseHistory =
-        !!releaseHistoryButtonRef.current?.contains(target) || !!releaseHistoryPopoverRef.current?.contains(target);
       const insidePreferences =
         !!preferencesButtonRef.current?.contains(target) || !!preferencesPopoverRef.current?.contains(target);
-
-      if (releaseHistoryOpen && !insideReleaseHistory) {
-        setReleaseHistoryOpen(false);
-      }
 
       if (preferencesOpen && !insidePreferences) {
         setPreferencesOpen(false);
@@ -298,51 +205,12 @@ export function BackofficeLayout({
 
     window.addEventListener("mousedown", onPointerDown);
     return () => window.removeEventListener("mousedown", onPointerDown);
-  }, [preferencesOpen, releaseHistoryOpen]);
+  }, [preferencesOpen]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     window.localStorage.setItem(UI_DENSITY_STORAGE_KEY, density);
   }, [density]);
-
-  useEffect(() => {
-    if (!releaseHistoryOpen || !releaseHistoryButtonRef.current) {
-      setReleaseHistoryStyle(undefined);
-      return;
-    }
-
-    const updatePosition = () => {
-      if (!releaseHistoryButtonRef.current) {
-        return;
-      }
-      const nextStyle = clampPopoverToViewport(
-        releaseHistoryButtonRef.current,
-        releaseHistoryPreferredWidth(),
-        releaseHistoryPreferredMaxHeight(),
-      );
-      if (!nextStyle) {
-        setReleaseHistoryOpen(false);
-        return;
-      }
-      setReleaseHistoryStyle(nextStyle);
-    };
-
-    const onScroll = (event: Event) => {
-      const target = event.target;
-      if (target instanceof Node && releaseHistoryPopoverRef.current?.contains(target)) {
-        return;
-      }
-      setReleaseHistoryOpen(false);
-    };
-
-    updatePosition();
-    window.addEventListener("resize", updatePosition);
-    window.addEventListener("scroll", onScroll, true);
-    return () => {
-      window.removeEventListener("resize", updatePosition);
-      window.removeEventListener("scroll", onScroll, true);
-    };
-  }, [releaseHistoryOpen]);
 
   useEffect(() => {
     if (!preferencesOpen || !preferencesButtonRef.current) {
@@ -419,38 +287,6 @@ export function BackofficeLayout({
   useVisibilityPolling(updateGlobalHealth, 30000);
 
   const toggleDensity = () => setDensity((v) => (v === "comfortable" ? "dense" : "comfortable"));
-  const canRecordDeploymentHistory = roleCanModify(session.role);
-
-  const updateDeploymentHistoryForm = (field: keyof DeploymentHistoryEntry, value: string) => {
-    setDeploymentHistoryForm((currentValue) => ({ ...currentValue, [field]: value }));
-  };
-
-  const saveDeploymentHistoryEntry = async () => {
-    const payload: DeploymentHistoryEntry = {
-      version: deploymentHistoryForm.version.trim(),
-      deployedAt: deploymentHistoryForm.deployedAt.trim(),
-      commitSha: deploymentHistoryForm.commitSha.trim(),
-      summary: deploymentHistoryForm.summary.trim(),
-    };
-
-    if (!payload.version || !payload.deployedAt || !payload.commitSha || !payload.summary) {
-      setDeploymentHistoryError(t("layout.release.formError"));
-      return;
-    }
-
-    setDeploymentHistorySaving(true);
-    setDeploymentHistoryError(null);
-
-    try {
-      const nextHistory = await createDeploymentHistoryEntry(context, payload);
-      setDeploymentHistory(nextHistory);
-      setDeploymentHistoryForm(buildEmptyDeploymentHistoryEntry());
-    } catch {
-      setDeploymentHistoryError(t("layout.release.saveError"));
-    } finally {
-      setDeploymentHistorySaving(false);
-    }
-  };
 
   const onNavigate = (key: NavKey) => {
     if (typeof window !== "undefined") {
@@ -473,7 +309,6 @@ export function BackofficeLayout({
       navigate(key);
     }
     setMobileMenuOpen(false);
-    setReleaseHistoryOpen(false);
     setPreferencesOpen(false);
   };
 
@@ -608,45 +443,10 @@ export function BackofficeLayout({
               <div className={`flex flex-wrap items-center justify-end ${compactViewport ? "gap-2" : "gap-2.5"}`}>
                 <div className="relative z-30">
                   <button
-                    ref={releaseHistoryButtonRef}
-                    type="button"
-                    onClick={() => {
-                      setReleaseHistoryOpen((currentValue) => !currentValue);
-                      setPreferencesOpen(false);
-                    }}
-                    aria-expanded={releaseHistoryOpen}
-                    aria-controls="deployment-history-panel"
-                    className={`ui-action-pill ui-action-pill--tonal ${narrowViewport ? "px-3 py-1.5 text-[11px]" : "text-xs"}`}
-                  >
-                    {t("layout.release.historyBtn")} ({deploymentHistory.history.length})
-                  </button>
-
-                  {releaseHistoryOpen &&
-                    releaseHistoryStyle &&
-                    canRenderFloatingPanels &&
-                    createPortal(
-                      <DeploymentHistoryDropdown
-                        canRecord={canRecordDeploymentHistory}
-                        error={deploymentHistoryError}
-                        form={deploymentHistoryForm}
-                        history={deploymentHistory}
-                        onFormChange={updateDeploymentHistoryForm}
-                        onSave={saveDeploymentHistoryEntry}
-                        panelRef={releaseHistoryPopoverRef}
-                        saving={deploymentHistorySaving}
-                        style={releaseHistoryStyle}
-                      />,
-                      document.body,
-                    )}
-                </div>
-
-                <div className="relative z-30">
-                  <button
                     ref={preferencesButtonRef}
                     type="button"
                     onClick={() => {
                       setPreferencesOpen((currentValue) => !currentValue);
-                      setReleaseHistoryOpen(false);
                     }}
                     aria-expanded={preferencesOpen}
                     aria-controls="layout-preferences-panel"
@@ -700,7 +500,7 @@ export function BackofficeLayout({
 
             <div className={`mt-3 flex flex-wrap items-center ${compactViewport ? "gap-2" : "gap-2.5"}`}>
               <span className="ui-status-chip ui-status-chip--neutral">
-                {t("layout.release.environment")} {deploymentHistory.environment.toUpperCase()}
+                {t("layout.release.version")}: {BACKOFFICE_VERSION}
               </span>
               <span
                 className={`ui-status-chip ${
@@ -722,12 +522,6 @@ export function BackofficeLayout({
                       : t("layout.header.semaphore.unknown")}
               </span>
               <span className={`${narrowViewport ? "text-[11px]" : "text-xs sm:text-sm"} text-[var(--md-sys-color-on-surface-variant)]`}>{globalHealthText}</span>
-              <span className={`${narrowViewport ? "text-[11px]" : "text-xs"} text-[var(--md-sys-color-on-surface-variant)]`}>
-                {t("layout.release.version")}: {deploymentHistory.currentVersion}
-              </span>
-              <span className={`${narrowViewport ? "text-[11px]" : "text-xs"} text-[var(--md-sys-color-on-surface-variant)]`}>
-                {t("layout.release.deployedAt")}: {deploymentHistory.currentDeployedAt}
-              </span>
             </div>
           </section>
 

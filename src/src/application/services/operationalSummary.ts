@@ -105,20 +105,6 @@ export type KubernetesOverview = {
   }>;
 };
 
-export type DeploymentHistoryEntry = {
-  version: string;
-  deployedAt: string;
-  commitSha: string;
-  summary: string;
-};
-
-export type DeploymentHistory = {
-  environment: string;
-  currentVersion: string;
-  currentDeployedAt: string;
-  history: DeploymentHistoryEntry[];
-};
-
 type ServiceOperationalSummaryApiResponse = {
   rows: Array<Omit<ServiceOperationalRow, "lastKnownError"> & { lastKnownError?: { message: string; at: string } | null }>;
   totals: ServiceOperationalSummary["totals"];
@@ -190,25 +176,5 @@ export async function fetchServiceOperationalSummary(
 export async function fetchKubernetesOverview(context: SessionContext): Promise<KubernetesOverview> {
   return fetchJson<KubernetesOverview>(`${EDGE_API_BASE}/v1/backoffice/kubernetes/overview`, {
     headers: composeAuthHeaders(context),
-  });
-}
-
-export async function fetchDeploymentHistory(context: SessionContext): Promise<DeploymentHistory> {
-  return fetchJson<DeploymentHistory>(`${EDGE_API_BASE}/v1/backoffice/deployment-history`, {
-    headers: composeAuthHeaders(context),
-  });
-}
-
-export async function createDeploymentHistoryEntry(
-  context: SessionContext,
-  entry: DeploymentHistoryEntry,
-): Promise<DeploymentHistory> {
-  return fetchJson<DeploymentHistory>(`${EDGE_API_BASE}/v1/backoffice/deployment-history`, {
-    body: JSON.stringify(entry),
-    headers: {
-      ...composeAuthHeaders(context),
-      "content-type": "application/json",
-    },
-    method: "POST",
   });
 }
