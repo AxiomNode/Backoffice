@@ -1344,16 +1344,16 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
             )}
 
             {failedChecks.length > 0 && (
-              <div className="rounded-[1.2rem] border border-rose-300 bg-rose-50 p-3 text-xs text-rose-950">
+              <div className="ui-feedback ui-feedback--error rounded-[1.2rem] p-3 text-xs">
                 <p className="font-semibold">{t("diag.tests.failedChecks")}</p>
                 <ul className="mt-2 space-y-2">
                   {failedChecks.map(({ suite, test }, index) => (
-                    <li key={`${suite}-${test.name}-${index}`} className="rounded-xl border border-rose-200 bg-white/70 px-3 py-2">
+                    <li key={`${suite}-${test.name}-${index}`} className="rounded-xl border border-[color:var(--ui-state-error-border)] bg-[color:var(--md-sys-color-surface-container-low)] px-3 py-2 text-[var(--md-sys-color-on-surface)]">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <span className="font-semibold">{test.name}</span>
-                        <span>{suite}</span>
+                        <span className="text-[var(--md-sys-color-on-surface-variant)]">{suite}</span>
                       </div>
-                      {test.error && <p className="mt-1">{test.error}</p>}
+                      {test.error && <p className="mt-1 text-[var(--md-sys-color-error)]">{test.error}</p>}
                     </li>
                   ))}
                 </ul>

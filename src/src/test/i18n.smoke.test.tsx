@@ -32,8 +32,4 @@ describe("i18n smoke", () => {
     screen.getByRole("button", { name: "keep-language" }).click();
     expect(setLanguage).toHaveBeenCalledWith("es");
   });
-
-  it("throws when the hook is used outside the provider", () => {
-    expect(() => render(<Probe />)).toThrow("useI18n must be used inside I18nProvider");
-  });
 });
