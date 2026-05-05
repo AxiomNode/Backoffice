@@ -990,7 +990,7 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
               />
               <StatCard label={t("diag.target.host")} value={target.host ?? "--"} />
               <StatCard label={t("diag.target.apiPort")} value={target.port ?? "--"} />
-              <StatCard label={t("diag.target.statsPort")} value={target.label ?? "--"} />
+              <StatCard label={t("diag.target.currentLabel")} value={target.label ?? "--"} />
             </div>
 
             <div className="grid gap-3 md:grid-cols-2">
@@ -1014,7 +1014,7 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
 
             <div className="grid gap-3 xl:grid-cols-[minmax(220px,320px)_1fr]">
               <label className="ui-control-label text-xs">
-                {t("diag.target.savedConnection")}
+                {t("diag.target.savedPreset")}
                 <select
                   value={selectedConnectionId}
                   onChange={(event) => {
@@ -1033,16 +1033,16 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
               </label>
 
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <StatCard label={t("diag.target.savedCount")} value={connections.length} />
-                <StatCard label={t("diag.target.activeConnection")} value={connections.find((entry) => entry.active)?.name ?? target.label ?? "--"} />
-                <StatCard label={t("diag.target.source")} value={target.source === "override" ? t("diag.target.source.override") : t("diag.target.source.env")} />
-                <StatCard label={t("diag.target.host")} value={target.host ?? "--"} />
+                <StatCard label={t("diag.target.savedPresetCount")} value={connections.length} />
+                <StatCard label={t("diag.target.selectedPreset")} value={connections.find((entry) => entry.id === selectedConnectionId)?.name ?? "--"} />
+                <StatCard label={t("diag.target.activePreset")} value={connections.find((entry) => entry.active)?.name ?? target.label ?? "--"} />
+                <StatCard label={t("diag.target.lastUpdated")} value={target.updatedAt ? new Date(target.updatedAt).toLocaleTimeString() : "--"} />
               </div>
             </div>
 
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               <label className="ui-control-label text-xs">
-                {t("diag.target.label")}
+                {t("diag.target.presetName")}
                 <input
                   value={targetLabel}
                   onChange={(event) => setTargetLabel(event.target.value)}
@@ -1094,7 +1094,7 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
                 disabled={targetSaving}
                 className="ui-action-pill ui-action-pill--quiet text-xs"
               >
-                {t("diag.target.newConnectionBtn")}
+                {t("diag.target.newPresetBtn")}
               </button>
               <button
                 type="button"
@@ -1102,7 +1102,7 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
                 disabled={targetSaving || targetLabel.trim().length === 0 || targetHost.trim().length === 0}
                 className="ui-action-pill ui-action-pill--quiet text-xs"
               >
-                {t("diag.target.saveConnectionBtn")}
+                {t("diag.target.savePresetBtn")}
               </button>
               <button
                 type="button"
@@ -1110,7 +1110,7 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
                 disabled={targetSaving || !selectedConnectionId || creatingConnection}
                 className="ui-action-pill ui-action-pill--tonal text-xs"
               >
-                {targetSaving ? t("diag.tests.running") : t("diag.target.activateConnectionBtn")}
+                {targetSaving ? t("diag.tests.running") : t("diag.target.activatePresetBtn")}
               </button>
               <button
                 type="button"
@@ -1126,7 +1126,7 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
                 disabled={targetSaving || !selectedConnectionId || creatingConnection}
                 className="ui-action-pill ui-action-pill--quiet text-xs"
               >
-                {t("diag.target.deleteConnectionBtn")}
+                {t("diag.target.deletePresetBtn")}
               </button>
               <button
                 type="button"

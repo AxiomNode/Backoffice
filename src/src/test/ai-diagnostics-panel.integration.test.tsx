@@ -184,11 +184,11 @@ describe("AIDiagnosticsPanel integration", () => {
     fireEvent.change(screen.getByLabelText("Puerto llama"), {
       target: { value: "17002" },
     });
-    fireEvent.change(screen.getByPlaceholderText("workstation gpu"), {
+    fireEvent.change(screen.getByPlaceholderText("gpu workstation"), {
       target: { value: "workstation gpu" },
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Aplicar destino" }));
+    fireEvent.click(screen.getByRole("button", { name: "Aplicar formulario como destino" }));
 
     await waitFor(() => {
       expect(fetchJsonMock).toHaveBeenCalledWith(
@@ -206,7 +206,7 @@ describe("AIDiagnosticsPanel integration", () => {
       expect(screen.getByText("http://192.168.1.80:17002/v1/completions")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Volver a entorno" }));
+    fireEvent.click(screen.getByRole("button", { name: "Volver al destino de entorno" }));
 
     await waitFor(() => {
       expect(fetchJsonMock).toHaveBeenCalledWith(
@@ -429,13 +429,13 @@ describe("AIDiagnosticsPanel integration", () => {
     fireEvent.change(screen.getByDisplayValue("localhost"), {
       target: { value: "ai.error" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Aplicar destino" }));
+    fireEvent.click(screen.getByRole("button", { name: "Aplicar formulario como destino" }));
 
     await waitFor(() => {
       expect(screen.getByText("Error al gestionar el destino del AI Engine: apply-target-error")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Volver a entorno" }));
+    fireEvent.click(screen.getByRole("button", { name: "Volver al destino de entorno" }));
 
     await waitFor(() => {
       expect(screen.getByText("Error al gestionar el destino del AI Engine: reset-target-down")).toBeInTheDocument();
