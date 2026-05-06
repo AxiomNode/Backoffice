@@ -406,12 +406,12 @@ describe("ServiceConsolePanel integration", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Datos" }));
 
     await waitFor(() => {
-      expect(screen.getByText("Distribucion de contenido por categoria e idioma")).toBeInTheDocument();
-      expect(screen.getByText("Muestra: 12")).toBeInTheDocument();
+      expect(screen.getByText("Distribucion de contenido por categoria")).toBeInTheDocument();
+      expect(screen.getByText("Total: 12")).toBeInTheDocument();
       expect(screen.getByText("Categorias")).toBeInTheDocument();
-      expect(screen.getByText("Lenguajes")).toBeInTheDocument();
       expect(screen.getByText("Refuerza generacion en categorias: Sports.")).toBeInTheDocument();
-      expect(screen.getByText("Prioriza contenido para idiomas: EN.")).toBeInTheDocument();
+      expect(screen.queryByText("Lenguajes")).not.toBeInTheDocument();
+      expect(screen.queryByText("Prioriza contenido para idiomas: EN.")).not.toBeInTheDocument();
     });
   });
 

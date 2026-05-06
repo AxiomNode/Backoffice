@@ -792,15 +792,6 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
       conclusions.push(t("service.data.insights.recoCategory", { targets }));
     }
 
-    if (insights.deficitLanguages.length > 0) {
-      const targets = insights.deficitLanguages.map((entry) => entry.code.toUpperCase()).join(", ");
-      conclusions.push(t("service.data.insights.recoLanguage", { targets }));
-    }
-
-    if (insights.languages.length <= 1) {
-      conclusions.push(t("service.data.insights.recoSingleLanguage"));
-    }
-
     if (insights.categories.length <= 1) {
       conclusions.push(t("service.data.insights.recoSingleCategory"));
     }
@@ -1636,25 +1627,13 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
                 </span>
               </div>
 
-              <div className="grid gap-2 md:grid-cols-2">
+              <div className="grid gap-2">
                 <div className="rounded-xl border border-[var(--md-sys-color-outline-variant)] p-2.5">
                   <p className="text-xs font-semibold text-[var(--md-sys-color-on-surface-variant)]">{t("service.data.insights.byCategory")}</p>
                   <ul className="mt-2 space-y-1 text-sm">
                     {state.dataInsights.categories.map((entry) => (
                       <li key={entry.id} className="flex items-center justify-between gap-2">
                         <span className="truncate">{entry.name}</span>
-                        <span className="text-xs text-[var(--md-sys-color-on-surface-variant)]">{entry.count} ({entry.percentage}%)</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                <div className="rounded-xl border border-[var(--md-sys-color-outline-variant)] p-2.5">
-                  <p className="text-xs font-semibold text-[var(--md-sys-color-on-surface-variant)]">{t("service.data.insights.byLanguage")}</p>
-                  <ul className="mt-2 space-y-1 text-sm">
-                    {state.dataInsights.languages.map((entry) => (
-                      <li key={entry.code} className="flex items-center justify-between gap-2">
-                        <span className="uppercase">{entry.code}</span>
                         <span className="text-xs text-[var(--md-sys-color-on-surface-variant)]">{entry.count} ({entry.percentage}%)</span>
                       </li>
                     ))}
