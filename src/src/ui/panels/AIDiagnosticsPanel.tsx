@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { SessionContext, UiDensity } from "../../domain/types/backoffice";
 import { composeAuthHeaders } from "../../infrastructure/backoffice/authHeaders";
@@ -147,6 +147,14 @@ type AIDiagnosticsPanelProps = {
   density: UiDensity;
 };
 
+type CompactMultiSelectProps<Value extends string> = {
+  label: string;
+  options: Array<{ id: Value; label: string }>;
+  selectedValues: Value[];
+  allSelectedLabel: string;
+  onChange: (nextValues: Value[]) => void;
+};
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -192,8 +200,79 @@ function formatTimestamp(value: string | null | undefined): string {
   return timestamp.toLocaleString();
 }
 
-function readMultiSelectValues(event: ChangeEvent<HTMLSelectElement>): string[] {
-  return Array.from(event.target.selectedOptions).map((option) => option.value);
+function CompactMultiSelect<Value extends string>({
+  label,
+  options,
+  selectedValues,
+  allSelectedLabel,
+  onChange,
+}: CompactMultiSelectProps<Value>) {
+  const allSelected = options.length > 0 && selectedValues.length === options.length;
+  const selectedSet = new Set(selectedValues);
+  const selectedLabels = options
+    .filter((option) => selectedSet.has(option.id))
+    .map((option) => option.label);
+  const summary = selectedValues.length === 0 || allSelected
+    ? allSelectedLabel
+    : selectedLabels.length > 2
+      ? `${selectedLabels.slice(0, 2).join(", ")} +${selectedLabels.length - 2}`
+      : selectedLabels.join(", ");
+
+  const toggleValue = (id: Value) => {
+    if (selectedValues.length === 0 || allSelected) {
+      onChange([id]);
+      return;
+    }
+
+    const nextValues = selectedSet.has(id)
+      ? selectedValues.filter((value) => value !== id)
+      : [...selectedValues, id];
+    onChange(nextValues);
+  };
+
+  return (
+    <div>
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--md-sys-color-on-surface-variant)]">{label}</p>
+      {options.length === 0 ? (
+        <button type="button" disabled className="control-input mt-2 w-full cursor-not-allowed px-2 py-1.5 text-left text-xs opacity-60">
+          --
+        </button>
+      ) : (
+        <details className="group mt-2">
+          <summary className="control-input flex min-h-9 cursor-pointer list-none items-center justify-between gap-2 px-2 py-1.5 text-xs [&::-webkit-details-marker]:hidden">
+            <span className="truncate text-[var(--md-sys-color-on-surface)]">{summary}</span>
+            <span className="shrink-0 text-[10px] uppercase tracking-wide text-[var(--md-sys-color-on-surface-variant)]">
+              {selectedValues.length === 0 || allSelected ? "All" : `${selectedValues.length}/${options.length}`}
+            </span>
+          </summary>
+          <div className="mt-2 grid max-h-44 gap-1 overflow-y-auto rounded-xl border border-[var(--md-sys-color-outline-variant)] bg-[var(--md-sys-color-surface-container-low)] p-1.5">
+            <button
+              type="button"
+              aria-pressed={selectedValues.length === 0 || allSelected}
+              onClick={() => onChange([])}
+              className={`rounded-lg px-2 py-1.5 text-left text-xs transition ${selectedValues.length === 0 || allSelected ? "bg-[var(--md-sys-color-primary-container)] text-[var(--md-sys-color-on-primary-container)]" : "text-[var(--md-sys-color-on-surface)] hover:bg-[var(--md-sys-color-surface-container-high)]"}`}
+            >
+              {allSelectedLabel}
+            </button>
+            {options.map((option) => {
+              const selected = selectedSet.has(option.id) && !allSelected;
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  aria-pressed={selected}
+                  onClick={() => toggleValue(option.id)}
+                  className={`rounded-lg px-2 py-1.5 text-left text-xs transition ${selected ? "bg-[var(--md-sys-color-secondary-container)] text-[var(--md-sys-color-on-secondary-container)]" : "text-[var(--md-sys-color-on-surface)] hover:bg-[var(--md-sys-color-surface-container-high)]"}`}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
+        </details>
+      )}
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -612,29 +691,19 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
 
                 <div className="mt-3 grid gap-3 md:grid-cols-2">
                   <div className="ui-panel-block rounded-[1rem] p-2.5">
-                    <label className="text-[11px] font-semibold uppercase tracking-wide text-[var(--md-sys-color-on-surface-variant)]">
-                      {t("diag.generation.categories")}
-                      <select
-                        multiple
-                        size={Math.min(4, Math.max(2, categories.length || 2))}
-                        value={state.form.categoryIds}
-                        disabled={categories.length === 0}
-                        onChange={(event) => {
-                          setGeneratorPatch(game, {
-                            form: {
-                              categoryIds: readMultiSelectValues(event),
-                            },
-                          });
-                        }}
-                        className="control-input mt-2 w-full px-2 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {categories.map((entry) => (
-                          <option key={`${game}-cat-${entry.id}`} value={entry.id}>
-                            {entry.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
+                    <CompactMultiSelect
+                      label={t("diag.generation.categories")}
+                      options={categories.map((entry) => ({ id: entry.id, label: entry.name }))}
+                      selectedValues={state.form.categoryIds}
+                      allSelectedLabel={t("diag.generation.allSelectedHint")}
+                      onChange={(nextValues) => {
+                        setGeneratorPatch(game, {
+                          form: {
+                            categoryIds: nextValues,
+                          },
+                        });
+                      }}
+                    />
                     <p className="mt-2 text-[11px] text-[var(--md-sys-color-on-surface-variant)]">
                       {allCategoriesSelected || state.form.categoryIds.length === 0
                         ? t("diag.generation.allSelectedHint")
@@ -643,29 +712,19 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
                   </div>
 
                   <div className="ui-panel-block rounded-[1rem] p-2.5">
-                    <label className="text-[11px] font-semibold uppercase tracking-wide text-[var(--md-sys-color-on-surface-variant)]">
-                      {t("diag.generation.difficulties")}
-                      <select
-                        multiple
-                        size={Math.min(4, Math.max(2, difficultyLevels.length || 2))}
-                        value={state.form.difficultyLevels}
-                        disabled={difficultyLevels.length === 0}
-                        onChange={(event) => {
-                          setGeneratorPatch(game, {
-                            form: {
-                              difficultyLevels: readMultiSelectValues(event) as RuntimeDifficultyLevel[],
-                            },
-                          });
-                        }}
-                        className="control-input mt-2 w-full px-2 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {difficultyLevels.map((entry) => (
-                          <option key={`${game}-difficulty-${entry.id}`} value={entry.id}>
-                            {entry.label} ({entry.min}-{entry.max})
-                          </option>
-                        ))}
-                      </select>
-                    </label>
+                    <CompactMultiSelect
+                      label={t("diag.generation.difficulties")}
+                      options={difficultyLevels.map((entry) => ({ id: entry.id, label: `${entry.label} (${entry.min}-${entry.max})` }))}
+                      selectedValues={state.form.difficultyLevels}
+                      allSelectedLabel={t("diag.generation.allSelectedHint")}
+                      onChange={(nextValues) => {
+                        setGeneratorPatch(game, {
+                          form: {
+                            difficultyLevels: nextValues,
+                          },
+                        });
+                      }}
+                    />
                     <p className="mt-2 text-[11px] text-[var(--md-sys-color-on-surface-variant)]">
                       {allDifficultiesSelected || state.form.difficultyLevels.length === 0
                         ? t("diag.generation.allSelectedHint")
