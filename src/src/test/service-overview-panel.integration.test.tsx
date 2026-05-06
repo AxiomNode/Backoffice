@@ -815,7 +815,7 @@ describe("ServiceOverviewPanel integration", () => {
     });
   });
 
-  it("uses protocol changes and a safe fallback port when creating presets", async () => {
+  it("uses protocol changes and a safe https fallback port when creating presets", async () => {
     renderPanel();
 
     fireEvent.click(screen.getByRole("button", { name: "Mostrar" }));
@@ -840,7 +840,7 @@ describe("ServiceOverviewPanel integration", () => {
             name: "TLS relay",
             host: "relay.example.com",
             protocol: "https",
-            port: 7002,
+            port: 443,
           }),
         }),
       );

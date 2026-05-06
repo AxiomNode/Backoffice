@@ -131,6 +131,30 @@ export function parseAiEnginePort(value: string, fallback: number) {
   return Number.isInteger(parsed) && parsed > 0 && parsed <= 65535 ? parsed : fallback;
 }
 
+function normalizeAiEngineDraftTarget(hostInput: string, protocolInput: "http" | "https", portInput: string) {
+  const rawHost = hostInput.trim();
+  let host = rawHost.replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+  let protocol: "http" | "https" = rawHost.toLowerCase().startsWith("https://") ? "https" : protocolInput;
+  let port = parseAiEnginePort(portInput, protocol === "https" ? 443 : 7002);
+
+  const pathIndex = host.indexOf("/");
+  if (pathIndex >= 0) {
+    host = host.slice(0, pathIndex);
+  }
+
+  const portMatch = host.match(/:(\d+)$/);
+  if (portMatch?.[1]) {
+    port = parseAiEnginePort(portMatch[1], port);
+    host = host.replace(/:\d+$/, "");
+  }
+
+  if (port === 443 && host.endsWith(".trycloudflare.com")) {
+    protocol = "https";
+  }
+
+  return { host, protocol, port };
+}
+
 function describeProbeFailure(applyBlockedLabel: string, probe: AiEngineProbeResult) {
   const detail = probe.llama.message ?? (probe.llama.status !== null ? `HTTP ${probe.llama.status}` : "unreachable");
   return `${applyBlockedLabel} Endpoint: ${probe.llama.url}. Detail: ${detail}.`;
@@ -274,11 +298,11 @@ export function useAiEngineTargetState({
     [isCreatingPreset, presets, selectedPresetId],
   );
 
-  const buildDraftTarget = useCallback(() => ({
-    host: presetHostRef.current.trim(),
-    protocol: presetProtocolRef.current,
-    port: parseAiEnginePort(presetPortRef.current, 7002),
-  }), []);
+  const buildDraftTarget = useCallback(() => normalizeAiEngineDraftTarget(
+    presetHostRef.current,
+    presetProtocolRef.current,
+    presetPortRef.current,
+  ), []);
 
   const probeTarget = useCallback(async (targetOverride?: { host: string; protocol: "http" | "https"; port: number }) => {
     const payload = targetOverride ?? buildDraftTarget();
@@ -347,9 +371,7 @@ export function useAiEngineTargetState({
     try {
       const payload = {
         name: presetNameRef.current.trim(),
-        host: presetHostRef.current.trim(),
-        protocol: presetProtocolRef.current,
-        port: parseAiEnginePort(presetPortRef.current, 7002),
+        ...buildDraftTarget(),
       };
       const saved = activePreset && !isCreatingPreset
         ? await fetchJson<AiEngineTargetPreset>(`${EDGE_API_BASE}/v1/backoffice/ai-engine/presets/${encodeURIComponent(activePreset.id)}`, {
