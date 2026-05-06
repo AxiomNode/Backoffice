@@ -185,6 +185,7 @@ describe("AIDiagnosticsPanel integration", () => {
 
   it("loads and updates the ai-engine runtime target", async () => {
     renderPanel();
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar" }));
 
     await waitFor(() => {
       expect(screen.getAllByText("http://localhost:7002/v1/completions").length).toBeGreaterThan(0);
@@ -451,6 +452,7 @@ describe("AIDiagnosticsPanel integration", () => {
     });
 
     renderPanel();
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar" }));
 
     await waitFor(() => {
       expect(screen.getByDisplayValue("localhost")).toBeInTheDocument();

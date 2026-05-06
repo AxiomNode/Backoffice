@@ -403,12 +403,12 @@ describe("ServiceOverviewPanel integration", () => {
       expect(screen.getByText("Destino del servidor llama")).toBeInTheDocument();
     });
 
-    expect(screen.queryByText("Etiqueta actual")).not.toBeInTheDocument();
+    expect(screen.queryByText("URL llama activa")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Mostrar" }));
 
     await waitFor(() => {
-      expect(screen.getByText("Etiqueta actual")).toBeInTheDocument();
+      expect(screen.getAllByText("Etiqueta actual").length).toBeGreaterThan(0);
       expect(screen.getAllByText("Workstation publica (195.35.48.40)").length).toBeGreaterThan(0);
     });
 
@@ -589,7 +589,7 @@ describe("ServiceOverviewPanel integration", () => {
 
     await waitFor(() => {
       expect(screen.getAllByText("workstation-gpu-vps-relay").length).toBeGreaterThan(0);
-      expect(screen.getByText("27001")).toBeInTheDocument();
+      expect(screen.getAllByText("27001").length).toBeGreaterThan(0);
       expect(screen.getByText("http://195.35.48.40:27001/v1/completions")).toBeInTheDocument();
     });
 

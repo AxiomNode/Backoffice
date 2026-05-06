@@ -10,10 +10,11 @@ import type { SessionContext, UiDensity } from "../../domain/types/backoffice";
 import { composeAuthHeaders } from "../../infrastructure/backoffice/authHeaders";
 import { EDGE_API_BASE, fetchJson } from "../../infrastructure/http/apiClient";
 import { useI18n } from "../../i18n/context";
+import { AiEngineTargetControl } from "../components/AiEngineTargetControl";
 import { AutoRefreshCountdown } from "../components/AutoRefreshCountdown";
 import { useMaxWidth } from "../hooks/useMaxWidth";
 import { useAutoRefreshScheduler } from "../hooks/useAutoRefreshScheduler";
-import { useAiEngineTargetState, type AiEngineProbeEndpointStatus } from "../hooks/useAiEngineTargetState";
+import { useAiEngineTargetState } from "../hooks/useAiEngineTargetState";
 
 /** @module ServiceOverviewPanel - Dashboard showing real-time operational status of all services. */
 
@@ -178,14 +179,6 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
   const intervalOptions = [5, 10, 15, 30, 60];
   const authHeaders = useCallback(() => composeAuthHeaders(context), [context]);
 
-  const describeProbeStatus = useCallback((status: AiEngineProbeEndpointStatus) => {
-    if (status.ok) {
-      return `${status.url} OK${status.latencyMs !== null ? ` · ${status.latencyMs}ms` : ""}`;
-    }
-
-    return `${status.url} ${status.message ?? "sin respuesta"}`;
-  }, []);
-
   const loadSummary = useCallback(async () => {
     const requestVersion = ++requestVersionRef.current;
     setLoading(true);
@@ -341,6 +334,30 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
     };
   }, [activeGenerations]);
 
+  const llamaStatus = useMemo(() => {
+    if (aiProbeLoading) {
+      return { value: "...", tone: "neutral" as const };
+    }
+    if (!aiProbeResult) {
+      return { value: "--", tone: "neutral" as const };
+    }
+    return aiProbeResult.reachable
+      ? { value: t("overview.status.online"), tone: "ok" as const }
+      : { value: t("overview.status.offline"), tone: "error" as const };
+  }, [aiProbeLoading, aiProbeResult, t]);
+
+  useEffect(() => {
+    if (!aiTarget?.host || !aiTarget.protocol || !aiTarget.port) {
+      return;
+    }
+
+    void probeAiTarget({
+      host: aiTarget.host,
+      protocol: aiTarget.protocol,
+      port: aiTarget.port,
+    }).catch(() => undefined);
+  }, [aiTarget?.host, aiTarget?.port, aiTarget?.protocol, probeAiTarget]);
+
   const activeGenerationSpotlight = useMemo(() => activeGenerations.slice(0, 3).map((entry) => {
     const riskKey = entry.task.status === "failed" || entry.task.failed > 0
       ? "overview.generations.risk.failed"
@@ -466,6 +483,13 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
             <KpiCard label={t("overview.summary.connectionErrors")} value={totals.connectionErrors} tone="error" compact={compactPanel} />
           </div>
 
+          <div className={`grid gap-2 ${compactViewport ? "grid-cols-2" : "sm:grid-cols-2 xl:grid-cols-4"}`}>
+            <KpiCard label={t("overview.llamaServer.title")} value={llamaStatus.value} tone={llamaStatus.tone} compact={compactPanel} />
+            <KpiCard label={t("overview.aiTarget.currentHost")} value={aiTarget?.host ?? "--"} tone={aiTarget?.host ? "ok" : "warn"} compact={compactPanel} />
+            <KpiCard label={t("overview.aiTarget.apiPort")} value={aiTarget?.port ?? "--"} tone="neutral" compact={compactPanel} />
+            <KpiCard label={t("overview.aiTarget.currentLabel")} value={aiTarget?.label ?? "--"} tone="neutral" compact={compactPanel} />
+          </div>
+
           <div className="ui-panel-block rounded-[1.6rem] p-4 space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -510,167 +534,76 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
             )}
           </div>
 
-          <div className="ui-panel-block rounded-[1.6rem] p-4 space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h3 className="text-sm font-semibold sm:text-base text-[var(--md-sys-color-on-surface)]">{t("overview.aiTarget.title")}</h3>
-                <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">{t("overview.aiTarget.subtitle")}</p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setAiTargetExpanded((current) => !current)}
-                  className="ui-action-pill ui-action-pill--quiet min-h-0 px-3 py-1.5 text-xs"
-                  aria-expanded={aiTargetExpanded}
-                >
-                  {aiTargetExpanded ? t("service.section.hide") : t("service.section.show")}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    void refreshAiTarget();
-                  }}
-                  disabled={aiTargetLoading || aiTargetSaving || presetsLoading}
-                  className="ui-action-pill ui-action-pill--quiet min-h-0 px-3 py-1.5 text-xs"
-                >
-                  {aiTargetLoading || presetsLoading ? "..." : t("overview.aiTarget.refreshBtn")}
-                </button>
-              </div>
-            </div>
-
-            {!aiTargetExpanded ? (
-              <div className="ui-summary-band rounded-[1.25rem] p-3 text-xs text-[var(--md-sys-color-on-surface-variant)]">
-                {t("overview.aiTarget.dayOpsTitle")}: {aiTarget?.label ?? aiTarget?.host ?? "--"}
-              </div>
-            ) : (
-            <>
-            <div className="grid gap-3 xl:grid-cols-2">
-              <div className="ui-summary-band rounded-[1.25rem] p-3 text-xs text-[var(--md-sys-color-on-surface)]">
-                <p className="font-semibold">{t("overview.aiTarget.dayOpsTitle")}</p>
-                <p className="mt-1 text-[var(--md-sys-color-on-surface-variant)]">{t("overview.aiTarget.dayOpsBody")}</p>
-              </div>
-              <div className="ui-summary-band rounded-[1.25rem] p-3 text-xs text-[var(--md-sys-color-on-surface)]">
-                <p className="font-semibold">{t("overview.aiTarget.criticalTitle")}</p>
-                <p className="mt-1 text-[var(--md-sys-color-on-surface-variant)]">{t("overview.aiTarget.criticalBody")}</p>
-              </div>
-            </div>
-
-            {aiTargetError && <p className="ui-feedback ui-feedback--error">{t("overview.aiTarget.error")}: {aiTargetError}</p>}
-
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <KpiCard label={t("overview.aiTarget.currentHost")} value={aiTarget?.host ?? "--"} tone={aiTarget?.host ? "ok" : "warn"} />
-              <KpiCard label={t("overview.aiTarget.apiPort")} value={aiTarget?.port ?? "--"} tone="neutral" />
-              <KpiCard label={t("overview.aiTarget.currentLabel")} value={aiTarget?.label ?? "--"} tone="neutral" />
-              <KpiCard label={t("overview.aiTarget.optionsCount")} value={presets.length} tone="neutral" />
-            </div>
-
-            {aiTarget && (
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 text-xs text-[var(--md-sys-color-on-surface)]">
-                <p><span className="font-semibold">{t("overview.aiTarget.currentLabel")}:</span> {aiTarget.label ?? "--"}</p>
-                <p><span className="font-semibold">{t("overview.aiTarget.currentHostText")}:</span> {aiTarget.host ?? "--"}</p>
-                <p><span className="font-semibold">{t("overview.aiTarget.currentApiUrl")}:</span> {aiTarget.llamaBaseUrl ?? "--"}</p>
-                <p><span className="font-semibold">{t("overview.aiTarget.currentStatsUrl")}:</span> {aiTarget.envLlamaBaseUrl ?? "--"}</p>
-              </div>
-            )}
-
-            <div className="grid gap-3 xl:grid-cols-[minmax(240px,320px)_1fr]">
-              <label className="text-xs text-[var(--md-sys-color-on-surface)]">
-                {t("overview.aiTarget.selector")}
-                <select
-                  value={selectedPresetId}
-                  onChange={(event) => {
-                    setIsCreatingPreset(false);
-                    setSelectedPresetId(event.target.value);
-                  }}
-                  className="control-input mt-1 w-full px-2 py-2 text-sm"
-                >
-                  {presets.length === 0 && <option value="">--</option>}
-                  {presets.map((entry) => (
-                    <option key={entry.id} value={entry.id}>{entry.name}</option>
-                  ))}
-                </select>
-              </label>
-
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                <label className="ui-control-label text-xs">
-                  {t("overview.aiTarget.optionName")}
-                  <input value={presetName} onChange={(event) => setPresetName(event.target.value)} className="control-input mt-1 w-full" />
-                </label>
-                <label className="ui-control-label text-xs">
-                  {t("overview.aiTarget.optionHost")}
-                  <input value={presetHost} onChange={(event) => setPresetHost(event.target.value)} className="control-input mt-1 w-full" />
-                </label>
-                <label className="ui-control-label text-xs">
-                  {t("overview.aiTarget.optionProtocol")}
-                  <select value={presetProtocol} onChange={(event) => setPresetProtocol(event.target.value as "http" | "https")} className="control-input mt-1 w-full">
-                    <option value="http">http</option>
-                    <option value="https">https</option>
-                  </select>
-                </label>
-                <label className="ui-control-label text-xs">
-                  {t("overview.aiTarget.optionApiPort")}
-                  <input value={presetPort} onChange={(event) => setPresetPort(event.target.value)} inputMode="numeric" className="control-input mt-1 w-full" />
-                </label>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                onClick={() => {
-                  void probeAiTarget().catch(() => undefined);
-                }}
-                disabled={aiProbeLoading || presetHost.trim().length === 0}
-                className="ui-action-pill ui-action-pill--quiet text-xs"
-              >
-                {aiProbeLoading ? t("service.button.updating") : t("overview.aiTarget.probeBtn")}
-              </button>
-              <button
-                type="button"
-                onClick={applyAiPreset}
-                disabled={aiTargetSaving || !activePreset}
-                className="ui-action-pill ui-action-pill--tonal text-xs"
-              >
-                {aiTargetSaving ? t("service.button.updating") : t("overview.aiTarget.applyBtn")}
-              </button>
-              <button
-                type="button"
-                onClick={startNewPreset}
-                disabled={aiTargetSaving}
-                className="ui-action-pill ui-action-pill--quiet text-xs"
-              >
-                {t("overview.aiTarget.newBtn")}
-              </button>
-              <button
-                type="button"
-                onClick={() => void savePreset()}
-                disabled={presetName.trim().length === 0 || presetHost.trim().length === 0}
-                className="ui-action-pill ui-action-pill--quiet text-xs"
-              >
-                {activePreset ? t("overview.aiTarget.saveBtn") : t("overview.aiTarget.addBtn")}
-              </button>
-              <button
-                type="button"
-                onClick={() => void removePreset()}
-                disabled={!activePreset}
-                className="ui-action-pill ui-action-pill--quiet text-xs"
-              >
-                {t("overview.aiTarget.deleteBtn")}
-              </button>
-            </div>
-
-            {aiProbeResult && (
-              <div className="ui-summary-band rounded-[1.25rem] p-3 text-xs text-[var(--md-sys-color-on-surface)]">
-                <p className="font-semibold">
-                  {aiProbeResult.reachable ? t("overview.aiTarget.probeOk") : t("overview.aiTarget.probeFail")}
-                </p>
-                <p className="mt-1 text-[var(--md-sys-color-on-surface-variant)]">{describeProbeStatus(aiProbeResult.llama)}</p>
-              </div>
-            )}
-
-            </>
-            )}
-          </div>
+          <AiEngineTargetControl
+            labels={{
+              title: t("overview.aiTarget.title"),
+              subtitle: t("overview.aiTarget.subtitle"),
+              show: t("service.section.show"),
+              hide: t("service.section.hide"),
+              refresh: t("overview.aiTarget.refreshBtn"),
+              updating: t("service.button.updating"),
+              error: t("overview.aiTarget.error"),
+              collapsedTitle: t("overview.aiTarget.dayOpsTitle"),
+              dayOpsTitle: t("overview.aiTarget.dayOpsTitle"),
+              dayOpsBody: t("overview.aiTarget.dayOpsBody"),
+              criticalTitle: t("overview.aiTarget.criticalTitle"),
+              criticalBody: t("overview.aiTarget.criticalBody"),
+              source: t("diag.target.source"),
+              sourceEnv: t("diag.target.source.env"),
+              sourceOverride: t("diag.target.source.override"),
+              currentHost: t("overview.aiTarget.currentHost"),
+              port: t("overview.aiTarget.apiPort"),
+              currentLabel: t("overview.aiTarget.currentLabel"),
+              optionsCount: t("overview.aiTarget.optionsCount"),
+              currentHostText: t("overview.aiTarget.currentHostText"),
+              currentUrl: t("overview.aiTarget.currentApiUrl"),
+              envUrl: t("overview.aiTarget.currentStatsUrl"),
+              selector: t("overview.aiTarget.selector"),
+              optionName: t("overview.aiTarget.optionName"),
+              optionHost: t("overview.aiTarget.optionHost"),
+              optionProtocol: t("overview.aiTarget.optionProtocol"),
+              optionPort: t("overview.aiTarget.optionApiPort"),
+              probe: t("overview.aiTarget.probeBtn"),
+              applyPreset: t("overview.aiTarget.applyBtn"),
+              newPreset: t("overview.aiTarget.newBtn"),
+              addPreset: t("overview.aiTarget.addBtn"),
+              savePreset: t("overview.aiTarget.saveBtn"),
+              deletePreset: t("overview.aiTarget.deleteBtn"),
+              probeOk: t("overview.aiTarget.probeOk"),
+              probeFail: t("overview.aiTarget.probeFail"),
+              updatedAt: t("diag.target.lastUpdated"),
+            }}
+            target={aiTarget}
+            targetLoading={aiTargetLoading}
+            targetSaving={aiTargetSaving}
+            targetError={aiTargetError}
+            presets={presets}
+            presetsLoading={presetsLoading}
+            selectedPresetId={selectedPresetId}
+            setSelectedPresetId={setSelectedPresetId}
+            isCreatingPreset={isCreatingPreset}
+            setIsCreatingPreset={setIsCreatingPreset}
+            presetName={presetName}
+            setPresetName={setPresetName}
+            presetHost={presetHost}
+            setPresetHost={setPresetHost}
+            presetProtocol={presetProtocol}
+            setPresetProtocol={setPresetProtocol}
+            presetPort={presetPort}
+            setPresetPort={setPresetPort}
+            activePreset={activePreset}
+            probeLoading={aiProbeLoading}
+            probeResult={aiProbeResult}
+            expanded={aiTargetExpanded}
+            setExpanded={setAiTargetExpanded}
+            onRefresh={() => void refreshAiTarget()}
+            onProbe={() => void probeAiTarget().catch(() => undefined)}
+            onApplyPreset={applyAiPreset}
+            onStartNewPreset={startNewPreset}
+            onSavePreset={() => void savePreset()}
+            onDeletePreset={() => void removePreset()}
+            formatTimestamp={formatTimestamp}
+          />
 
           {error && <p className="ui-feedback ui-feedback--error">{t("overview.error.load")}: {error}</p>}
 

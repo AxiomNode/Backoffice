@@ -7,6 +7,7 @@ import {
   fetchJson,
 } from "../../infrastructure/http/apiClient";
 import { useI18n } from "../../i18n/context";
+import { AiEngineTargetControl } from "../components/AiEngineTargetControl";
 import { useAiEngineTargetState } from "../hooks/useAiEngineTargetState";
 
 /** @module AIDiagnosticsPanel - AI diagnostics with RAG coverage stats and hallucination test runner. */
@@ -178,7 +179,7 @@ function formatDuration(startMs: number, endMs: number): string {
   return diff < 1 ? `${Math.round(diff * 1000)}ms` : `${diff.toFixed(1)}s`;
 }
 
-function formatTimestamp(value: string | null): string {
+function formatTimestamp(value: string | null | undefined): string {
   if (!value) {
     return "--";
   }
@@ -211,6 +212,7 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
     targetSaving,
     targetError,
     presets: connections,
+    presetsLoading: connectionsLoading,
     selectedPresetId: selectedConnectionId,
     setSelectedPresetId: setSelectedConnectionId,
     isCreatingPreset: creatingConnection,
@@ -223,7 +225,11 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
     setPresetProtocol: setTargetProtocol,
     presetPort: targetPort,
     setPresetPort: setTargetPort,
+    activePreset: activeConnection,
+    probeLoading: targetProbeLoading,
+    probeResult: targetProbeResult,
     refresh: loadTarget,
+    probeTarget,
     applyDraftTarget: applyTarget,
     savePreset: saveConnection,
     activateSelectedPreset: activateConnection,
@@ -234,6 +240,8 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
     context,
     unknownErrorLabel: t("roles.errorUnknown"),
   });
+
+  const [targetExpanded, setTargetExpanded] = useState(false);
 
   const [generatorState, setGeneratorState] = useState<Record<GameGeneratorKey, GeneratorUiState>>({
     quiz: {
@@ -731,194 +739,83 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
       </div>
 
       <div className="m3-card ui-panel-shell rounded-[1.75rem] p-4">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <div>
-            <h3 className="text-base font-semibold text-[var(--md-sys-color-on-surface)]">
-              {t("diag.target.title")}
-            </h3>
-            <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
-              {t("diag.target.subtitle")}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={loadTarget}
-            disabled={targetLoading || targetSaving}
-            className="ui-action-pill ui-action-pill--quiet min-h-0 px-3 py-1.5 text-xs"
-          >
-            {targetLoading ? "..." : t("diag.target.refreshBtn")}
-          </button>
-        </div>
-
-        {targetError && (
-          <div className="ui-feedback text-sm text-[var(--md-sys-color-error)]">
-            {t("diag.target.error")}: {targetError}
-          </div>
-        )}
-
-        {target && (
-          <div className="space-y-4">
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <StatCard
-                label={t("diag.target.source")}
-                value={target.source === "override" ? t("diag.target.source.override") : t("diag.target.source.env")}
-              />
-              <StatCard label={t("diag.target.host")} value={target.host ?? "--"} />
-              <StatCard label={t("diag.target.apiPort")} value={target.port ?? "--"} />
-              <StatCard label={t("diag.target.currentLabel")} value={target.label ?? "--"} />
-            </div>
-
-            <div className="grid gap-3 md:grid-cols-2">
-              <div className="ui-panel-block rounded-[1.2rem] p-3">
-                <div className="text-[11px] font-semibold uppercase tracking-wide text-[var(--md-sys-color-on-surface-variant)]">
-                  {t("diag.target.currentApiUrl")}
-                </div>
-                <div className="mt-1 break-all font-mono text-xs text-[var(--md-sys-color-on-surface)]">
-                  {target.llamaBaseUrl ?? "--"}
-                </div>
-              </div>
-              <div className="ui-panel-block rounded-[1.2rem] p-3">
-                <div className="text-[11px] font-semibold uppercase tracking-wide text-[var(--md-sys-color-on-surface-variant)]">
-                  {t("diag.target.currentStatsUrl")}
-                </div>
-                <div className="mt-1 break-all font-mono text-xs text-[var(--md-sys-color-on-surface)]">
-                  {target.envLlamaBaseUrl ?? "--"}
-                </div>
-              </div>
-            </div>
-
-            <div className="grid gap-3 xl:grid-cols-[minmax(220px,320px)_1fr]">
-              <label className="ui-control-label text-xs">
-                {t("diag.target.savedPreset")}
-                <select
-                  value={selectedConnectionId}
-                  onChange={(event) => {
-                    setCreatingConnection(false);
-                    setSelectedConnectionId(event.target.value);
-                  }}
-                  className="control-input mt-1 w-full"
-                >
-                  {connections.length === 0 && <option value="">--</option>}
-                  {connections.map((entry) => (
-                    <option key={entry.id} value={entry.id}>
-                      {entry.active ? "* " : ""}{entry.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <StatCard label={t("diag.target.savedPresetCount")} value={connections.length} />
-                <StatCard label={t("diag.target.selectedPreset")} value={connections.find((entry) => entry.id === selectedConnectionId)?.name ?? "--"} />
-                <StatCard label={t("diag.target.activePreset")} value={connections.find((entry) => entry.active)?.name ?? target.label ?? "--"} />
-                <StatCard label={t("diag.target.lastUpdated")} value={target.updatedAt ? new Date(target.updatedAt).toLocaleTimeString() : "--"} />
-              </div>
-            </div>
-
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              <label className="ui-control-label text-xs">
-                {t("diag.target.presetName")}
-                <input
-                  value={targetLabel}
-                  onChange={(event) => setTargetLabel(event.target.value)}
-                  placeholder={t("diag.target.labelHint")}
-                  className="control-input mt-1 w-full"
-                />
-              </label>
-
-              <label className="ui-control-label text-xs">
-                {t("diag.target.host")}
-                <input
-                  value={targetHost}
-                  onChange={(event) => setTargetHost(event.target.value)}
-                  placeholder="192.168.1.80"
-                  className="control-input mt-1 w-full"
-                />
-              </label>
-
-              <label className="ui-control-label text-xs">
-                {t("diag.target.protocol")}
-                <select
-                  value={targetProtocol}
-                  onChange={(event) => setTargetProtocol(event.target.value as "http" | "https")}
-                  className="control-input mt-1 w-full"
-                >
-                  <option value="http">http</option>
-                  <option value="https">https</option>
-                </select>
-              </label>
-
-              <label className="ui-control-label text-xs">
-                {t("diag.target.apiPort")}
-                <input
-                  value={targetPort}
-                  onChange={(event) => setTargetPort(event.target.value)}
-                  inputMode="numeric"
-                  className="control-input mt-1 w-full"
-                />
-              </label>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                onClick={startNewPreset}
-                disabled={targetSaving}
-                className="ui-action-pill ui-action-pill--quiet text-xs"
-              >
-                {t("diag.target.newPresetBtn")}
-              </button>
-              <button
-                type="button"
-                onClick={() => void saveConnection()}
-                disabled={targetSaving || targetLabel.trim().length === 0 || targetHost.trim().length === 0}
-                className="ui-action-pill ui-action-pill--quiet text-xs"
-              >
-                {t("diag.target.savePresetBtn")}
-              </button>
-              <button
-                type="button"
-                onClick={() => void activateConnection({ probeFirst: true })}
-                disabled={targetSaving || !selectedConnectionId || creatingConnection}
-                className="ui-action-pill ui-action-pill--tonal text-xs"
-              >
-                {targetSaving ? t("diag.tests.running") : t("diag.target.activatePresetBtn")}
-              </button>
-              <button
-                type="button"
-                onClick={() => void applyTarget({ probeFirst: true })}
-                disabled={targetSaving || targetHost.trim().length === 0}
-                className="ui-action-pill ui-action-pill--quiet text-xs"
-              >
-                {t("diag.target.applyBtn")}
-              </button>
-              <button
-                type="button"
-                onClick={() => void deleteConnection()}
-                disabled={targetSaving || !selectedConnectionId || creatingConnection}
-                className="ui-action-pill ui-action-pill--quiet text-xs"
-              >
-                {t("diag.target.deletePresetBtn")}
-              </button>
-              <button
-                type="button"
-                onClick={resetTarget}
-                disabled={targetSaving}
-                className="ui-action-pill ui-action-pill--quiet text-xs"
-              >
-                {t("diag.target.resetBtn")}
-              </button>
-              <span className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
-                {t("diag.target.updatedAt")}: {formatTimestamp(target.updatedAt)}
-              </span>
-            </div>
-
-            <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
-              {t("diag.target.runtimeOnly")}
-            </p>
-
-          </div>
-        )}
+        <AiEngineTargetControl
+          labels={{
+            title: t("diag.target.title"),
+            subtitle: t("diag.target.subtitle"),
+            show: t("service.section.show"),
+            hide: t("service.section.hide"),
+            refresh: t("diag.target.refreshBtn"),
+            updating: t("diag.tests.running"),
+            error: t("diag.target.error"),
+            collapsedTitle: t("overview.aiTarget.dayOpsTitle"),
+            dayOpsTitle: t("overview.aiTarget.dayOpsTitle"),
+            dayOpsBody: t("overview.aiTarget.dayOpsBody"),
+            criticalTitle: t("overview.aiTarget.criticalTitle"),
+            criticalBody: t("overview.aiTarget.criticalBody"),
+            source: t("diag.target.source"),
+            sourceEnv: t("diag.target.source.env"),
+            sourceOverride: t("diag.target.source.override"),
+            currentHost: t("diag.target.host"),
+            port: t("diag.target.apiPort"),
+            currentLabel: t("diag.target.currentLabel"),
+            optionsCount: t("diag.target.savedPresetCount"),
+            currentHostText: t("overview.aiTarget.currentHostText"),
+            currentUrl: t("diag.target.currentApiUrl"),
+            envUrl: t("diag.target.currentStatsUrl"),
+            selector: t("diag.target.savedPreset"),
+            optionName: t("diag.target.presetName"),
+            optionNamePlaceholder: t("diag.target.labelHint"),
+            optionHost: t("diag.target.host"),
+            optionHostPlaceholder: "192.168.1.80",
+            optionProtocol: t("diag.target.protocol"),
+            optionPort: t("diag.target.apiPort"),
+            probe: t("overview.aiTarget.probeBtn"),
+            applyPreset: t("diag.target.activatePresetBtn"),
+            applyForm: t("diag.target.applyBtn"),
+            newPreset: t("diag.target.newPresetBtn"),
+            addPreset: t("diag.target.savePresetBtn"),
+            savePreset: t("diag.target.savePresetBtn"),
+            deletePreset: t("diag.target.deletePresetBtn"),
+            resetTarget: t("diag.target.resetBtn"),
+            probeOk: t("overview.aiTarget.probeOk"),
+            probeFail: t("overview.aiTarget.probeFail"),
+            runtimeNote: t("diag.target.runtimeOnly"),
+            updatedAt: t("diag.target.lastUpdated"),
+          }}
+          target={target}
+          targetLoading={targetLoading}
+          targetSaving={targetSaving}
+          targetError={targetError}
+          presets={connections}
+          presetsLoading={connectionsLoading}
+          selectedPresetId={selectedConnectionId}
+          setSelectedPresetId={setSelectedConnectionId}
+          isCreatingPreset={creatingConnection}
+          setIsCreatingPreset={setCreatingConnection}
+          presetName={targetLabel}
+          setPresetName={setTargetLabel}
+          presetHost={targetHost}
+          setPresetHost={setTargetHost}
+          presetProtocol={targetProtocol}
+          setPresetProtocol={setTargetProtocol}
+          presetPort={targetPort}
+          setPresetPort={setTargetPort}
+          activePreset={activeConnection}
+          probeLoading={targetProbeLoading}
+          probeResult={targetProbeResult}
+          expanded={targetExpanded}
+          setExpanded={setTargetExpanded}
+          onRefresh={() => void loadTarget()}
+          onProbe={() => void probeTarget().catch(() => undefined)}
+          onApplyPreset={() => void activateConnection({ probeFirst: true })}
+          onApplyForm={() => void applyTarget({ probeFirst: true })}
+          onStartNewPreset={startNewPreset}
+          onSavePreset={() => void saveConnection()}
+          onDeletePreset={() => void deleteConnection()}
+          onResetTarget={() => void resetTarget()}
+          formatTimestamp={formatTimestamp}
+        />
       </div>
 
       {/* RAG Meter */}
