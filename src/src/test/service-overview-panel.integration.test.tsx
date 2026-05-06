@@ -325,6 +325,37 @@ describe("ServiceOverviewPanel integration", () => {
     });
   });
 
+  it("hides the generation spotlight when there are no active processes", async () => {
+    const defaultFetchJson = fetchJsonMock.getMockImplementation();
+    fetchJsonMock.mockImplementation((url: string, options?: RequestInit) => {
+      if (url.includes("/v1/backoffice/services/microservice-quiz/generation/processes")) {
+        return Promise.resolve({ tasks: [] });
+      }
+
+      if (url.includes("/v1/backoffice/services/microservice-wordpass/generation/processes")) {
+        return Promise.resolve({ tasks: [] });
+      }
+
+      return defaultFetchJson?.(url, options);
+    });
+
+    renderPanel();
+
+    await waitFor(() => {
+      expect(fetchJsonMock).toHaveBeenCalledWith(
+        expect.stringContaining("/v1/backoffice/services/microservice-quiz/generation/processes"),
+        expect.any(Object),
+      );
+      expect(fetchJsonMock).toHaveBeenCalledWith(
+        expect.stringContaining("/v1/backoffice/services/microservice-wordpass/generation/processes"),
+        expect.any(Object),
+      );
+    });
+
+    expect(screen.queryByText("Procesos activos de generacion")).not.toBeInTheDocument();
+    expect(screen.queryByText("No hay procesos activos iniciados desde backoffice.")).not.toBeInTheDocument();
+  });
+
   it("shows an active generation spotlight with risk summary on the overview", async () => {
     renderPanel();
 

@@ -334,6 +334,8 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
     };
   }, [activeGenerations]);
 
+  const showActiveGenerationSpotlight = activeGenerationSummary.total > 0;
+
   const llamaStatus = useMemo(() => {
     if (aiProbeLoading) {
       return { value: "...", tone: "neutral" as const };
@@ -490,23 +492,23 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
             <KpiCard label={t("overview.aiTarget.currentLabel")} value={aiTarget?.label ?? "--"} tone="neutral" compact={compactPanel} />
           </div>
 
-          <div className="ui-panel-block rounded-[1.6rem] p-4 space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h3 className="text-sm font-semibold sm:text-base text-[var(--md-sys-color-on-surface)]">{t("overview.generations.title")}</h3>
-                <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">{t("overview.generations.subtitle")}</p>
+          {showActiveGenerationSpotlight && (
+            <div className="ui-panel-block rounded-[1.6rem] p-4 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-semibold sm:text-base text-[var(--md-sys-color-on-surface)]">{t("overview.generations.title")}</h3>
+                  <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">{t("overview.generations.subtitle")}</p>
+                </div>
+                <span className="text-xs text-[var(--md-sys-color-on-surface-variant)]">{activeGenerationsLoading ? "..." : activeGenerationSummary.total}</span>
               </div>
-              <span className="text-xs text-[var(--md-sys-color-on-surface-variant)]">{activeGenerationsLoading ? "..." : activeGenerationSummary.total}</span>
-            </div>
 
-            <div className={`grid gap-2 ${compactViewport ? "grid-cols-2" : "sm:grid-cols-2 xl:grid-cols-4"}`}>
-              <KpiCard label={t("overview.generations.summary.active")} value={activeGenerationSummary.total} tone={activeGenerationSummary.total > 0 ? "warn" : "ok"} compact={compactPanel} />
-              <KpiCard label={t("overview.generations.summary.failed")} value={activeGenerationSummary.failing} tone={activeGenerationSummary.failing > 0 ? "error" : "ok"} compact={compactPanel} />
-              <KpiCard label={t("overview.generations.summary.duplicates")} value={activeGenerationSummary.duplicated} tone={activeGenerationSummary.duplicated > 0 ? "warn" : "ok"} compact={compactPanel} />
-              <KpiCard label={t("overview.generations.summary.progress")} value={`${activeGenerationSummary.processed}/${activeGenerationSummary.requested}`} tone="neutral" compact={compactPanel} />
-            </div>
+              <div className={`grid gap-2 ${compactViewport ? "grid-cols-2" : "sm:grid-cols-2 xl:grid-cols-4"}`}>
+                <KpiCard label={t("overview.generations.summary.active")} value={activeGenerationSummary.total} tone={activeGenerationSummary.total > 0 ? "warn" : "ok"} compact={compactPanel} />
+                <KpiCard label={t("overview.generations.summary.failed")} value={activeGenerationSummary.failing} tone={activeGenerationSummary.failing > 0 ? "error" : "ok"} compact={compactPanel} />
+                <KpiCard label={t("overview.generations.summary.duplicates")} value={activeGenerationSummary.duplicated} tone={activeGenerationSummary.duplicated > 0 ? "warn" : "ok"} compact={compactPanel} />
+                <KpiCard label={t("overview.generations.summary.progress")} value={`${activeGenerationSummary.processed}/${activeGenerationSummary.requested}`} tone="neutral" compact={compactPanel} />
+              </div>
 
-            {activeGenerationSpotlight.length > 0 ? (
               <ul className="space-y-2">
                 {activeGenerationSpotlight.map((entry, index) => (
                   <li key={entry.id} className="ui-summary-band rounded-[1.2rem] p-3">
@@ -529,10 +531,8 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
                   </li>
                 ))}
               </ul>
-            ) : (
-              <p className="text-sm text-[var(--md-sys-color-on-surface-variant)]">{t("overview.generations.none")}</p>
-            )}
-          </div>
+            </div>
+          )}
 
           <AiEngineTargetControl
             labels={{
