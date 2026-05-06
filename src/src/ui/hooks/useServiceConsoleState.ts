@@ -262,6 +262,7 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
   const [catalog, setCatalog] = useState<ServiceCatalogItem[]>([]);
   const [metricsRows, setMetricsRows] = useState<Array<Record<string, unknown>>>([]);
   const [logsRows, setLogsRows] = useState<Array<Record<string, unknown>>>([]);
+  const [logsNote, setLogsNote] = useState<string | null>(null);
   const [aiRagStats, setAiRagStats] = useState<AiRagStats | null>(null);
   const [dataRows, setDataRows] = useState<Array<Record<string, unknown>>>([]);
   const [dataInsights, setDataInsights] = useState<HistoryDataInsights | null>(null);
@@ -317,6 +318,7 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
     setCatalog([]);
     setMetricsRows([]);
     setLogsRows([]);
+    setLogsNote(null);
     setAiRagStats(null);
     setDataRows([]);
     setDataInsights(null);
@@ -577,7 +579,7 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
           }),
         ),
         asSectionResult(
-          fetchJson<{ logs: unknown }>(`${EDGE_API_BASE}/v1/backoffice/services/${serviceConfig.service}/logs?limit=${limit}`, {
+          fetchJson<{ logs: unknown; note?: string }>(`${EDGE_API_BASE}/v1/backoffice/services/${serviceConfig.service}/logs?limit=${limit}`, {
             headers: composeAuthHeaders(context),
             signal: abortController.signal,
           }),
@@ -604,8 +606,10 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
 
       if (logsResult.ok) {
         setLogsRows(rowsFromUnknown(logsResult.data.logs));
+        setLogsNote(typeof logsResult.data.note === "string" && logsResult.data.note.trim() ? logsResult.data.note : null);
       } else {
         setLogsRows([]);
+        setLogsNote(null);
         setLogsError(logsResult.error);
         storeServiceLastError(serviceConfig.service, logsResult.error);
       }
@@ -629,6 +633,7 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
       if (requestVersion !== overviewRequestVersionRef.current) return;
       setMetricsRows([]);
       setLogsRows([]);
+      setLogsNote(null);
       setAiRagStats(null);
       setAiRagStatsError(null);
       const message = err instanceof Error ? err.message : errorLabel;
@@ -919,7 +924,7 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
   return {
     serviceConfig,
     // Data
-    catalog, metricsRows, logsRows, aiRagStats, dataRows, dataTotal, dataPage, dataPageSize,
+    catalog, metricsRows, logsRows, logsNote, aiRagStats, dataRows, dataTotal, dataPage, dataPageSize,
     dataInsights,
     // Filter / pagination
     dataset, setDataset,

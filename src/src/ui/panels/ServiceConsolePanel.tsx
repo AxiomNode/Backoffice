@@ -495,12 +495,34 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
 
   const readLogMessage = useCallback((row: Record<string, unknown>): string => {
     const value = row.message ?? row.event ?? row.value ?? row.msg;
-    return typeof value === "string" && value.trim().length > 0 ? value : "--";
+    if (typeof value === "string" && value.trim().length > 0) {
+      return value;
+    }
+
+    const metadata = row.metadata && typeof row.metadata === "object" ? (row.metadata as Record<string, unknown>) : null;
+    const metadataEventType = metadata?.event_type;
+    if (typeof metadataEventType === "string" && metadataEventType.trim().length > 0) {
+      return metadataEventType;
+    }
+
+    if ("success" in row) {
+      const gameType = typeof row.game_type === "string" && row.game_type.trim().length > 0 ? row.game_type.trim() : "generation";
+      return row.success === false ? `${gameType} failed` : `${gameType} succeeded`;
+    }
+
+    return "--";
   }, []);
 
   const readLogTimestamp = useCallback((row: Record<string, unknown>): string => {
-    const value = row.createdAt ?? row.timestamp ?? row.time;
-    return typeof value === "string" ? value : "";
+    const value = row.createdAt ?? row.timestamp ?? row.ts ?? row.time;
+    if (typeof value === "string") {
+      return value;
+    }
+    if (typeof value === "number" && Number.isFinite(value)) {
+      const milliseconds = value > 1_000_000_000_000 ? value : value * 1000;
+      return new Date(milliseconds).toISOString();
+    }
+    return "";
   }, []);
 
   const filteredLogsRows = useMemo(() => {
@@ -1113,6 +1135,9 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
             <div>
               <h3 className={`m3-title ${compact ? "text-base" : "text-lg"}`}>{t("service.logs.title")}</h3>
             </div>
+            {state.logsNote && (
+              <p className="ui-feedback ui-feedback--warn p-2 text-sm">{state.logsNote}</p>
+            )}
             {state.logsError ? (
               <p className="ui-feedback ui-feedback--error">{state.logsError}</p>
             ) : state.logsRows.length ? (

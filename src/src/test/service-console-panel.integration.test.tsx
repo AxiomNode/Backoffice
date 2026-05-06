@@ -248,6 +248,46 @@ describe("ServiceConsolePanel integration", () => {
     expect(recordedErrors).toContain("data down");
   });
 
+  it("renders log notes and uses ts fields for recent log alert timestamps", async () => {
+    const logTimestamp = "2026-04-24T11:00:00Z";
+    fetchJsonMock.mockImplementation((url: string) => {
+      if (url.endsWith("/v1/backoffice/services")) {
+        return Promise.resolve({
+          services: [{ key: "ai-engine-api", title: "AI Engine API", domain: "ai", supportsData: false }],
+        });
+      }
+      if (url.includes("/metrics")) {
+        return Promise.resolve({
+          metrics: {
+            service: "ai-engine-api",
+            requestsByRoute: [{ method: "GET", route: "/health", statusCode: 200, total: 4 }],
+          },
+        });
+      }
+      if (url.includes("/logs")) {
+        return Promise.resolve({
+          note: "ai-engine-api exposes health only; use ai-engine-stats for operational history.",
+          logs: [{ ts: logTimestamp, level: "warn", message: "request_completed" }],
+        });
+      }
+      if (url.endsWith("/v1/backoffice/ai-diagnostics/rag/stats")) {
+        return Promise.resolve(null);
+      }
+      if (url.includes("/data?")) {
+        return Promise.resolve({ rows: [] });
+      }
+      return Promise.reject(new Error(`Unhandled URL: ${url}`));
+    });
+
+    renderPanel("svc-ai-api");
+
+    await waitFor(() => {
+      expect(screen.getByText("ai-engine-api exposes health only; use ai-engine-stats for operational history.")).toBeInTheDocument();
+      expect(screen.getByText(new Date(logTimestamp).toLocaleString())).toBeInTheDocument();
+      expect(screen.getByText("Warning")).toBeInTheDocument();
+    });
+  });
+
   it("hides the data section when the catalog marks the service as non-tabular", async () => {
     fetchJsonMock.mockImplementation((url: string) => {
       if (url.endsWith("/v1/backoffice/services")) {
