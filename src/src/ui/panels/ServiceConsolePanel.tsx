@@ -147,6 +147,95 @@ const NAV_SUBTITLE_KEYS: Record<NavKey, LabelKey> = {
   "ai-diagnostics": "nav.ai-diagnostics.subtitle",
 };
 
+type AiTelemetryCard = {
+  labelKey: LabelKey;
+  value: string;
+  detail: string;
+  tone: "neutral" | "ok" | "warn";
+};
+
+type AiTelemetryEntry = {
+  label: string;
+  value: string;
+  detail: string | null;
+};
+
+type AiTelemetrySection = {
+  labelKey: LabelKey;
+  entries: AiTelemetryEntry[];
+};
+
+type AiTelemetrySummary = {
+  cards: AiTelemetryCard[];
+  sections: AiTelemetrySection[];
+};
+
+function readMetricNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+}
+
+function readMetricRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+}
+
+function formatMetricNumber(value: number | null, digits = 0): string {
+  if (value === null) return "--";
+  return value.toLocaleString(undefined, { maximumFractionDigits: digits, minimumFractionDigits: digits });
+}
+
+function formatMetricPercent(value: number | null): string {
+  if (value === null) return "--";
+  const percent = value <= 1 ? value * 100 : value;
+  return `${formatMetricNumber(percent, 1)}%`;
+}
+
+function summarizeMetricEntry(value: unknown): { value: string; detail: string | null; rankValue: number } {
+  const numeric = readMetricNumber(value);
+  if (numeric !== null) {
+    return { value: formatMetricNumber(numeric), detail: null, rankValue: numeric };
+  }
+
+  const record = readMetricRecord(value);
+  if (!record) {
+    return { value: "--", detail: typeof value === "string" ? value : null, rankValue: 0 };
+  }
+
+  const parts = Object.entries(record)
+    .map(([key, entryValue]) => {
+      const entryNumber = readMetricNumber(entryValue);
+      return entryNumber === null ? null : { key, value: entryNumber };
+    })
+    .filter((entry): entry is { key: string; value: number } => !!entry)
+    .sort((left, right) => right.value - left.value);
+
+  const total = parts.reduce((sum, entry) => sum + entry.value, 0);
+  return {
+    value: total > 0 ? formatMetricNumber(total) : "--",
+    detail: parts.slice(0, 3).map((entry) => `${entry.key}: ${formatMetricNumber(entry.value)}`).join(" · ") || null,
+    rankValue: total,
+  };
+}
+
+function buildMetricEntries(value: unknown, limit = 4): AiTelemetryEntry[] {
+  const record = readMetricRecord(value);
+  if (!record) return [];
+
+  return Object.entries(record)
+    .map(([label, entryValue]) => {
+      const summary = summarizeMetricEntry(entryValue);
+      return { label, value: summary.value, detail: summary.detail, rankValue: summary.rankValue };
+    })
+    .filter((entry) => entry.value !== "--" || !!entry.detail)
+    .sort((left, right) => right.rankValue - left.rankValue || left.label.localeCompare(right.label))
+    .slice(0, limit)
+    .map(({ label, value, detail }) => ({ label, value, detail }));
+}
+
 type ServiceConsolePanelProps = {
   navKey: NavKey;
   context: SessionContext;
@@ -453,23 +542,14 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
   }, [routeMethodFilter, routeMetricsRows, routeSearchTerm]);
 
   const metricsSummary = useMemo(() => {
-    const asNumber = (value: unknown): number | null => {
-      if (typeof value === "number" && Number.isFinite(value)) return value;
-      if (typeof value === "string") {
-        const parsed = Number(value);
-        if (Number.isFinite(parsed)) return parsed;
-      }
-      return null;
-    };
-
-    const requestsFromRoutes = filteredRouteMetricsRows.reduce((sum, row) => sum + (asNumber(row.total) ?? 0), 0);
+    const requestsFromRoutes = filteredRouteMetricsRows.reduce((sum, row) => sum + (readMetricNumber(row.total) ?? 0), 0);
     const fallbackRequests = state.metricsRows.reduce((sum, row) => {
       const traffic = row.traffic && typeof row.traffic === "object" ? (row.traffic as Record<string, unknown>) : null;
-      return sum + (asNumber(row.requestsReceivedTotal ?? row.totalRequests ?? traffic?.requestsReceivedTotal) ?? 0);
+      return sum + (readMetricNumber(row.requestsReceivedTotal ?? row.totalRequests ?? traffic?.requestsReceivedTotal) ?? 0);
     }, 0);
     const hottestRoute = filteredRouteMetricsRows.reduce<Record<string, unknown> | null>((current, row) => {
-      const rowTotal = asNumber(row.total) ?? 0;
-      const currentTotal = current ? asNumber(current.total) ?? 0 : -1;
+      const rowTotal = readMetricNumber(row.total) ?? 0;
+      const currentTotal = current ? readMetricNumber(current.total) ?? 0 : -1;
       return rowTotal > currentTotal ? row : current;
     }, null);
 
@@ -479,6 +559,63 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
       hottestRoute: hottestRoute ? `${String(hottestRoute.method ?? "--")} ${String(hottestRoute.route ?? "--")}` : "--",
     };
   }, [filteredRouteMetricsRows, state.metricsRows]);
+
+  const isAiTelemetryPage = serviceConfig.service === "ai-engine-stats";
+
+  const aiTelemetrySummary = useMemo<AiTelemetrySummary | null>(() => {
+    if (!isAiTelemetryPage || state.metricsRows.length === 0) return null;
+
+    const row = state.metricsRows[0];
+    const totalCalls = readMetricNumber(row.total_calls);
+    const failedCalls = readMetricNumber(row.failed_calls);
+    const safetyBlocks = readMetricNumber(row.safety_blocks_total);
+    const retryRate = readMetricNumber(row.retry_rate);
+
+    const cards: AiTelemetryCard[] = [
+      {
+        labelKey: "service.aiTelemetry.calls",
+        value: formatMetricNumber(totalCalls),
+        detail: `${t("service.aiTelemetry.failed")}: ${formatMetricNumber(failedCalls)}`,
+        tone: failedCalls && failedCalls > 0 ? "warn" : "neutral",
+      },
+      {
+        labelKey: "service.aiTelemetry.successRate",
+        value: formatMetricPercent(readMetricNumber(row.success_rate)),
+        detail: `${t("service.aiTelemetry.retryRate")}: ${formatMetricPercent(retryRate)}`,
+        tone: failedCalls && failedCalls > 0 ? "warn" : "ok",
+      },
+      {
+        labelKey: "service.aiTelemetry.latency",
+        value: `${formatMetricNumber(readMetricNumber(row.avg_total_latency_ms ?? row.avg_latency_ms), 0)} ms`,
+        detail: `p95 ${formatMetricNumber(readMetricNumber(row.p95_latency_ms), 0)} ms · p99 ${formatMetricNumber(readMetricNumber(row.p99_latency_ms), 0)} ms`,
+        tone: "neutral",
+      },
+      {
+        labelKey: "service.aiTelemetry.cacheHitRate",
+        value: formatMetricPercent(readMetricNumber(row.cache_hit_rate)),
+        detail: `${t("service.aiTelemetry.cacheHits")}: ${formatMetricNumber(readMetricNumber(row.cache_hits))} · ${t("service.aiTelemetry.cacheMisses")}: ${formatMetricNumber(readMetricNumber(row.cache_misses))}`,
+        tone: "neutral",
+      },
+      {
+        labelKey: "service.aiTelemetry.safetyBlocks",
+        value: formatMetricNumber(safetyBlocks),
+        detail: `${t("service.aiTelemetry.retryUsed")}: ${formatMetricNumber(readMetricNumber(row.retry_used_count))}`,
+        tone: safetyBlocks && safetyBlocks > 0 ? "warn" : "ok",
+      },
+    ];
+
+    const sections: AiTelemetrySection[] = [
+      { labelKey: "service.aiTelemetry.gameTypes", entries: buildMetricEntries(row.game_type_counts) },
+      { labelKey: "service.aiTelemetry.events", entries: buildMetricEntries(row.event_type_counts) },
+      { labelKey: "service.aiTelemetry.outcomes", entries: buildMetricEntries(row.generation_outcome_by_game_type) },
+      { labelKey: "service.aiTelemetry.cacheLayers", entries: buildMetricEntries(row.cache_layer_counts) },
+      { labelKey: "service.aiTelemetry.languages", entries: buildMetricEntries(row.language_counts) },
+      { labelKey: "service.aiTelemetry.persistence", entries: buildMetricEntries(row.persistent_backend_counts) },
+      { labelKey: "service.aiTelemetry.safetyReasons", entries: buildMetricEntries(row.safety_block_reason_counts) },
+    ].filter((section) => section.entries.length > 0);
+
+    return { cards, sections };
+  }, [isAiTelemetryPage, state.metricsRows, t]);
 
   const readLogLevel = useCallback((row: Record<string, unknown>): string => {
     const value = row.level ?? row.severity ?? row.status;
@@ -1065,6 +1202,46 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
             </div>
             {state.metricsError ? (
               <p className="ui-feedback ui-feedback--error">{state.metricsError}</p>
+            ) : isAiTelemetryPage && aiTelemetrySummary ? (
+              <div className="space-y-3">
+                <div className={`grid gap-2 ${compactViewport ? "grid-cols-1" : "sm:grid-cols-2 xl:grid-cols-5"}`}>
+                  {aiTelemetrySummary.cards.map((card) => (
+                    <article
+                      key={card.labelKey}
+                      className={`ui-metric-tile rounded-[1.2rem] p-3 ${card.tone === "warn" ? "ui-metric-tile--warn" : card.tone === "ok" ? "ui-metric-tile--ok" : "ui-metric-tile--neutral"}`}
+                    >
+                      <p className="ui-metric-label">{t(card.labelKey)}</p>
+                      <p className="ui-metric-value mt-2">{card.value}</p>
+                      <p className="mt-1 text-xs text-[var(--md-sys-color-on-surface-variant)]">{card.detail}</p>
+                    </article>
+                  ))}
+                </div>
+
+                {aiTelemetrySummary.sections.length > 0 ? (
+                  <div className={`grid gap-3 ${compactViewport ? "grid-cols-1" : "xl:grid-cols-2"}`}>
+                    {aiTelemetrySummary.sections.map((section) => (
+                      <div key={section.labelKey} className="ui-panel-block rounded-[1.2rem] p-3">
+                        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--md-sys-color-on-surface-variant)]">{t(section.labelKey)}</p>
+                        <div className="mt-2 divide-y divide-[var(--md-sys-color-outline-variant)]/40">
+                          {section.entries.map((entry) => (
+                            <div key={entry.label} className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 py-2 text-xs">
+                              <div className="min-w-0">
+                                <p className="truncate font-semibold text-[var(--md-sys-color-on-surface)]">{entry.label}</p>
+                                {entry.detail && <p className="mt-0.5 break-words text-[var(--md-sys-color-on-surface-variant)]">{entry.detail}</p>}
+                              </div>
+                              <p className="font-mono font-semibold text-[var(--md-sys-color-on-surface)]">{entry.value}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="ui-subtle-card rounded-2xl border border-dashed px-4 py-3 text-sm">
+                    <p className="font-medium">{t("service.aiTelemetry.noBreakdown")}</p>
+                  </div>
+                )}
+              </div>
             ) : state.metricsRows.length ? (
               <div className="space-y-3">
                 {routeMetricsRows.length > 0 && (

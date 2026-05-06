@@ -170,6 +170,62 @@ describe("ServiceConsolePanel integration", () => {
     });
   });
 
+  it("summarizes AI telemetry metrics instead of rendering the raw stats table", async () => {
+    fetchJsonMock.mockImplementation((url: string) => {
+      if (url.endsWith("/v1/backoffice/services")) {
+        return Promise.resolve({
+          services: [{ key: "ai-engine-stats", title: "AI Stats", domain: "ai", supportsData: false }],
+        });
+      }
+      if (url.includes("/metrics")) {
+        return Promise.resolve({
+          metrics: {
+            total_calls: 42,
+            successful_calls: 40,
+            failed_calls: 2,
+            success_rate: 0.952,
+            avg_total_latency_ms: 1234,
+            p95_latency_ms: 2400,
+            p99_latency_ms: 3100,
+            cache_hits: 30,
+            cache_misses: 12,
+            cache_hit_rate: 0.714,
+            retry_used_count: 3,
+            retry_rate: 0.071,
+            safety_blocks_total: 1,
+            game_type_counts: { quiz: 30, wordpass: 12 },
+            event_type_counts: { generation_completed: 40, generation_failed: 2 },
+            generation_outcome_by_game_type: { quiz: { success: 29, failed: 1 }, wordpass: { success: 11, failed: 1 } },
+            cache_layer_counts: { memory: 25, disk: 5 },
+          },
+        });
+      }
+      if (url.includes("/logs")) {
+        return Promise.resolve({ logs: [] });
+      }
+      if (url.endsWith("/v1/backoffice/ai-diagnostics/rag/stats")) {
+        return Promise.resolve(null);
+      }
+      if (url.includes("/data?")) {
+        return Promise.resolve({ rows: [] });
+      }
+      return Promise.reject(new Error(`Unhandled URL: ${url}`));
+    });
+
+    renderPanel("svc-ai-stats");
+
+    await waitFor(() => {
+      expect(screen.getByText("Llamadas")).toBeInTheDocument();
+      expect(screen.getByText("42")).toBeInTheDocument();
+      expect(screen.getByText("95.2%")).toBeInTheDocument();
+      expect(screen.getByText("Tipos de juego")).toBeInTheDocument();
+      expect(screen.getAllByText("quiz").length).toBeGreaterThan(0);
+      expect(screen.getByText("Resultados por juego")).toBeInTheDocument();
+    });
+
+    expect(screen.queryByTestId("paginated-table")).not.toBeInTheDocument();
+  });
+
   it("shows the global overview error when a metrics request throws synchronously", async () => {
     fetchJsonMock.mockImplementation((url: string) => {
       if (url.endsWith("/v1/backoffice/services")) {
