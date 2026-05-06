@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 
 import type { SessionContext, UiDensity } from "../../domain/types/backoffice";
 import { composeAuthHeaders } from "../../infrastructure/backoffice/authHeaders";
@@ -190,6 +190,10 @@ function formatTimestamp(value: string | null | undefined): string {
   }
 
   return timestamp.toLocaleString();
+}
+
+function readMultiSelectValues(event: ChangeEvent<HTMLSelectElement>): string[] {
+  return Array.from(event.target.selectedOptions).map((option) => option.value);
 }
 
 // ---------------------------------------------------------------------------
@@ -608,36 +612,29 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
 
                 <div className="mt-3 grid gap-3 md:grid-cols-2">
                   <div className="ui-panel-block rounded-[1rem] p-2.5">
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--md-sys-color-on-surface-variant)]">
+                    <label className="text-[11px] font-semibold uppercase tracking-wide text-[var(--md-sys-color-on-surface-variant)]">
                       {t("diag.generation.categories")}
-                    </p>
-                    <div className="mt-2 grid gap-1">
-                      {categories.length === 0 && (
-                        <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">--</p>
-                      )}
-                      {categories.map((entry) => {
-                        const checked = state.form.categoryIds.includes(entry.id);
-                        return (
-                          <label key={`${game}-cat-${entry.id}`} className="flex items-center gap-2 text-xs">
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={() => {
-                                const next = checked
-                                  ? state.form.categoryIds.filter((id) => id !== entry.id)
-                                  : [...state.form.categoryIds, entry.id];
-                                setGeneratorPatch(game, {
-                                  form: {
-                                    categoryIds: next,
-                                  },
-                                });
-                              }}
-                            />
-                            <span className="text-[var(--md-sys-color-on-surface)]">{entry.name}</span>
-                          </label>
-                        );
-                      })}
-                    </div>
+                      <select
+                        multiple
+                        size={Math.min(4, Math.max(2, categories.length || 2))}
+                        value={state.form.categoryIds}
+                        disabled={categories.length === 0}
+                        onChange={(event) => {
+                          setGeneratorPatch(game, {
+                            form: {
+                              categoryIds: readMultiSelectValues(event),
+                            },
+                          });
+                        }}
+                        className="control-input mt-2 w-full px-2 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {categories.map((entry) => (
+                          <option key={`${game}-cat-${entry.id}`} value={entry.id}>
+                            {entry.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
                     <p className="mt-2 text-[11px] text-[var(--md-sys-color-on-surface-variant)]">
                       {allCategoriesSelected || state.form.categoryIds.length === 0
                         ? t("diag.generation.allSelectedHint")
@@ -646,38 +643,29 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
                   </div>
 
                   <div className="ui-panel-block rounded-[1rem] p-2.5">
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--md-sys-color-on-surface-variant)]">
+                    <label className="text-[11px] font-semibold uppercase tracking-wide text-[var(--md-sys-color-on-surface-variant)]">
                       {t("diag.generation.difficulties")}
-                    </p>
-                    <div className="mt-2 grid gap-1">
-                      {difficultyLevels.length === 0 && (
-                        <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">--</p>
-                      )}
-                      {difficultyLevels.map((entry) => {
-                        const checked = state.form.difficultyLevels.includes(entry.id);
-                        return (
-                          <label key={`${game}-difficulty-${entry.id}`} className="flex items-center gap-2 text-xs">
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={() => {
-                                const next = checked
-                                  ? state.form.difficultyLevels.filter((id) => id !== entry.id)
-                                  : [...state.form.difficultyLevels, entry.id];
-                                setGeneratorPatch(game, {
-                                  form: {
-                                    difficultyLevels: next,
-                                  },
-                                });
-                              }}
-                            />
-                            <span className="text-[var(--md-sys-color-on-surface)]">
-                              {entry.label} ({entry.min}-{entry.max})
-                            </span>
-                          </label>
-                        );
-                      })}
-                    </div>
+                      <select
+                        multiple
+                        size={Math.min(4, Math.max(2, difficultyLevels.length || 2))}
+                        value={state.form.difficultyLevels}
+                        disabled={difficultyLevels.length === 0}
+                        onChange={(event) => {
+                          setGeneratorPatch(game, {
+                            form: {
+                              difficultyLevels: readMultiSelectValues(event) as RuntimeDifficultyLevel[],
+                            },
+                          });
+                        }}
+                        className="control-input mt-2 w-full px-2 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {difficultyLevels.map((entry) => (
+                          <option key={`${game}-difficulty-${entry.id}`} value={entry.id}>
+                            {entry.label} ({entry.min}-{entry.max})
+                          </option>
+                        ))}
+                      </select>
+                    </label>
                     <p className="mt-2 text-[11px] text-[var(--md-sys-color-on-surface-variant)]">
                       {allDifficultiesSelected || state.form.difficultyLevels.length === 0
                         ? t("diag.generation.allSelectedHint")

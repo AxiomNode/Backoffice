@@ -123,60 +123,15 @@ describe("ServiceConsolePanel integration", () => {
 
     await waitFor(() => {
       expect(screen.getByRole("tab", { name: "Observabilidad" })).toBeInTheDocument();
-      expect(screen.getByRole("tab", { name: "Tests" })).toBeInTheDocument();
+      expect(screen.queryByRole("tab", { name: "Tests" })).not.toBeInTheDocument();
       expect(screen.getByRole("tab", { name: "IA avanzada" })).toBeInTheDocument();
       expect(screen.queryByRole("tab", { name: "Datos" })).not.toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByRole("tab", { name: "Tests" }));
-
-    await waitFor(() => {
-      expect(screen.getByText("Testeo de servicio")).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByRole("tab", { name: "IA avanzada" }));
 
     await waitFor(() => {
       expect(screen.getByTestId("ai-diagnostics-embedded")).toBeInTheDocument();
-    });
-  });
-
-  it("renders warnings and failures in service tests tab with recommendations", async () => {
-    fetchJsonMock.mockImplementation((url: string) => {
-      if (url.endsWith("/v1/backoffice/services")) {
-        return Promise.resolve({
-          services: [{ key: "ai-engine-api", title: "AI Engine API", domain: "ai", supportsData: false }],
-        });
-      }
-      if (url.includes("/metrics")) {
-        return Promise.reject(new Error("metrics timeout"));
-      }
-      if (url.includes("/logs")) {
-        return Promise.resolve({ logs: [] });
-      }
-      if (url.endsWith("/v1/backoffice/ai-diagnostics/rag/stats")) {
-        return Promise.reject(new Error("rag unavailable"));
-      }
-      if (url.includes("/data?")) {
-        return Promise.resolve({ rows: [] });
-      }
-      return Promise.reject(new Error(`Unhandled URL: ${url}`));
-    });
-
-    renderPanel("svc-ai-api");
-
-    await waitFor(() => {
-      expect(screen.getByText("metrics timeout")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByRole("tab", { name: "Tests" }));
-
-    await waitFor(() => {
-      expect(screen.getByText("Recomendaciones")).toBeInTheDocument();
-      expect(screen.getByText(/Verifica scraping\/prometheus/i)).toBeInTheDocument();
-      expect(screen.getByText(/Revisa conectividad ai-engine-api/i)).toBeInTheDocument();
-      expect(screen.getAllByText("Fallo").length).toBeGreaterThan(0);
-      expect(screen.getAllByText("Alerta").length).toBeGreaterThan(0);
     });
   });
 
@@ -206,7 +161,7 @@ describe("ServiceConsolePanel integration", () => {
 
     await waitFor(() => {
       expect(screen.getByRole("tab", { name: "Observabilidad" })).toBeInTheDocument();
-      expect(screen.getByRole("tab", { name: "Tests" })).toBeInTheDocument();
+      expect(screen.queryByRole("tab", { name: "Tests" })).not.toBeInTheDocument();
       expect(screen.queryByRole("tab", { name: "IA avanzada" })).not.toBeInTheDocument();
     });
 
@@ -344,7 +299,7 @@ describe("ServiceConsolePanel integration", () => {
     renderPanel("svc-users");
 
     await waitFor(() => {
-      expect(screen.getByText("Users")).toBeInTheDocument();
+      expect(screen.getByText("Comunidad y ranking")).toBeInTheDocument();
       expect(screen.getByText("Dataset")).toBeInTheDocument();
       expect(screen.getByText("Roles")).toBeInTheDocument();
       expect(screen.getByText("2/8")).toBeInTheDocument();
@@ -415,7 +370,7 @@ describe("ServiceConsolePanel integration", () => {
     });
   });
 
-  it("toggles the inline manual editor inside the data section for game history datasets", async () => {
+  it("opens the manual editor from its dedicated tab for game history datasets", async () => {
     window.location.hash = "#/backoffice/svc-quiz?dataset=history";
 
     fetchJsonMock.mockImplementation((url: string) => {
@@ -448,21 +403,15 @@ describe("ServiceConsolePanel integration", () => {
 
     await waitFor(() => {
       expect(screen.getByRole("tab", { name: "Datos" })).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: "Edicion manual" })).toBeInTheDocument();
     });
 
     expect(screen.queryByLabelText("Categoria")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Mostrar" })[1]);
+    fireEvent.click(screen.getByRole("tab", { name: "Edicion manual" }));
 
     await waitFor(() => {
       expect(screen.getByLabelText("Categoria")).toBeInTheDocument();
-      expect(screen.getAllByRole("button", { name: "Ocultar" }).length).toBeGreaterThan(0);
-    });
-
-    fireEvent.click(screen.getAllByRole("button", { name: "Ocultar" })[0]);
-
-    await waitFor(() => {
-      expect(screen.queryByLabelText("Categoria")).not.toBeInTheDocument();
     });
   });
 

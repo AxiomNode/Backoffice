@@ -571,8 +571,15 @@ describe("AIDiagnosticsPanel integration", () => {
 
     const countInput = quiz.getByLabelText("Cantidad por iteracion") as HTMLInputElement;
     fireEvent.change(countInput, { target: { value: "999" } });
-    fireEvent.click(quiz.getByLabelText("Science"));
-    fireEvent.click(quiz.getByLabelText("hard (67-100)"));
+    const categorySelect = quiz.getByLabelText("Categorias") as HTMLSelectElement;
+    categorySelect.options[0].selected = true;
+    categorySelect.options[1].selected = false;
+    fireEvent.change(categorySelect);
+    const difficultySelect = quiz.getByLabelText("Dificultades") as HTMLSelectElement;
+    difficultySelect.options[0].selected = true;
+    difficultySelect.options[1].selected = true;
+    difficultySelect.options[2].selected = false;
+    fireEvent.change(difficultySelect);
 
     fireEvent.click(quiz.getByRole("button", { name: "Activar iteraciones" }));
 

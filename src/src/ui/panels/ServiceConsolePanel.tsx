@@ -153,17 +153,7 @@ type ServiceConsolePanelProps = {
   density: UiDensity;
 };
 
-type ServiceConsoleSection = "observability" | "tests" | "data" | "manual" | "advanced";
-
-type ServiceTestStatus = "passed" | "warning" | "failed";
-
-type ServiceTestCheck = {
-  key: string;
-  label: string;
-  detail: string;
-  status: ServiceTestStatus;
-  recommendation?: string;
-};
+type ServiceConsoleSection = "observability" | "data" | "manual" | "advanced";
 
 type CollapsibleSectionProps = {
   title: string;
@@ -214,7 +204,6 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
   const [wordpassDraft, setWordpassDraft] = useState<WordpassManualDraft>(EMPTY_WORDPASS_MANUAL_DRAFT);
   const [activeSection, setActiveSection] = useState<ServiceConsoleSection>("observability");
   const [filtersExpanded, setFiltersExpanded] = useState(false);
-  const [inlineManualEditorExpanded, setInlineManualEditorExpanded] = useState(false);
   const [refreshSettingsExpanded, setRefreshSettingsExpanded] = useState(!compactViewport);
   const [contextExpanded, setContextExpanded] = useState(!compactViewport);
   const [logSeverityFilter, setLogSeverityFilter] = useState<"all" | "error" | "warn" | "info" | "debug">("all");
@@ -233,19 +222,12 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
 
   useEffect(() => {
     setFiltersExpanded(false);
-    setInlineManualEditorExpanded(false);
   }, [navKey]);
 
   useEffect(() => {
     setRefreshSettingsExpanded(!compactViewport);
     setContextExpanded(!compactViewport);
   }, [compactViewport, navKey]);
-
-  useEffect(() => {
-    if (!isGameHistoryDataset) {
-      setInlineManualEditorExpanded(false);
-    }
-  }, [isGameHistoryDataset]);
 
   useEffect(() => {
     if (serviceConfig.service === "microservice-quiz") {
@@ -306,7 +288,7 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
   const refreshButtonText = compactPanel ? "text-xs" : "text-sm";
   const compactActionClass = compactPanel ? `min-h-0 ${narrowViewport ? "px-2.5 py-1.5 text-[11px]" : "px-3 py-1.5 text-xs"}` : "text-sm";
   const controlClass = `control-input mt-1 w-full ${compactPanel ? "px-2 py-1.5 text-sm" : "px-2 py-2 text-sm"}`;
-  const contextGridClass = compactViewport ? "grid-cols-2" : compact ? "sm:grid-cols-2" : "sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4";
+  const contextGridClass = compactViewport ? "grid-cols-2" : "sm:grid-cols-3";
   const panelPaddingClass = narrowViewport ? "p-3 space-y-3" : compactPanel ? "p-3.5 space-y-3" : compact ? "p-3 sm:p-4 xl:p-5 space-y-3" : "p-4 sm:p-5 xl:p-6 space-y-4 xl:space-y-5";
 
   const serviceMeta = state.catalog.find((item) => item.key === serviceConfig.service);
@@ -317,24 +299,6 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
   );
   const formatSyncTime = (value: number | null) => (value ? syncTimeFormatter.format(value) : "--");
   const serviceContextCards = [
-    {
-      label: t("service.meta.service"),
-      value: serviceMeta?.title ?? serviceTitle,
-      detail: serviceConfig.service,
-      tone: "neutral" as const,
-    },
-    {
-      label: t("service.domain"),
-      value: serviceMeta?.domain ?? "--",
-      detail: serviceSubtitle,
-      tone: "neutral" as const,
-    },
-    {
-      label: t("service.meta.tabularData"),
-      value: serviceMeta?.supportsData ? t("service.meta.yes") : t("service.meta.no"),
-      detail: hasDataSection ? t("service.section.data") : t("service.section.observability"),
-      tone: serviceMeta?.supportsData ? "ok" as const : "neutral" as const,
-    },
     {
       label: t("service.refresh.modeLabel"),
       value: state.refreshMode === "auto" ? t("service.refresh.auto") : t("service.refresh.manual"),
@@ -626,159 +590,6 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
   const isAiServicePage = serviceConfig.service === "ai-engine-api" || serviceConfig.service === "ai-engine-stats";
   const hasAiAdvancedSection = serviceConfig.service === "ai-engine-api";
 
-  const latencyP95Ms = useMemo(() => {
-    const asNumber = (value: unknown): number | null => {
-      if (typeof value === "number" && Number.isFinite(value)) return value;
-      if (typeof value === "string") {
-        const parsed = Number(value);
-        if (Number.isFinite(parsed)) return parsed;
-      }
-      return null;
-    };
-
-    const candidates: number[] = [];
-
-    for (const metricRow of state.metricsRows) {
-      const latency = metricRow.latency && typeof metricRow.latency === "object" ? (metricRow.latency as Record<string, unknown>) : null;
-      const directValue = asNumber(metricRow.p95LatencyMs ?? metricRow.latencyP95Ms ?? metricRow.p95_ms ?? metricRow.p95);
-      const nestedValue = latency ? asNumber(latency.p95 ?? latency.p95_ms ?? latency.latencyP95Ms) : null;
-      if (directValue !== null) candidates.push(directValue);
-      if (nestedValue !== null) candidates.push(nestedValue);
-    }
-
-    if (candidates.length === 0) return null;
-    return Math.max(...candidates);
-  }, [state.metricsRows]);
-
-  const serviceTestChecks = useMemo((): ServiceTestCheck[] => {
-    const checks: ServiceTestCheck[] = [];
-
-    checks.push({
-      key: "metrics-connectivity",
-      label: t("service.tests.metricsConnectivity"),
-      detail: state.metricsError
-        ? state.metricsError
-        : state.metricsRows.length > 0
-          ? t("service.tests.metricsConnectivity.ok")
-          : t("service.tests.metricsConnectivity.warn"),
-      status: state.metricsError ? "failed" : state.metricsRows.length > 0 ? "passed" : "warning",
-      recommendation: state.metricsError ? t("service.tests.metricsConnectivity.reco") : undefined,
-    });
-
-    checks.push({
-      key: "logs-connectivity",
-      label: t("service.tests.logsConnectivity"),
-      detail: state.logsError
-        ? state.logsError
-        : state.logsRows.length > 0
-          ? t("service.tests.logsConnectivity.ok")
-          : t("service.tests.logsConnectivity.warn"),
-      status: state.logsError ? "failed" : state.logsRows.length > 0 ? "passed" : "warning",
-      recommendation: state.logsError ? t("service.tests.logsConnectivity.reco") : undefined,
-    });
-
-    checks.push({
-      key: "performance-baseline",
-      label: t("service.tests.performanceBaseline"),
-      detail:
-        latencyP95Ms === null
-          ? t("service.tests.performanceBaseline.warn")
-          : t("service.tests.performanceBaseline.value", { value: Math.round(latencyP95Ms) }),
-      status:
-        latencyP95Ms === null
-          ? "warning"
-          : latencyP95Ms > 2500
-            ? "failed"
-            : latencyP95Ms > 1200
-              ? "warning"
-              : "passed",
-      recommendation:
-        latencyP95Ms !== null && latencyP95Ms > 1200
-          ? t("service.tests.performanceBaseline.reco")
-          : undefined,
-    });
-
-    if (hasDataSection) {
-      checks.push({
-        key: "data-pipeline",
-        label: t("service.tests.dataPipeline"),
-        detail: state.dataError
-          ? state.dataError
-          : state.dataRows.length > 0 || state.dataTotal > 0
-            ? t("service.tests.dataPipeline.ok", { rows: Math.max(state.dataRows.length, state.dataTotal) })
-            : t("service.tests.dataPipeline.warn"),
-        status:
-          state.dataError
-            ? "failed"
-            : state.dataRows.length > 0 || state.dataTotal > 0
-              ? "passed"
-              : "warning",
-        recommendation: state.dataError ? t("service.tests.dataPipeline.reco") : undefined,
-      });
-    }
-
-    if (serviceConfig.service === "microservice-users") {
-      const supportsLeaderboard = Boolean(serviceConfig.datasets?.some((dataset) => dataset.value === "leaderboard"));
-      checks.push({
-        key: "users-leaderboard-check",
-        label: t("service.tests.usersCustom"),
-        detail: supportsLeaderboard ? t("service.tests.usersCustom.ok") : t("service.tests.usersCustom.fail"),
-        status: supportsLeaderboard ? "passed" : "failed",
-        recommendation: supportsLeaderboard ? undefined : t("service.tests.usersCustom.reco"),
-      });
-    }
-
-    if (serviceConfig.service === "microservice-quiz" || serviceConfig.service === "microservice-wordpass") {
-      const supportsProcesses = Boolean(serviceConfig.datasets?.some((dataset) => dataset.value === "processes"));
-      checks.push({
-        key: "generator-process-monitoring",
-        label: t("service.tests.generatorCustom"),
-        detail: supportsProcesses ? t("service.tests.generatorCustom.ok") : t("service.tests.generatorCustom.fail"),
-        status: supportsProcesses ? "passed" : "failed",
-        recommendation: supportsProcesses ? undefined : t("service.tests.generatorCustom.reco"),
-      });
-    }
-
-    if (isAiServicePage) {
-      checks.push({
-        key: "ai-rag-stats",
-        label: t("service.tests.aiCustom"),
-        detail: state.aiRagStatsError
-          ? state.aiRagStatsError
-          : state.aiRagStats
-            ? t("service.tests.aiCustom.ok", { chunks: state.aiRagStats.total_chunks })
-            : t("service.tests.aiCustom.warn"),
-        status: state.aiRagStatsError ? "failed" : state.aiRagStats ? "passed" : "warning",
-        recommendation: state.aiRagStatsError ? t("service.tests.aiCustom.reco") : undefined,
-      });
-    }
-
-    return checks;
-  }, [
-    hasDataSection,
-    isAiServicePage,
-    latencyP95Ms,
-    serviceConfig.datasets,
-    serviceConfig.service,
-    state.aiRagStats,
-    state.aiRagStatsError,
-    state.dataError,
-    state.dataRows.length,
-    state.dataTotal,
-    state.logsError,
-    state.logsRows.length,
-    state.metricsError,
-    state.metricsRows.length,
-    t,
-  ]);
-
-  const testsRecommendations = useMemo(
-    () => serviceTestChecks
-      .filter((check) => check.status !== "passed" && check.recommendation)
-      .map((check) => check.recommendation as string),
-    [serviceTestChecks],
-  );
-
   const dataInsightsConclusions = useMemo(() => {
     const insights = state.dataInsights;
     if (!insights) {
@@ -977,13 +788,12 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
     }
 
     if (activeSection === "advanced" && !hasAiAdvancedSection) {
-      setActiveSection("tests");
+      setActiveSection("observability");
     }
   }, [activeSection, hasAiAdvancedSection, hasDataSection, isGameHistoryDataset]);
 
   const sectionOptions: Array<{ key: ServiceConsoleSection; label: string; visible: boolean }> = [
     { key: "observability", label: t("service.section.observability"), visible: true },
-    { key: "tests", label: t("service.section.tests"), visible: true },
     { key: "data", label: t("service.section.data"), visible: hasDataSection },
     { key: "manual", label: t("service.section.manual"), visible: isGameHistoryDataset },
     { key: "advanced", label: t("service.section.aiAdvanced"), visible: hasAiAdvancedSection },
@@ -1399,72 +1209,6 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
         </section>
       )}
 
-      {activeSection === "tests" && (
-        <article className={`ui-table-shell min-w-0 space-y-3 rounded-[1.75rem] ${compactViewport ? "p-3" : "p-4"}`} aria-label={t("service.section.tests")}>
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h3 className={`m3-title ${compact ? "text-base" : "text-lg"}`}>{t("service.tests.title")}</h3>
-              <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">{t("service.tests.subtitle")}</p>
-            </div>
-            <button type="button" onClick={() => void state.loadAll()} className={`ui-action-pill ui-action-pill--quiet ${compactActionClass}`}>
-              {state.loading ? t("service.button.updating") : t("service.tests.run")}
-            </button>
-          </div>
-
-          <div className={`grid gap-2 ${compactViewport ? "grid-cols-1" : "sm:grid-cols-2"}`}>
-            {serviceTestChecks.map((check) => {
-              const statusClass =
-                check.status === "passed"
-                  ? "ui-status-chip--ok"
-                  : check.status === "failed"
-                    ? "ui-status-chip--error"
-                    : "ui-status-chip--neutral";
-              const statusLabel =
-                check.status === "passed"
-                  ? t("service.tests.status.passed")
-                  : check.status === "failed"
-                    ? t("service.tests.status.failed")
-                    : t("service.tests.status.warning");
-
-              return (
-                <article key={check.key} className="ui-panel-block rounded-[1.25rem] p-3">
-                  <div className="mb-2 flex items-center justify-between gap-2">
-                    <p className="text-sm font-semibold text-[var(--md-sys-color-on-surface)]">{check.label}</p>
-                    <span className={`ui-status-chip ${statusClass}`}>{statusLabel}</span>
-                  </div>
-                  <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">{check.detail}</p>
-                </article>
-              );
-            })}
-          </div>
-
-          {testsRecommendations.length > 0 && (
-            <div className="ui-panel-block rounded-[1.2rem] p-3">
-              <h4 className="text-xs font-semibold uppercase tracking-wide text-[var(--md-sys-color-on-surface-variant)]">{t("service.tests.recommendations")}</h4>
-              <div className="mt-2 grid gap-1.5 text-xs text-[var(--md-sys-color-on-surface)]">
-                {testsRecommendations.map((recommendation, index) => (
-                  <p key={`${recommendation}-${index}`} className="flex items-start gap-2">
-                    <span className="mt-0.5 text-[var(--md-sys-color-primary)]">•</span>
-                    <span>{recommendation}</span>
-                  </p>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {hasAiAdvancedSection && (
-            <div className="ui-subtle-card rounded-2xl p-3 text-xs text-[var(--md-sys-color-on-surface-variant)]">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p>{t("service.tests.aiAdvancedHint")}</p>
-                <button type="button" onClick={() => setActiveSection("advanced")} className="ui-action-pill ui-action-pill--tonal min-h-0 px-3 py-1.5 text-xs">
-                  {t("service.tests.aiAdvancedBtn")}
-                </button>
-              </div>
-            </div>
-          )}
-        </article>
-      )}
-
       {activeSection === "data" && hasDataSection && serviceConfig.datasets && serviceConfig.datasets.length > 0 && (
         <article className={`ui-table-shell min-w-0 space-y-3 rounded-[1.75rem] ${compactViewport ? "p-3" : "p-4"}`}>
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1602,18 +1346,6 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
               </div>
             </div>
           </CollapsibleSection>
-
-          {isGameHistoryDataset && (
-            <CollapsibleSection
-              title={t("service.data.manual.title")}
-              expanded={inlineManualEditorExpanded}
-              onToggle={() => setInlineManualEditorExpanded((currentValue) => !currentValue)}
-              actionLabel={inlineManualEditorExpanded ? t("service.section.hide") : t("service.section.show")}
-              compact={compact}
-            >
-              {renderManualEditorFields()}
-            </CollapsibleSection>
-          )}
 
           {isGameHistoryDataset && state.dataInsights && (
             <div className="ui-subtle-card space-y-3 rounded-2xl p-3">
