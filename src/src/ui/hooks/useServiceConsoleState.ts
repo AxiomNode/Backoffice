@@ -279,6 +279,7 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
   const [limit, setLimit] = useState(200);
+  const [logsLimit, setLogsLimit] = useState(200);
   const debouncedFilter = useDebouncedValue(filter, 300);
   const debouncedSortBy = useDebouncedValue(sortBy, 150);
 
@@ -338,6 +339,7 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
     setPage(1);
     setPageSize(5);
     setLimit(200);
+    setLogsLimit(200);
     setMetric("won");
     setRefreshMode("manual");
     setRefreshIntervalSeconds(10);
@@ -389,6 +391,7 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
     setPage(parseIntParam(params.get("page"), 1, 1, 100000));
     setPageSize(parseIntParam(params.get("pageSize"), 5, 1, 200));
     setLimit(parseIntParam(params.get("limit"), 200, 1, 1000));
+    setLogsLimit(parseIntParam(params.get("logsLimit"), 200, 1, 1000));
 
     const metricParam = params.get("metric");
     if (metricParam === "won" || metricParam === "score" || metricParam === "played") {
@@ -437,6 +440,7 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
 
     params.set("refreshMode", refreshMode);
     params.set("refreshInterval", String(refreshIntervalSeconds));
+    if (logsLimit !== 200) params.set("logsLimit", String(logsLimit));
 
     const query = params.toString();
     const nextHash = query ? `${routePrefix}?${query}` : routePrefix;
@@ -462,7 +466,7 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
     if (window.location.hash !== nextHash) {
       window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${nextHash}`);
     }
-  }, [dataset, filter, followTaskId, limit, metric, navKey, page, pageSize, refreshIntervalSeconds, refreshMode, serviceConfig, sortBy, sortDirection]);
+  }, [dataset, filter, followTaskId, limit, logsLimit, metric, navKey, page, pageSize, refreshIntervalSeconds, refreshMode, serviceConfig, sortBy, sortDirection]);
 
   useEffect(() => {
     let cancelled = false;
@@ -579,7 +583,7 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
           }),
         ),
         asSectionResult(
-          fetchJson<{ logs: unknown; note?: string }>(`${EDGE_API_BASE}/v1/backoffice/services/${serviceConfig.service}/logs?limit=${limit}`, {
+          fetchJson<{ logs: unknown; note?: string }>(`${EDGE_API_BASE}/v1/backoffice/services/${serviceConfig.service}/logs?limit=${logsLimit}`, {
             headers: composeAuthHeaders(context),
             signal: abortController.signal,
           }),
@@ -648,7 +652,7 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
         setRefreshCycleVersion((current) => current + 1);
       }
     }
-  }, [context, limit, serviceConfig, errorLabel]);
+  }, [context, logsLimit, serviceConfig, errorLabel]);
 
   const loadData = useCallback(async () => {
     if (!serviceConfig) return;
@@ -935,6 +939,7 @@ export function useServiceConsoleState(navKey: NavKey, context: SessionContext, 
     page, setPage,
     pageSize, setPageSize,
     limit, setLimit,
+    logsLimit, setLogsLimit,
     // Refresh
     refreshMode, setRefreshMode,
     refreshIntervalSeconds, setRefreshIntervalSeconds,

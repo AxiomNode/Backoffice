@@ -86,7 +86,7 @@ describe("useServiceConsoleState", () => {
 
   it("normalizes hash params and persists the supported route query state", async () => {
     window.location.hash =
-      "#/backoffice/svc-users?dataset=invalid&page=0&pageSize=500&limit=0&sortDirection=asc&metric=played&refreshMode=auto&refreshInterval=4&followTaskId=%20task-1%20";
+      "#/backoffice/svc-users?dataset=invalid&page=0&pageSize=500&limit=0&logsLimit=25&sortDirection=asc&metric=played&refreshMode=auto&refreshInterval=4&followTaskId=%20task-1%20";
 
     fetchJsonMock.mockImplementation(buildBaseHandlers("microservice-users"));
 
@@ -97,6 +97,7 @@ describe("useServiceConsoleState", () => {
       expect(result.current.page).toBe(1);
       expect(result.current.pageSize).toBe(5);
       expect(result.current.limit).toBe(200);
+      expect(result.current.logsLimit).toBe(25);
       expect(result.current.sortDirection).toBe("asc");
       expect(result.current.refreshMode).toBe("auto");
       expect(result.current.refreshIntervalSeconds).toBe(10);
@@ -105,9 +106,17 @@ describe("useServiceConsoleState", () => {
 
     await waitFor(() => {
       expect(window.location.hash).toContain("dataset=roles");
+      expect(window.location.hash).toContain("logsLimit=25");
       expect(window.location.hash).not.toContain("followTaskId=");
       expect(window.localStorage.getItem(`${UI_SERVICE_ROUTE_QUERY_STORAGE_PREFIX}.svc-users`)).toContain("dataset=roles");
       expect(window.localStorage.getItem(`${UI_SERVICE_GENERATION_FOLLOW_STORAGE_PREFIX}.svc-users`)).toBe("task-1");
+    });
+
+    await waitFor(() => {
+      expect(fetchJsonMock).toHaveBeenCalledWith(
+        expect.stringContaining("/v1/backoffice/services/microservice-users/logs?limit=25"),
+        expect.any(Object),
+      );
     });
 
     act(() => {

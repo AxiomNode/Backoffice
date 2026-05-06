@@ -236,6 +236,19 @@ function buildMetricEntries(value: unknown, limit = 4): AiTelemetryEntry[] {
     .map(({ label, value, detail }) => ({ label, value, detail }));
 }
 
+function readNestedRecord(row: Record<string, unknown>, key: "context" | "metadata"): Record<string, unknown> | null {
+  const value = row[key];
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+}
+
+function readFirstString(...values: unknown[]): string | null {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim().length > 0) return value.trim();
+    if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  }
+  return null;
+}
+
 type ServiceConsolePanelProps = {
   navKey: NavKey;
   context: SessionContext;
@@ -631,12 +644,25 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
   }, [readLogLevel]);
 
   const readLogMessage = useCallback((row: Record<string, unknown>): string => {
+    const context = readNestedRecord(row, "context");
+    const metadata = readNestedRecord(row, "metadata");
     const value = row.message ?? row.event ?? row.value ?? row.msg;
     if (typeof value === "string" && value.trim().length > 0) {
+      if (value === "request_completed") {
+        const method = readFirstString(row.method, context?.method, metadata?.method);
+        const route = readFirstString(row.route, context?.route, metadata?.route, row.path, context?.path, metadata?.path);
+        const status = readFirstString(row.statusCode, row.status_code, context?.statusCode, context?.status_code, metadata?.statusCode, metadata?.status_code);
+        const duration = readFirstString(row.durationMs, row.duration_ms, context?.durationMs, context?.duration_ms, metadata?.durationMs, metadata?.duration_ms);
+        if (method || route || status) {
+          const requestLabel = [method, route].filter(Boolean).join(" ") || value;
+          const statusLabel = status ? ` -> ${status}` : "";
+          const durationLabel = duration ? ` (${duration} ms)` : "";
+          return `${requestLabel}${statusLabel}${durationLabel}`;
+        }
+      }
       return value;
     }
 
-    const metadata = row.metadata && typeof row.metadata === "object" ? (row.metadata as Record<string, unknown>) : null;
     const metadataEventType = metadata?.event_type;
     if (typeof metadataEventType === "string" && metadataEventType.trim().length > 0) {
       return metadataEventType;
@@ -1319,7 +1345,7 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
               <p className="ui-feedback ui-feedback--error">{state.logsError}</p>
             ) : state.logsRows.length ? (
               <div className="space-y-3">
-                <div className={`grid gap-3 ${compactViewport ? "grid-cols-1" : "sm:grid-cols-[minmax(180px,220px)_minmax(220px,1fr)]"}`}>
+                <div className={`grid gap-3 ${compactViewport ? "grid-cols-1" : "sm:grid-cols-[minmax(160px,200px)_minmax(160px,200px)_minmax(220px,1fr)]"}`}>
                   <label className="ui-control-label text-xs">
                     {t("service.logs.filterLabel")}
                     <select value={logSeverityFilter} onChange={(event) => setLogSeverityFilter(event.target.value as "all" | "error" | "warn" | "info" | "debug")} className={controlClass}>
@@ -1327,6 +1353,17 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
                         <option key={value} value={value}>{t(`service.logs.filter.${value}`)}</option>
                       ))}
                     </select>
+                  </label>
+                  <label className="ui-control-label text-xs">
+                    {t("service.logs.limitLabel")}
+                    <input
+                      type="number"
+                      min={1}
+                      max={1000}
+                      value={state.logsLimit}
+                      onChange={(event) => state.setLogsLimit(Number(event.target.value || 200))}
+                      className={controlClass}
+                    />
                   </label>
                   <label className="ui-control-label text-xs">
                     {t("service.logs.searchLabel")}

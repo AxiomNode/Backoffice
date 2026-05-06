@@ -323,7 +323,7 @@ describe("ServiceConsolePanel integration", () => {
       if (url.includes("/logs")) {
         return Promise.resolve({
           note: "ai-engine-api exposes health only; use ai-engine-stats for operational history.",
-          logs: [{ ts: logTimestamp, level: "warn", message: "request_completed" }],
+          logs: [{ ts: logTimestamp, level: "warn", message: "request_completed", context: { method: "GET", route: "/health", status_code: 503, duration_ms: 28 } }],
         });
       }
       if (url.endsWith("/v1/backoffice/ai-diagnostics/rag/stats")) {
@@ -340,6 +340,7 @@ describe("ServiceConsolePanel integration", () => {
     await waitFor(() => {
       expect(screen.getByText("ai-engine-api exposes health only; use ai-engine-stats for operational history.")).toBeInTheDocument();
       expect(screen.getByText(new Date(logTimestamp).toLocaleString())).toBeInTheDocument();
+      expect(screen.getAllByText("GET /health -> 503 (28 ms)").length).toBeGreaterThan(0);
       expect(screen.getByText("Warning")).toBeInTheDocument();
     });
   });
