@@ -419,9 +419,9 @@ export function HotfixPanel({ session, context, density }: HotfixPanelProps) {
 
       <div className={`mb-4 grid gap-2 ${compact ? "grid-cols-2" : "sm:grid-cols-2 xl:grid-cols-4"}`}>
         {operationalSnapshot.map((item) => (
-          <article key={item.label} className="ui-metric-tile ui-metric-tile--neutral rounded-[1.2rem] p-3">
+          <article key={item.label} className="ui-metric-tile ui-metric-tile--neutral min-w-0 rounded-[1.2rem] p-3">
             <p className="ui-metric-label">{item.label}</p>
-            <p className="ui-metric-value mt-2 text-[1.2rem] break-words">{item.value}</p>
+            <p className="ui-metric-value mt-2 text-[1.2rem]" title={String(item.value)}>{item.value}</p>
           </article>
         ))}
       </div>

@@ -294,6 +294,11 @@ body {
 
   .ui-metric-tile {
     position: relative;
+    display: flex;
+    min-width: 0;
+    min-height: 6.25rem;
+    flex-direction: column;
+    justify-content: space-between;
     overflow: hidden;
     border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 84%, transparent 16%);
     background: color-mix(in srgb, var(--md-sys-color-surface) 94%, var(--md-sys-color-surface-container-low) 6%);
@@ -328,17 +333,34 @@ body {
 
   .ui-metric-label {
     color: var(--md-sys-color-on-surface-variant);
-    font-size: 0.71rem;
+    font-size: 0.69rem;
     font-weight: 700;
-    letter-spacing: 0.14em;
+    letter-spacing: 0.04em;
+    line-height: 1.25;
     text-transform: uppercase;
+    overflow-wrap: anywhere;
   }
 
   .ui-metric-value {
+    max-width: 100%;
     color: var(--md-sys-color-on-surface);
     font-family: var(--ui-font-title);
     font-weight: 700;
-    line-height: 1;
+    line-height: 1.08;
+    overflow-wrap: break-word;
+  }
+
+  .ui-metric-value--text {
+    font-family: var(--ui-font-body);
+    font-size: clamp(0.78rem, 0.72rem + 0.2vw, 0.95rem);
+    line-height: 1.22;
+    overflow-wrap: anywhere;
+    word-break: normal;
+  }
+
+  .ui-metric-value--compact-text {
+    font-size: 0.78rem;
+    line-height: 1.2;
   }
 
   .ui-surface-raised {

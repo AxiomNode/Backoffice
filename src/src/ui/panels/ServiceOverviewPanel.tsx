@@ -28,6 +28,7 @@ type KpiCardProps = {
   value: string | number;
   tone?: "neutral" | "ok" | "warn" | "error";
   compact?: boolean;
+  valueKind?: "number" | "text";
 };
 
 type GenerationTaskSnapshot = {
@@ -55,11 +56,24 @@ type ActiveGenerationRow = {
 
 type OverviewTab = "operations" | "kubernetes";
 
-function KpiCard({ label, value, tone = "neutral", compact = false }: KpiCardProps) {
+function classifyKpiValue(value: string | number): "number" | "text" {
+  if (typeof value === "number") {
+    return "number";
+  }
+
+  return value.length > 14 || /[/:.]/.test(value) ? "text" : "number";
+}
+
+function KpiCard({ label, value, tone = "neutral", compact = false, valueKind }: KpiCardProps) {
+  const resolvedValueKind = valueKind ?? classifyKpiValue(value);
+  const valueClass = resolvedValueKind === "text"
+    ? `ui-metric-value--text ${compact ? "ui-metric-value--compact-text" : ""}`
+    : compact ? "text-[1.35rem]" : "text-[1.7rem]";
+
   return (
-    <article className={`ui-metric-tile ui-metric-tile--${tone} rounded-[1.35rem] ${compact ? "px-3 py-2.5" : "px-4 py-3"}`}>
+    <article className={`ui-metric-tile ui-metric-tile--${tone} min-w-0 rounded-[1.35rem] ${compact ? "px-3 py-2.5" : "px-4 py-3"}`}>
       <p className="ui-metric-label">{label}</p>
-      <p className={`ui-metric-value mt-3 ${compact ? "text-[1.35rem]" : "text-[1.7rem]"}`}>{value}</p>
+      <p className={`ui-metric-value mt-3 ${valueClass}`} title={String(value)}>{value}</p>
     </article>
   );
 }

@@ -1069,10 +1069,14 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
 // ---------------------------------------------------------------------------
 
 function StatCard({ label, value }: { label: string; value: string | number }) {
+  const valueClass = typeof value === "string" && (value.length > 14 || /[/:.]/.test(value))
+    ? "ui-metric-value--text"
+    : "text-[1.2rem]";
+
   return (
-    <div className="ui-metric-tile ui-metric-tile--neutral rounded-[1.2rem] px-3 py-2.5 text-left">
+    <div className="ui-metric-tile ui-metric-tile--neutral min-w-0 rounded-[1.2rem] px-3 py-2.5 text-left">
       <div className="ui-metric-label">{label}</div>
-      <div className="ui-metric-value mt-3 break-all text-[1.2rem]">{value}</div>
+      <div className={`ui-metric-value mt-3 ${valueClass}`} title={String(value)}>{value}</div>
     </div>
   );
 }

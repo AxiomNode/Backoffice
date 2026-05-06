@@ -85,11 +85,21 @@ type AiEngineTargetControlProps = {
   formatTimestamp?: (value: string | null | undefined) => string;
 };
 
+function classifyMetricValue(value: string | number): "number" | "text" {
+  if (typeof value === "number") {
+    return "number";
+  }
+
+  return value.length > 14 || /[/:.]/.test(value) ? "text" : "number";
+}
+
 function MetricTile({ label, value, tone = "neutral" }: { label: string; value: string | number; tone?: "neutral" | "ok" | "warn" | "error" }) {
+  const valueClass = classifyMetricValue(value) === "text" ? "ui-metric-value--text" : "text-[1.35rem]";
+
   return (
-    <article className={`ui-metric-tile ui-metric-tile--${tone} rounded-[1.35rem] px-4 py-3`}>
+    <article className={`ui-metric-tile ui-metric-tile--${tone} min-w-0 rounded-[1.35rem] px-4 py-3`}>
       <p className="ui-metric-label">{label}</p>
-      <p className="ui-metric-value mt-3 break-all text-[1.35rem]">{value}</p>
+      <p className={`ui-metric-value mt-3 ${valueClass}`} title={String(value)}>{value}</p>
     </article>
   );
 }
