@@ -10,10 +10,11 @@ import { useI18n } from "../../i18n/context";
 type RoleManagementPanelProps = {
   context: SessionContext;
   density: UiDensity;
+  canEditRoles?: boolean;
 };
 
-/** Panel for SuperAdmins to list users and change their backoffice roles. */
-export function RoleManagementPanel({ context, density }: RoleManagementPanelProps) {
+/** Panel for listing users and, for SuperAdmins, changing their backoffice roles. */
+export function RoleManagementPanel({ context, density, canEditRoles = false }: RoleManagementPanelProps) {
   const { t } = useI18n();
   const compact = density === "dense";
   const [loading, setLoading] = useState(false);
@@ -87,10 +88,11 @@ export function RoleManagementPanel({ context, density }: RoleManagementPanelPro
                     value={item.role}
                     onChange={(event) => void onRoleChange(item.firebaseUid, event.target.value as BackofficeRole)}
                     className="rounded-lg border border-[var(--md-sys-color-outline-variant)] px-2 py-1"
-                    disabled={item.role === "SuperAdmin"}
+                    disabled={!canEditRoles || item.role === "SuperAdmin"}
                   >
                     <option value="SuperAdmin">SuperAdmin</option>
                     <option value="Admin">Admin</option>
+                    <option value="Inspector">Inspector</option>
                     <option value="Viewer">Viewer</option>
                     <option value="Gamer">Gamer</option>
                   </select>

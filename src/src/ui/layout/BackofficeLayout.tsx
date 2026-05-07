@@ -4,7 +4,7 @@ import packageMetadata from "../../../package.json";
 
 import type { BackofficeSession } from "../../auth";
 import { fetchServiceOperationalSummary } from "../../application/services/operationalSummary";
-import { navItemsForRole, roleCanManageUsers, roleCanModify } from "../../application/services/rolePolicies";
+import { navItemsForRole, roleCanInspectAll, roleCanManageUsers, roleCanModify, roleCanViewUserRoles } from "../../application/services/rolePolicies";
 import { SERVICE_NAV_KEYS } from "../../domain/constants/navigation";
 import { UI_DENSITY_STORAGE_KEY, UI_SERVICE_ROUTE_QUERY_STORAGE_PREFIX } from "../../domain/constants/ui";
 import type { NavKey, SessionContext, UiDensity, UiTheme, UiTypography } from "../../domain/types/backoffice";
@@ -555,7 +555,7 @@ export function BackofficeLayout({
         <Suspense fallback={<div className="m3-card animate-pulse p-6 text-center text-sm text-[var(--md-sys-color-on-surface-variant)]">…</div>}>
           {/** La ruta ai-diagnostics mantiene el laboratorio IA dedicado; las paginas svc-* usan consola unificada por servicio. */}
           {(() => {
-            const showAiDiagnostics = current === "ai-diagnostics" && roleCanModify(session.role);
+            const showAiDiagnostics = current === "ai-diagnostics" && (roleCanModify(session.role) || roleCanInspectAll(session.role));
 
             return (
               <>
@@ -564,7 +564,9 @@ export function BackofficeLayout({
                   <ServiceConsolePanel key={current} navKey={current} context={context} density={density} />
                 )}
                 {showAiDiagnostics && <AIDiagnosticsPanel context={context} density={density} />}
-                {current === "roles" && roleCanManageUsers(session.role) && <RoleManagementPanel context={context} density={density} />}
+                {current === "roles" && roleCanViewUserRoles(session.role) && (
+                  <RoleManagementPanel context={context} density={density} canEditRoles={roleCanManageUsers(session.role)} />
+                )}
               </>
             );
           })()}

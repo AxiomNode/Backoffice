@@ -598,7 +598,7 @@ const es: LabelDictionary = {
   "hotfix.result.registered": "Evento de juego registrado en caliente via edge/bff-backoffice.",
 
   "roles.title": "Gestion de roles",
-  "roles.subtitle": "Solo SuperAdmin puede cambiar roles. Sirve para acceso, no para auditoria completa.",
+  "roles.subtitle": "SuperAdmin puede cambiar roles; Inspector puede verlos en solo lectura.",
   "roles.refresh": "Refrescar",
   "roles.loading": "Cargando usuarios...",
   "roles.col.name": "Nombre",
@@ -1184,7 +1184,7 @@ const en: LabelDictionary = {
   "hotfix.result.registering": "Registering hot operational event...",
   "hotfix.result.registered": "Game event registered via edge/bff-backoffice.",
   "roles.title": "Role management",
-  "roles.subtitle": "Only SuperAdmin can change roles. Useful for access control, not for full auditability.",
+  "roles.subtitle": "SuperAdmin can change roles; Inspector can view them in read-only mode.",
   "roles.refresh": "Refresh",
   "roles.loading": "Loading users...",
   "roles.col.name": "Name",
@@ -1276,7 +1276,7 @@ const fr: LabelDictionary = {
   "nav.hotfix.title": "Modification a chaud",
   "nav.hotfix.subtitle": "Actions d administration runtime",
   "nav.roles.title": "Gestion des roles",
-  "nav.roles.subtitle": "SuperAdmin administre Admin/Viewer",
+  "nav.roles.subtitle": "SuperAdmin modifie; Inspector consulte",
   "nav.ai-diagnostics.title": "Diagnostics IA",
   "nav.ai-diagnostics.subtitle": "Tests d hallucination et mesure RAG",
 
@@ -1619,7 +1619,7 @@ const fr: LabelDictionary = {
   "hotfix.result.registered": "Evenement de jeu enregistre a chaud via edge/bff-backoffice.",
 
   "roles.title": "Gestion des roles",
-  "roles.subtitle": "Seul SuperAdmin peut changer les roles des utilisateurs.",
+  "roles.subtitle": "Seul SuperAdmin peut changer les roles; Inspector peut les consulter en lecture seule.",
   "roles.refresh": "Actualiser",
   "roles.loading": "Chargement des utilisateurs...",
   "roles.col.name": "Nom",
@@ -1711,7 +1711,7 @@ const de: LabelDictionary = {
   "nav.hotfix.title": "Aenderung im laufenden Betrieb",
   "nav.hotfix.subtitle": "Runtime-Administrationsaktionen",
   "nav.roles.title": "Rollenverwaltung",
-  "nav.roles.subtitle": "SuperAdmin verwaltet Admin/Viewer",
+  "nav.roles.subtitle": "SuperAdmin aendert; Inspector liest",
   "nav.ai-diagnostics.title": "KI-Diagnostik",
   "nav.ai-diagnostics.subtitle": "Halluzinationstests und RAG-Messung",
 
@@ -2053,7 +2053,7 @@ const de: LabelDictionary = {
   "hotfix.result.registered": "Spielereignis im laufenden Betrieb via edge/bff-backoffice registriert.",
 
   "roles.title": "Rollenverwaltung",
-  "roles.subtitle": "Nur SuperAdmin kann Benutzerrollen aendern.",
+  "roles.subtitle": "Nur SuperAdmin kann Rollen aendern; Inspector kann sie schreibgeschuetzt ansehen.",
   "roles.refresh": "Aktualisieren",
   "roles.loading": "Benutzer werden geladen...",
   "roles.col.name": "Name",
@@ -2145,7 +2145,7 @@ const it: LabelDictionary = {
   "nav.hotfix.title": "Modifica a caldo",
   "nav.hotfix.subtitle": "Azioni di amministrazione runtime",
   "nav.roles.title": "Gestione dei ruoli",
-  "nav.roles.subtitle": "SuperAdmin gestisce Admin/Viewer",
+  "nav.roles.subtitle": "SuperAdmin modifica; Inspector consulta",
   "nav.ai-diagnostics.title": "Diagnostica IA",
   "nav.ai-diagnostics.subtitle": "Test di allucinazione e misuratore RAG",
 
@@ -2467,7 +2467,7 @@ const it: LabelDictionary = {
   "hotfix.result.registered": "Evento di gioco registrato a caldo via edge/bff-backoffice.",
 
   "roles.title": "Gestione dei ruoli",
-  "roles.subtitle": "Solo SuperAdmin puo cambiare i ruoli degli utenti.",
+  "roles.subtitle": "Solo SuperAdmin puo cambiare i ruoli; Inspector puo consultarli in sola lettura.",
   "roles.refresh": "Aggiorna",
   "roles.loading": "Caricamento utenti...",
   "roles.col.name": "Nome",

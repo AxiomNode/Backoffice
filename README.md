@@ -1,6 +1,6 @@
 # backoffice
 
-Last updated: 2026-05-03.
+Last updated: 2026-05-08.
 
 [![codecov](https://codecov.io/gh/AxiomNode/backoffice/branch/main/graph/badge.svg)](https://codecov.io/gh/AxiomNode/backoffice)
 
@@ -49,6 +49,14 @@ Detailed architecture and operational guidance now live under `docs/` so the roo
 - operational controls and administration views
 - AI diagnostics and runtime-target management
 - role-gated operator access
+
+### Backoffice roles
+
+- `SuperAdmin`: full access, including role changes.
+- `Admin`: operational write access where enabled, without user-role management.
+- `Inspector`: review profile for academic/operational inspection; can view role assignments but cannot modify user permissions.
+- `Viewer`: read-only operational access.
+- `Gamer`: no Backoffice access.
 
 ### Primary operational use cases
 

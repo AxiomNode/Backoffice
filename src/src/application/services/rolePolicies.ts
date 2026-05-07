@@ -8,6 +8,16 @@ export function roleCanManageUsers(role: BackofficeRole): boolean {
   return role === "SuperAdmin";
 }
 
+/** Returns true if the role can inspect user role assignments. */
+export function roleCanViewUserRoles(role: BackofficeRole): boolean {
+  return role === "SuperAdmin" || role === "Inspector";
+}
+
+/** Returns true if the role can inspect every backoffice section. */
+export function roleCanInspectAll(role: BackofficeRole): boolean {
+  return role === "Inspector";
+}
+
 /** Returns true if the role can perform write operations (SuperAdmin or Admin). */
 export function roleCanModify(role: BackofficeRole): boolean {
   return role === "SuperAdmin" || role === "Admin";
@@ -46,12 +56,12 @@ export function navItemsForRole(role: BackofficeRole): NavItem[] {
     })),
   ];
 
-  if (roleCanModify(role)) {
+  if (roleCanModify(role) || roleCanInspectAll(role)) {
     items.push({ key: "ai-diagnostics", section: "ai", title: "AI Diagnostics", subtitle: "Hallucination checks and RAG coverage" });
   }
 
-  if (roleCanManageUsers(role)) {
-    items.push({ key: "roles", section: "admin", title: "Role management", subtitle: "SuperAdmin manages Admin and Viewer access" });
+  if (roleCanViewUserRoles(role)) {
+    items.push({ key: "roles", section: "admin", title: "Role management", subtitle: "SuperAdmin manages roles; Inspector can inspect assignments" });
   }
 
   return items;

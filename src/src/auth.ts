@@ -19,7 +19,7 @@ export type BackofficeSession = {
   isAuthenticated: boolean;
   displayName: string;
   email?: string;
-  role: "SuperAdmin" | "Admin" | "Viewer" | "Gamer";
+  role: "SuperAdmin" | "Admin" | "Inspector" | "Viewer" | "Gamer";
   firebaseUid: string;
   provider: RuntimeAuthMode;
 };

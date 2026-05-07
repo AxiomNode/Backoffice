@@ -3,7 +3,7 @@ import type { RuntimeAuthMode } from "../../auth";
 /** @module backoffice - Core domain types for the backoffice application. */
 
 /** User role within the backoffice RBAC system. */
-export type BackofficeRole = "SuperAdmin" | "Admin" | "Viewer" | "Gamer";
+export type BackofficeRole = "SuperAdmin" | "Admin" | "Inspector" | "Viewer" | "Gamer";
 
 /** Navigation key identifying a sidebar destination. */
 export type NavKey =

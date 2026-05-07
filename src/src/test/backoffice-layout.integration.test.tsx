@@ -601,4 +601,19 @@ describe("BackofficeLayout integration", () => {
       expect(screen.getByTestId("roles-panel")).toBeInTheDocument();
     });
   });
+
+  it("renders the role management panel for inspectors", async () => {
+    fetchServiceOperationalSummaryMock.mockResolvedValue({
+      rows: [],
+      totals: { total: 1, onlineCount: 1, accessIssues: 0, connectionErrors: 0 },
+    });
+
+    renderLayout({ session: { role: "Inspector" } });
+
+    fireEvent.click(screen.getAllByRole("button", { name: /Accesos y permisos/i })[0]);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("roles-panel")).toBeInTheDocument();
+    });
+  });
 });
