@@ -615,6 +615,12 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
         detail: `${t("service.aiTelemetry.retryUsed")}: ${formatMetricNumber(readMetricNumber(row.retry_used_count))}`,
         tone: safetyBlocks && safetyBlocks > 0 ? "warn" : "ok",
       },
+      {
+        labelKey: "service.aiTelemetry.kbdHits",
+        value: formatMetricNumber(readMetricNumber(row.kbd_hits_total)),
+        detail: `${t("service.aiTelemetry.ragSimilarity")}: ${formatMetricNumber(readMetricNumber(row.avg_rag_similarity), 3)}`,
+        tone: "neutral",
+      },
     ];
 
     const sections: AiTelemetrySection[] = [
@@ -1166,6 +1172,13 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
 
                   <div className={`grid gap-2 ${compactViewport ? "grid-cols-2" : "sm:grid-cols-2 xl:grid-cols-5"}`}>
                     <article className="ui-metric-tile ui-metric-tile--neutral rounded-[1.2rem] p-3">
+                      <p className="ui-metric-label">{t("service.aiObservability.vectorDb")}</p>
+                      <p className="ui-metric-value ui-metric-value--text mt-2" title={state.aiRagStats.vector_store_type ?? "--"}>{state.aiRagStats.vector_store_type ?? "--"}</p>
+                      {state.aiRagStats.vector_store_collection && (
+                        <p className="mt-1 truncate text-xs text-[var(--md-sys-color-on-surface-variant)]" title={state.aiRagStats.vector_store_collection}>{state.aiRagStats.vector_store_collection}</p>
+                      )}
+                    </article>
+                    <article className="ui-metric-tile ui-metric-tile--neutral rounded-[1.2rem] p-3">
                       <p className="ui-metric-label">{t("diag.rag.totalChunks")}</p>
                       <p className="ui-metric-value mt-2">{state.aiRagStats.total_chunks}</p>
                     </article>
@@ -1180,10 +1193,6 @@ export function ServiceConsolePanel({ navKey, context, density }: ServiceConsole
                     <article className="ui-metric-tile ui-metric-tile--neutral rounded-[1.2rem] p-3">
                       <p className="ui-metric-label">{t("diag.rag.embeddingDim")}</p>
                       <p className="ui-metric-value mt-2">{state.aiRagStats.embedding_dimensions}</p>
-                    </article>
-                    <article className="ui-metric-tile ui-metric-tile--neutral rounded-[1.2rem] p-3">
-                      <p className="ui-metric-label">{t("diag.rag.avgChunkChars")}</p>
-                      <p className="ui-metric-value mt-2">{state.aiRagStats.avg_chunk_chars}</p>
                     </article>
                   </div>
 

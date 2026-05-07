@@ -29,6 +29,8 @@ type AiRagStats = {
   avg_chunk_chars: number;
   coverage_level: string;
   coverage_message: string;
+  vector_store_type?: string | null;
+  vector_store_collection?: string | null;
   retriever_config: { top_k?: number; min_score?: number };
   sources: Array<{
     source: string;
