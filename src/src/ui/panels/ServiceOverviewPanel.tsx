@@ -36,6 +36,9 @@ type GenerationTaskSnapshot = {
   status: "running" | "completed" | "failed";
   startedAt?: string;
   updatedAt?: string;
+  lastProgressAt?: string;
+  idleSeconds?: number;
+  stalled?: boolean;
   requested: number;
   processed: number;
   created: number;
@@ -325,6 +328,7 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
   const activeGenerationSummary = useMemo(() => {
     let failing = 0;
     let duplicated = 0;
+    let stalled = 0;
     let requested = 0;
     let processed = 0;
 
@@ -337,12 +341,16 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
       if (entry.task.duplicates > 0) {
         duplicated += 1;
       }
+      if (entry.task.stalled) {
+        stalled += 1;
+      }
     }
 
     return {
       total: activeGenerations.length,
       failing,
       duplicated,
+      stalled,
       processed,
       requested,
     };
@@ -375,7 +383,9 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
   }, [aiTarget?.host, aiTarget?.port, aiTarget?.protocol, probeAiTarget]);
 
   const activeGenerationSpotlight = useMemo(() => activeGenerations.slice(0, 3).map((entry) => {
-    const riskKey = entry.task.status === "failed" || entry.task.failed > 0
+    const riskKey = entry.task.stalled
+      ? "overview.generations.risk.stalled"
+      : entry.task.status === "failed" || entry.task.failed > 0
       ? "overview.generations.risk.failed"
       : entry.task.duplicates > 0
         ? "overview.generations.risk.duplicates"
@@ -390,6 +400,9 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
         requested: entry.task.requested,
         timestamp: formatTimestamp(entry.task.updatedAt ?? entry.task.startedAt),
       }),
+      idleLabel: typeof entry.task.idleSeconds === "number"
+        ? t("overview.generations.spotlight.idle", { idleSeconds: entry.task.idleSeconds })
+        : null,
       riskLabel: t(riskKey),
     };
   }), [activeGenerations, t]);
@@ -520,6 +533,7 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
                 <KpiCard label={t("overview.generations.summary.active")} value={activeGenerationSummary.total} tone={activeGenerationSummary.total > 0 ? "warn" : "ok"} compact={compactPanel} />
                 <KpiCard label={t("overview.generations.summary.failed")} value={activeGenerationSummary.failing} tone={activeGenerationSummary.failing > 0 ? "error" : "ok"} compact={compactPanel} />
                 <KpiCard label={t("overview.generations.summary.duplicates")} value={activeGenerationSummary.duplicated} tone={activeGenerationSummary.duplicated > 0 ? "warn" : "ok"} compact={compactPanel} />
+                <KpiCard label={t("overview.generations.summary.stalled")} value={activeGenerationSummary.stalled} tone={activeGenerationSummary.stalled > 0 ? "error" : "ok"} compact={compactPanel} />
                 <KpiCard label={t("overview.generations.summary.progress")} value={`${activeGenerationSummary.processed}/${activeGenerationSummary.requested}`} tone="neutral" compact={compactPanel} />
               </div>
 
@@ -530,6 +544,9 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
                       <div>
                         <p className="text-sm font-semibold text-[var(--md-sys-color-on-surface)]">{entry.title}</p>
                         <p className="mt-1 text-xs text-[var(--md-sys-color-on-surface-variant)]">{entry.detail}</p>
+                        {entry.idleLabel && (
+                          <p className="mt-1 text-[11px] font-semibold text-[var(--md-sys-color-error)]">{entry.idleLabel}</p>
+                        )}
                       </div>
                       <div className="flex flex-wrap items-center justify-end gap-2">
                         <span className="ui-surface-soft rounded-full px-2 py-1 text-[11px] font-semibold text-[var(--md-sys-color-on-surface-variant)]">{entry.riskLabel}</span>

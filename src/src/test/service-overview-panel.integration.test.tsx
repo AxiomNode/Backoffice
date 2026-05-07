@@ -183,6 +183,8 @@ describe("ServiceOverviewPanel integration", () => {
               created: 3,
               duplicates: 0,
               failed: 1,
+              idleSeconds: 80,
+              stalled: true,
               updatedAt: "2026-04-26T10:00:00.000Z",
             },
           ],
@@ -364,10 +366,12 @@ describe("ServiceOverviewPanel integration", () => {
       expect(screen.getByText("Activos")).toBeInTheDocument();
       expect(screen.getAllByText("Con fallos").length).toBeGreaterThan(0);
       expect(screen.getAllByText("Con duplicados").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("Bloqueados").length).toBeGreaterThan(0);
       expect(screen.getByText("Progreso agregado")).toBeInTheDocument();
       expect(screen.getByText(/quiz \| quiz-risky/i)).toBeInTheDocument();
       expect(screen.getByText(/wordpass \| wordpass-dup/i)).toBeInTheDocument();
       expect(screen.getByText(/microservice-quiz \| 4\/10 procesados/i)).toBeInTheDocument();
+      expect(screen.getByText("Sin progreso: 80s")).toBeInTheDocument();
       expect(screen.getByText(/microservice-wordpass \| 2\/6 procesados/i)).toBeInTheDocument();
     });
 
