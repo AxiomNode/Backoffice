@@ -163,8 +163,8 @@ describe("ServiceOverviewPanel integration", () => {
       },
       {
         id: "workstation-public",
-        name: "Workstation publica (195.35.48.40)",
-        host: "195.35.48.40",
+        name: "Workstation publica (203.0.113.10)",
+        host: "203.0.113.10",
         protocol: "http",
         port: 27002,
         updatedAt: "2026-04-19T00:00:00.000Z",
@@ -268,11 +268,11 @@ describe("ServiceOverviewPanel integration", () => {
       if (url.endsWith("/v1/backoffice/ai-engine/target") && options?.method === "PUT") {
         return Promise.resolve({
           source: "override",
-          label: "VPS staging (195.35.48.40)",
-          host: "195.35.48.40",
+          label: "VPS staging (203.0.113.10)",
+          host: "203.0.113.10",
           protocol: "http",
           port: 27002,
-          llamaBaseUrl: "http://195.35.48.40:27002/v1/completions",
+          llamaBaseUrl: "http://203.0.113.10:27002/v1/completions",
           envLlamaBaseUrl: "http://llama-workstation.invalid:7002/v1/completions",
           updatedAt: "2026-04-19T00:00:00.000Z",
         });
@@ -444,13 +444,13 @@ describe("ServiceOverviewPanel integration", () => {
 
     await waitFor(() => {
       expect(screen.getAllByText("Etiqueta actual").length).toBeGreaterThan(0);
-      expect(screen.getAllByText("Workstation publica (195.35.48.40)").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("Workstation publica (203.0.113.10)").length).toBeGreaterThan(0);
     });
 
     await waitFor(() => {
       expect(screen.getByLabelText("Destino guardado")).toHaveValue("workstation-public");
-      expect(screen.getByLabelText("Nombre de opcion")).toHaveValue("Workstation publica (195.35.48.40)");
-      expect(screen.getByLabelText("Host / IP")).toHaveValue("195.35.48.40");
+      expect(screen.getByLabelText("Nombre de opcion")).toHaveValue("Workstation publica (203.0.113.10)");
+      expect(screen.getByLabelText("Host / IP")).toHaveValue("203.0.113.10");
     });
 
     fireEvent.change(screen.getByLabelText("Destino guardado"), {
@@ -474,7 +474,7 @@ describe("ServiceOverviewPanel integration", () => {
         expect.objectContaining({
           method: "POST",
           body: JSON.stringify({
-            host: "195.35.48.40",
+            host: "203.0.113.10",
             protocol: "http",
             port: 27002,
           }),
@@ -491,14 +491,14 @@ describe("ServiceOverviewPanel integration", () => {
         expect.objectContaining({
           method: "PUT",
           body: JSON.stringify({
-            host: "195.35.48.40",
+            host: "203.0.113.10",
             protocol: "http",
             port: 27002,
-            label: "Workstation publica (195.35.48.40)",
+            label: "Workstation publica (203.0.113.10)",
           }),
         }),
       );
-      expect(screen.getByText("http://195.35.48.40:27002/v1/completions")).toBeInTheDocument();
+      expect(screen.getByText("http://203.0.113.10:27002/v1/completions")).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Nueva opcion" }));
@@ -554,7 +554,7 @@ describe("ServiceOverviewPanel integration", () => {
             {
               id: "legacy-public",
               name: "Legacy public",
-              host: "195.35.48.40",
+              host: "203.0.113.10",
               protocol: "http",
               port: 7002,
               updatedAt: "2026-04-19T00:00:00.000Z",
@@ -567,19 +567,19 @@ describe("ServiceOverviewPanel integration", () => {
         return Promise.resolve({
           source: "override",
           label: "workstation-gpu-vps-relay",
-          host: "195.35.48.40",
+          host: "203.0.113.10",
           protocol: "http",
           apiPort: 27001,
           statsPort: 27000,
-          apiBaseUrl: "http://195.35.48.40:27001",
-          statsBaseUrl: "http://195.35.48.40:27000",
+          apiBaseUrl: "http://203.0.113.10:27001",
+          statsBaseUrl: "http://203.0.113.10:27000",
           updatedAt: "2026-04-19T21:00:00.000Z",
         });
       }
 
       if (url.endsWith("/v1/backoffice/ai-engine/probe") && options?.method === "POST") {
         return Promise.resolve({
-          host: "195.35.48.40",
+          host: "203.0.113.10",
           protocol: "http",
           apiPort: 7002,
           statsPort: 7001,
@@ -587,14 +587,14 @@ describe("ServiceOverviewPanel integration", () => {
           api: {
             ok: false,
             status: null,
-            url: "http://195.35.48.40:7002/health",
+            url: "http://203.0.113.10:7002/health",
             latencyMs: 5,
             message: "fetch failed",
           },
           stats: {
             ok: false,
             status: null,
-            url: "http://195.35.48.40:7001/metrics",
+            url: "http://203.0.113.10:7001/metrics",
             latencyMs: 4,
             message: "fetch failed",
           },
@@ -605,12 +605,12 @@ describe("ServiceOverviewPanel integration", () => {
         return Promise.resolve({
           source: "override",
           label: "Legacy public",
-          host: "195.35.48.40",
+          host: "203.0.113.10",
           protocol: "http",
           apiPort: 7002,
           statsPort: 7001,
-          apiBaseUrl: "http://195.35.48.40:7002",
-          statsBaseUrl: "http://195.35.48.40:7001",
+          apiBaseUrl: "http://203.0.113.10:7002",
+          statsBaseUrl: "http://203.0.113.10:7001",
           updatedAt: "2026-04-19T21:05:00.000Z",
         });
       }
@@ -625,14 +625,14 @@ describe("ServiceOverviewPanel integration", () => {
     await waitFor(() => {
       expect(screen.getAllByText("workstation-gpu-vps-relay").length).toBeGreaterThan(0);
       expect(screen.getAllByText("27001").length).toBeGreaterThan(0);
-      expect(screen.getByText("http://195.35.48.40:27001/v1/completions")).toBeInTheDocument();
+      expect(screen.getByText("http://203.0.113.10:27001/v1/completions")).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Verificar conectividad" }));
 
     await waitFor(() => {
       expect(screen.getByText(/Destino con fallos/i)).toBeInTheDocument();
-      expect(screen.getByText(/http:\/\/195.35.48.40:7002\/health fetch failed/i)).toBeInTheDocument();
+      expect(screen.getByText(/http:\/\/203.0.113.10:7002\/health fetch failed/i)).toBeInTheDocument();
       expect(screen.getByText("Destino del servidor llama")).toBeInTheDocument();
     });
   });
@@ -645,10 +645,10 @@ describe("ServiceOverviewPanel integration", () => {
         return Promise.resolve({
           source: "override",
           label: "workstation-gpu",
-          host: "195.35.48.40",
+          host: "203.0.113.10",
           protocol: "http",
           port: 7002,
-          llamaBaseUrl: "http://195.35.48.40:7002/v1/completions",
+          llamaBaseUrl: "http://203.0.113.10:7002/v1/completions",
           envLlamaBaseUrl: "http://llama-workstation.invalid:7002/v1/completions",
           updatedAt: "2026-04-19T00:00:00.000Z",
         });
@@ -940,10 +940,10 @@ describe("ServiceOverviewPanel integration", () => {
         return Promise.resolve({
           source: "override",
           label: "workstation-gpu",
-          host: "195.35.48.40",
+          host: "203.0.113.10",
           protocol: "http",
           port: 27002,
-          llamaBaseUrl: "http://195.35.48.40:27002/v1/completions",
+          llamaBaseUrl: "http://203.0.113.10:27002/v1/completions",
           envLlamaBaseUrl: null,
           updatedAt: "2026-04-19T00:00:00.000Z",
         });
@@ -964,7 +964,7 @@ describe("ServiceOverviewPanel integration", () => {
       fireEvent.click(screen.getByRole("button", { name: "Mostrar" }));
 
       await waitFor(() => {
-        expect(screen.getByLabelText("Host / IP")).toHaveValue("195.35.48.40");
+        expect(screen.getByLabelText("Host / IP")).toHaveValue("203.0.113.10");
       });
 
       fireEvent.click(screen.getByRole("button", { name: "Verificar conectividad" }));
@@ -1076,10 +1076,10 @@ describe("ServiceOverviewPanel integration", () => {
         return Promise.resolve({
           source: "override",
           label: "workstation-gpu",
-          host: "195.35.48.40",
+          host: "203.0.113.10",
           protocol: "http",
           port: 27002,
-          llamaBaseUrl: "http://195.35.48.40:27002/v1/completions",
+          llamaBaseUrl: "http://203.0.113.10:27002/v1/completions",
           envLlamaBaseUrl: null,
           updatedAt: "2026-04-19T00:00:00.000Z",
         });
