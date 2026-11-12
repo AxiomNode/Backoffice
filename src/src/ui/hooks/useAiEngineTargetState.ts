@@ -1,17 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { AiEngineTarget, AiEngineTargetPreset, SessionContext } from "../../domain/types/backoffice";
+import type { AiEngineTarget, SessionContext } from "../../domain/types/backoffice";
 import { composeAuthHeaders } from "../../infrastructure/backoffice/authHeaders";
 import { EDGE_API_BASE, fetchJson } from "../../infrastructure/http/apiClient";
-
-type AiEnginePresetListResponse = {
-  total: number;
-  presets: AiEngineTargetPreset[];
-};
-
-export type AiEngineTargetPresetState = AiEngineTargetPreset & {
-  active?: boolean;
-};
 
 export type AiEngineProbeEndpointStatus = {
   ok: boolean;
@@ -99,27 +90,6 @@ function normalizeAiProbeResponse(payload: unknown): AiEngineProbeResult {
   };
 }
 
-function findPresetMatch(entries: AiEngineTargetPreset[], target: AiEngineTarget | null) {
-  if (!target) {
-    return null;
-  }
-
-  const protocol = target.protocol ?? "http";
-  const directMatch = entries.find(
-    (entry) =>
-      entry.host === (target.host ?? "") &&
-      entry.protocol === protocol &&
-      entry.port === target.port,
-  );
-
-  if (directMatch) {
-    return directMatch;
-  }
-
-  const protocolPortMatches = entries.filter((entry) => entry.protocol === protocol && entry.port === target.port);
-  return protocolPortMatches.length === 1 ? protocolPortMatches[0] ?? null : null;
-}
-
 function broadcastAiTargetChanged() {
   if (typeof window !== "undefined") {
     window.dispatchEvent(new Event(AI_ENGINE_TARGET_CHANGED_EVENT));
@@ -160,6 +130,7 @@ function describeProbeFailure(applyBlockedLabel: string, probe: AiEngineProbeRes
   return `${applyBlockedLabel} Endpoint: ${probe.llama.url}. Detail: ${detail}.`;
 }
 
+/** State and actions for the ai-engine llama target: read, probe, apply and reset. */
 export function useAiEngineTargetState({
   context,
   unknownErrorLabel,
@@ -170,96 +141,63 @@ export function useAiEngineTargetState({
   const [targetLoading, setTargetLoading] = useState(false);
   const [targetSaving, setTargetSaving] = useState(false);
   const [targetError, setTargetError] = useState<string | null>(null);
-  const [presets, setPresets] = useState<AiEngineTargetPresetState[]>([]);
-  const [presetsLoading, setPresetsLoading] = useState(false);
-  const [selectedPresetId, setSelectedPresetId] = useState("");
-  const [isCreatingPreset, setIsCreatingPreset] = useState(false);
-  const [presetName, setPresetName] = useState("");
-  const [presetHost, setPresetHost] = useState("");
-  const [presetProtocol, setPresetProtocol] = useState<"http" | "https">("http");
-  const [presetPort, setPresetPort] = useState("7002");
-  const presetNameRef = useRef(presetName);
-  const presetHostRef = useRef(presetHost);
-  const presetProtocolRef = useRef(presetProtocol);
-  const presetPortRef = useRef(presetPort);
+  const [label, setLabel] = useState("");
+  const [host, setHost] = useState("");
+  const [protocol, setProtocol] = useState<"http" | "https">("http");
+  const [port, setPort] = useState("7002");
+  const labelRef = useRef(label);
+  const hostRef = useRef(host);
+  const protocolRef = useRef(protocol);
+  const portRef = useRef(port);
   const [probeLoading, setProbeLoading] = useState(false);
   const [probeResult, setProbeResult] = useState<AiEngineProbeResult | null>(null);
 
   const authHeaders = useCallback(() => composeAuthHeaders(context), [context]);
 
-  const updatePresetName = useCallback((value: string) => {
-    presetNameRef.current = value;
-    setPresetName(value);
+  const updateLabel = useCallback((value: string) => {
+    labelRef.current = value;
+    setLabel(value);
   }, []);
 
-  const updatePresetHost = useCallback((value: string) => {
-    presetHostRef.current = value;
-    setPresetHost(value);
+  const updateHost = useCallback((value: string) => {
+    hostRef.current = value;
+    setHost(value);
   }, []);
 
-  const updatePresetProtocol = useCallback((value: "http" | "https") => {
-    presetProtocolRef.current = value;
-    setPresetProtocol(value);
+  const updateProtocol = useCallback((value: "http" | "https") => {
+    protocolRef.current = value;
+    setProtocol(value);
   }, []);
 
-  const updatePresetPort = useCallback((value: string) => {
-    presetPortRef.current = value;
-    setPresetPort(value);
+  const updatePort = useCallback((value: string) => {
+    portRef.current = value;
+    setPort(value);
   }, []);
 
-  const syncTargetForm = useCallback((nextTarget: AiEngineTarget | null) => {
-    updatePresetName(nextTarget?.label ?? "");
-    updatePresetHost(nextTarget?.host ?? "");
-    updatePresetProtocol(nextTarget?.protocol ?? "http");
-    updatePresetPort(String(nextTarget?.port ?? 7002));
-  }, [updatePresetHost, updatePresetName, updatePresetPort, updatePresetProtocol]);
-
-  const syncPresetForm = useCallback((preset: AiEngineTargetPreset | null) => {
-    updatePresetName(preset?.name ?? "");
-    updatePresetHost(preset?.host ?? "");
-    updatePresetProtocol(preset?.protocol ?? "http");
-    updatePresetPort(String(preset?.port ?? 7002));
-  }, [updatePresetHost, updatePresetName, updatePresetPort, updatePresetProtocol]);
+  const syncForm = useCallback((nextTarget: AiEngineTarget | null) => {
+    updateLabel(nextTarget?.label ?? "");
+    updateHost(nextTarget?.host ?? "");
+    updateProtocol(nextTarget?.protocol ?? "http");
+    updatePort(String(nextTarget?.port ?? 7002));
+  }, [updateHost, updateLabel, updatePort, updateProtocol]);
 
   const refresh = useCallback(async () => {
     setTargetLoading(true);
-    setPresetsLoading(true);
     setTargetError(null);
     try {
-      let presetLoadError: string | null = null;
-      const [targetPayload, presetPayload] = await Promise.all([
-        fetchJson<unknown>(`${EDGE_API_BASE}/v1/backoffice/ai-engine/target`, { headers: authHeaders() }),
-        (async () => {
-          try {
-            return await fetchJson<AiEnginePresetListResponse>(`${EDGE_API_BASE}/v1/backoffice/ai-engine/presets`, { headers: authHeaders() });
-          } catch (presetError) {
-            presetLoadError = presetError instanceof Error ? presetError.message : unknownErrorLabel;
-            return { total: 0, presets: [] };
-          }
-        })(),
-      ]);
+      const targetPayload = await fetchJson<unknown>(`${EDGE_API_BASE}/v1/backoffice/ai-engine/target`, {
+        headers: authHeaders(),
+      });
       const nextTarget = normalizeAiTargetResponse(targetPayload);
-      const activePreset = findPresetMatch(presetPayload.presets, nextTarget)
-        ?? (presetPayload.presets.length === 1 ? presetPayload.presets[0] ?? null : null);
-      const nextPresets = presetPayload.presets.map((entry) => ({
-        ...entry,
-        active: entry.id === activePreset?.id,
-      }));
 
       setTarget(nextTarget);
-      setPresets(nextPresets);
-      setSelectedPresetId(activePreset?.id ?? "");
-      if (!isCreatingPreset) {
-        activePreset ? syncPresetForm(activePreset) : syncTargetForm(nextTarget);
-      }
-      setTargetError(presetLoadError);
+      syncForm(nextTarget);
     } catch (loadError) {
       setTargetError(loadError instanceof Error ? loadError.message : unknownErrorLabel);
     } finally {
       setTargetLoading(false);
-      setPresetsLoading(false);
     }
-  }, [authHeaders, isCreatingPreset, syncPresetForm, syncTargetForm, unknownErrorLabel]);
+  }, [authHeaders, syncForm, unknownErrorLabel]);
 
   useEffect(() => {
     void refresh();
@@ -274,34 +212,14 @@ export function useAiEngineTargetState({
   }, [refresh]);
 
   useEffect(() => {
-    if (isCreatingPreset) {
-      syncPresetForm(null);
-      return;
-    }
-
-    const selected = presets.find((entry) => entry.id === selectedPresetId) ?? null;
-    if (selected) {
-      syncPresetForm(selected);
-      return;
-    }
-
-    syncTargetForm(target);
-  }, [isCreatingPreset, presets, selectedPresetId, syncPresetForm, syncTargetForm, target]);
-
-  useEffect(() => {
     setProbeResult(null);
     setTargetError(null);
-  }, [isCreatingPreset, presetHost, presetName, presetPort, presetProtocol, selectedPresetId]);
-
-  const activePreset = useMemo(
-    () => (isCreatingPreset ? null : presets.find((entry) => entry.id === selectedPresetId) ?? null),
-    [isCreatingPreset, presets, selectedPresetId],
-  );
+  }, [host, label, port, protocol]);
 
   const buildDraftTarget = useCallback(() => normalizeAiEngineDraftTarget(
-    presetHostRef.current,
-    presetProtocolRef.current,
-    presetPortRef.current,
+    hostRef.current,
+    protocolRef.current,
+    portRef.current,
   ), []);
 
   const probeTarget = useCallback(async (targetOverride?: { host: string; protocol: "http" | "https"; port: number }) => {
@@ -352,7 +270,7 @@ export function useAiEngineTargetState({
           host: draftTarget.host,
           protocol: draftTarget.protocol,
           port: draftTarget.port,
-          label: presetNameRef.current.trim(),
+          label: labelRef.current.trim(),
         }),
       });
       setTarget(normalizeAiTargetResponse(nextTarget));
@@ -365,103 +283,6 @@ export function useAiEngineTargetState({
     }
   }, [applyBlockedLabel, authHeaders, buildDraftTarget, probeTarget, refresh, unknownErrorLabel]);
 
-  const savePreset = useCallback(async () => {
-    setTargetSaving(true);
-    setTargetError(null);
-    try {
-      const payload = {
-        name: presetNameRef.current.trim(),
-        ...buildDraftTarget(),
-      };
-      const saved = activePreset && !isCreatingPreset
-        ? await fetchJson<AiEngineTargetPreset>(`${EDGE_API_BASE}/v1/backoffice/ai-engine/presets/${encodeURIComponent(activePreset.id)}`, {
-            method: "PUT",
-            headers: authHeaders(),
-            body: JSON.stringify(payload),
-          })
-        : await fetchJson<AiEngineTargetPreset>(`${EDGE_API_BASE}/v1/backoffice/ai-engine/presets`, {
-            method: "POST",
-            headers: authHeaders(),
-            body: JSON.stringify(payload),
-          });
-
-      setIsCreatingPreset(false);
-      setSelectedPresetId(saved.id);
-      await refresh();
-      setSelectedPresetId(saved.id);
-      syncPresetForm(saved);
-      broadcastAiTargetChanged();
-    } catch (saveError) {
-      setTargetError(saveError instanceof Error ? saveError.message : unknownErrorLabel);
-    } finally {
-      setTargetSaving(false);
-    }
-  }, [activePreset, authHeaders, isCreatingPreset, refresh, syncPresetForm, unknownErrorLabel]);
-
-  const activateSelectedPreset = useCallback(async (options?: { probeFirst?: boolean }) => {
-    if (!activePreset) {
-      return;
-    }
-
-    setTargetSaving(true);
-    setTargetError(null);
-    try {
-      if (options?.probeFirst) {
-        const probe = await probeTarget({
-          host: activePreset.host,
-          protocol: activePreset.protocol,
-          port: activePreset.port,
-        });
-
-        if (!probe.reachable) {
-          throw new Error(describeProbeFailure(applyBlockedLabel, probe));
-        }
-      }
-
-      const nextTarget = await fetchJson<unknown>(`${EDGE_API_BASE}/v1/backoffice/ai-engine/target`, {
-        method: "PUT",
-        headers: authHeaders(),
-        body: JSON.stringify({
-          host: activePreset.host,
-          protocol: activePreset.protocol,
-          port: activePreset.port,
-          label: activePreset.name,
-        }),
-      });
-      setTarget(normalizeAiTargetResponse(nextTarget));
-      setIsCreatingPreset(false);
-      await refresh();
-      broadcastAiTargetChanged();
-    } catch (saveError) {
-      setTargetError(saveError instanceof Error ? saveError.message : unknownErrorLabel);
-    } finally {
-      setTargetSaving(false);
-    }
-  }, [activePreset, applyBlockedLabel, authHeaders, probeTarget, refresh, unknownErrorLabel]);
-
-  const deleteSelectedPreset = useCallback(async () => {
-    if (!activePreset) {
-      return;
-    }
-
-    setTargetSaving(true);
-    setTargetError(null);
-    try {
-      await fetchJson<{ deleted: boolean; presetId: string }>(`${EDGE_API_BASE}/v1/backoffice/ai-engine/presets/${encodeURIComponent(activePreset.id)}`, {
-        method: "DELETE",
-        headers: authHeaders(),
-      });
-      setSelectedPresetId("");
-      setIsCreatingPreset(false);
-      await refresh();
-      broadcastAiTargetChanged();
-    } catch (deleteError) {
-      setTargetError(deleteError instanceof Error ? deleteError.message : unknownErrorLabel);
-    } finally {
-      setTargetSaving(false);
-    }
-  }, [activePreset, authHeaders, refresh, unknownErrorLabel]);
-
   const resetTarget = useCallback(async () => {
     setTargetSaving(true);
     setTargetError(null);
@@ -471,8 +292,6 @@ export function useAiEngineTargetState({
         headers: authHeaders(),
       });
       setTarget(normalizeAiTargetResponse(nextTarget));
-      setSelectedPresetId("");
-      setIsCreatingPreset(false);
       await refresh();
       broadcastAiTargetChanged();
     } catch (resetError) {
@@ -480,13 +299,7 @@ export function useAiEngineTargetState({
     } finally {
       setTargetSaving(false);
     }
-  }, [authHeaders, refresh, unknownErrorLabel]);
-
-  const startNewPreset = useCallback(() => {
-    setIsCreatingPreset(true);
-    setSelectedPresetId("");
-    syncPresetForm(null);
-  }, [syncPresetForm]);
+  }, [authHeaders, refresh]);
 
   return {
     target,
@@ -494,31 +307,20 @@ export function useAiEngineTargetState({
     targetSaving,
     targetError,
     setTargetError,
-    presets,
-    presetsLoading,
-    selectedPresetId,
-    setSelectedPresetId,
-    isCreatingPreset,
-    setIsCreatingPreset,
-    presetName,
-    setPresetName: updatePresetName,
-    presetHost,
-    setPresetHost: updatePresetHost,
-    presetProtocol,
-    setPresetProtocol: updatePresetProtocol,
-    presetPort,
-    setPresetPort: updatePresetPort,
-    activePreset,
+    label,
+    setLabel: updateLabel,
+    host,
+    setHost: updateHost,
+    protocol,
+    setProtocol: updateProtocol,
+    port,
+    setPort: updatePort,
     probeLoading,
     probeResult,
     refresh,
     buildDraftTarget,
     probeTarget,
     applyDraftTarget,
-    savePreset,
-    activateSelectedPreset,
-    deleteSelectedPreset,
     resetTarget,
-    startNewPreset,
   };
 }

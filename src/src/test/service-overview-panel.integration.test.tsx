@@ -6,12 +6,10 @@ import type { SessionContext } from "../domain/types/backoffice";
 import { ServiceOverviewPanel } from "../ui/panels/ServiceOverviewPanel";
 
 const fetchServiceOperationalSummaryMock = vi.hoisted(() => vi.fn());
-const fetchKubernetesOverviewMock = vi.hoisted(() => vi.fn());
 const fetchJsonMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../application/services/operationalSummary", () => ({
   fetchServiceOperationalSummary: fetchServiceOperationalSummaryMock,
-  fetchKubernetesOverview: fetchKubernetesOverviewMock,
 }));
 
 vi.mock("../infrastructure/http/apiClient", () => ({
@@ -41,18 +39,8 @@ function renderPanelWithDensity(density: "comfortable" | "dense") {
 }
 
 describe("ServiceOverviewPanel integration", () => {
-  let presetsState: Array<{
-    id: string;
-    name: string;
-    host: string;
-    protocol: "http" | "https";
-    port: number;
-    updatedAt: string;
-  }>;
-
   beforeEach(() => {
     fetchServiceOperationalSummaryMock.mockReset();
-    fetchKubernetesOverviewMock.mockReset();
     fetchJsonMock.mockReset();
     fetchServiceOperationalSummaryMock.mockResolvedValue({
       rows: [
@@ -77,100 +65,6 @@ describe("ServiceOverviewPanel integration", () => {
       ],
       totals: { total: 1, onlineCount: 1, accessIssues: 0, connectionErrors: 0 },
     });
-    fetchKubernetesOverviewMock.mockResolvedValue({
-      enabled: true,
-      fetchedAt: "2026-04-27T10:00:00.000Z",
-      namespace: "axiomnode-stg",
-      source: "cluster",
-      message: null,
-      cluster: {
-        apiBaseUrl: "https://kubernetes.default.svc",
-        nodeCount: 1,
-        readyNodeCount: 1,
-        deploymentCount: 2,
-        podCount: 5,
-        runningPodCount: 5,
-        notReadyPodCount: 0,
-        restartCount: 1,
-        cpuUsageMillicores: 500,
-        cpuCapacityMillicores: 2000,
-        cpuUsageRatio: 0.25,
-        memoryUsageBytes: 805306368,
-        memoryCapacityBytes: 4294967296,
-        memoryUsageRatio: 0.1875,
-        namespaceCpuRequestMillicores: 800,
-        namespaceCpuLimitMillicores: 1200,
-        namespaceMemoryRequestBytes: 536870912,
-        namespaceMemoryLimitBytes: 1073741824,
-      },
-      nodes: [
-        {
-          name: "node-a",
-          ready: true,
-          podCount: 5,
-          cpuUsageMillicores: 500,
-          cpuCapacityMillicores: 2000,
-          cpuUsageRatio: 0.25,
-          memoryUsageBytes: 805306368,
-          memoryCapacityBytes: 4294967296,
-          memoryUsageRatio: 0.1875,
-        },
-      ],
-      workloads: [
-        {
-          name: "microservice-quizz-api",
-          image: "ghcr.io/axiomnode/microservice-quizz-api:stg",
-          desiredReplicas: 1,
-          readyReplicas: 1,
-          availableReplicas: 1,
-          updatedReplicas: 1,
-          podCount: 1,
-          readyPodCount: 1,
-          restartCount: 0,
-          cpuUsageMillicores: 120,
-          memoryUsageBytes: 134217728,
-          cpuRequestMillicores: 200,
-          cpuLimitMillicores: 400,
-          memoryRequestBytes: 134217728,
-          memoryLimitBytes: 268435456,
-          status: "healthy",
-        },
-      ],
-      topPods: [
-        {
-          name: "microservice-quizz-api-123",
-          workload: "microservice-quizz-api",
-          nodeName: "node-a",
-          phase: "Running",
-          ready: true,
-          restartCount: 0,
-          cpuUsageMillicores: 120,
-          memoryUsageBytes: 134217728,
-          cpuRequestMillicores: 200,
-          memoryRequestBytes: 134217728,
-        },
-      ],
-    });
-
-    presetsState = [
-      {
-        id: "this-pc-lan",
-        name: "Este PC (192.168.0.14)",
-        host: "192.168.0.14",
-        protocol: "http",
-        port: 7002,
-        updatedAt: "2026-04-19T00:00:00.000Z",
-      },
-      {
-        id: "workstation-public",
-        name: "Workstation publica (203.0.113.10)",
-        host: "203.0.113.10",
-        protocol: "http",
-        port: 27002,
-        updatedAt: "2026-04-19T00:00:00.000Z",
-      },
-    ];
-
     fetchJsonMock.mockImplementation((url: string, options?: RequestInit) => {
       if (url.includes("/v1/backoffice/services/microservice-quiz/generation/processes")) {
         return Promise.resolve({
@@ -208,50 +102,6 @@ describe("ServiceOverviewPanel integration", () => {
         });
       }
 
-      if (url.endsWith("/v1/backoffice/ai-engine/presets") && (!options?.method || options.method === "GET")) {
-        return Promise.resolve({
-          total: presetsState.length,
-          presets: presetsState,
-        });
-      }
-
-      if (url.endsWith("/v1/backoffice/ai-engine/presets") && options?.method === "POST") {
-        const payload = JSON.parse(String(options.body)) as {
-          name: string;
-          host: string;
-          protocol: "http" | "https";
-          port: number;
-        };
-        const created = {
-          id: "custom-preset",
-          ...payload,
-          updatedAt: "2026-04-19T00:01:00.000Z",
-        };
-        presetsState = [...presetsState, created];
-        return Promise.resolve(created);
-      }
-
-      if (url.endsWith("/v1/backoffice/ai-engine/presets/workstation-public") && options?.method === "PUT") {
-        const payload = JSON.parse(String(options.body)) as {
-          name: string;
-          host: string;
-          protocol: "http" | "https";
-          port: number;
-        };
-        const updated = {
-          id: "workstation-public",
-          ...payload,
-          updatedAt: "2026-04-19T00:02:00.000Z",
-        };
-        presetsState = presetsState.map((entry) => (entry.id === updated.id ? updated : entry));
-        return Promise.resolve(updated);
-      }
-
-      if (url.endsWith("/v1/backoffice/ai-engine/presets/custom-preset") && options?.method === "DELETE") {
-        presetsState = presetsState.filter((entry) => entry.id !== "custom-preset");
-        return Promise.resolve({ deleted: true, presetId: "custom-preset" });
-      }
-
       if (url.endsWith("/v1/backoffice/ai-engine/target") && (!options?.method || options.method === "GET")) {
         return Promise.resolve({
           source: "override",
@@ -268,13 +118,26 @@ describe("ServiceOverviewPanel integration", () => {
       if (url.endsWith("/v1/backoffice/ai-engine/target") && options?.method === "PUT") {
         return Promise.resolve({
           source: "override",
-          label: "VPS staging (203.0.113.10)",
-          host: "203.0.113.10",
+          label: "workstation-gpu",
+          host: "198.51.100.10",
           protocol: "http",
           port: 27002,
-          llamaBaseUrl: "http://203.0.113.10:27002/v1/completions",
+          llamaBaseUrl: "http://198.51.100.10:27002/v1/completions",
           envLlamaBaseUrl: "http://llama-workstation.invalid:7002/v1/completions",
           updatedAt: "2026-04-19T00:00:00.000Z",
+        });
+      }
+
+      if (url.endsWith("/v1/backoffice/ai-engine/target") && options?.method === "DELETE") {
+        return Promise.resolve({
+          source: "env",
+          label: null,
+          host: "llama-workstation.invalid",
+          protocol: "http",
+          port: 7002,
+          llamaBaseUrl: "http://llama-workstation.invalid:7002/v1/completions",
+          envLlamaBaseUrl: "http://llama-workstation.invalid:7002/v1/completions",
+          updatedAt: null,
         });
       }
 
@@ -382,23 +245,6 @@ describe("ServiceOverviewPanel integration", () => {
     });
   });
 
-  it("renders the kubernetes tab with workload and pod consumption", async () => {
-    renderPanel();
-
-    await waitFor(() => {
-      expect(fetchKubernetesOverviewMock).toHaveBeenCalledTimes(1);
-      expect(screen.getByRole("button", { name: "Kubernetes" })).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: "Kubernetes" }));
-
-    await waitFor(() => {
-      expect(screen.getAllByText("microservice-quizz-api").length).toBeGreaterThan(0);
-      expect(screen.getByText("microservice-quizz-api-123")).toBeInTheDocument();
-      expect(screen.getByText(/Namespace axiomnode-stg/i)).toBeInTheDocument();
-    });
-  });
-
   it("triggers auto refresh according to interval", async () => {
     vi.useFakeTimers();
     renderPanel();
@@ -423,7 +269,21 @@ describe("ServiceOverviewPanel integration", () => {
     expect(screen.getByRole("progressbar")).toBeInTheDocument();
   });
 
-  it("shows editable ai-engine options in the service overview and applies the selected destination", async () => {
+  it("does not offer a Kubernetes tab or request cluster data", async () => {
+    renderPanel();
+
+    await waitFor(() => {
+      expect(fetchServiceOperationalSummaryMock).toHaveBeenCalledTimes(1);
+      expect(screen.getByText("Service OK")).toBeInTheDocument();
+    });
+
+    expect(screen.queryByRole("button", { name: "Kubernetes" })).not.toBeInTheDocument();
+    expect(
+      fetchJsonMock.mock.calls.some(([url]) => String(url).includes("kubernetes")),
+    ).toBe(false);
+  });
+
+  it("shows the llama target form in the service overview, probes and applies it", async () => {
     renderPanel();
 
     await waitFor(() => {
@@ -431,40 +291,26 @@ describe("ServiceOverviewPanel integration", () => {
         "http://localhost:7005/v1/backoffice/ai-engine/target",
         expect.any(Object),
       );
-      expect(fetchJsonMock).toHaveBeenCalledWith(
-        "http://localhost:7005/v1/backoffice/ai-engine/presets",
-        expect.any(Object),
-      );
       expect(screen.getByText("Destino del servidor llama")).toBeInTheDocument();
     });
 
+    expect(
+      fetchJsonMock.mock.calls.some(([url]) => String(url).includes("/ai-engine/presets")),
+    ).toBe(false);
     expect(screen.queryByText("URL llama activa")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Mostrar" }));
 
     await waitFor(() => {
       expect(screen.getAllByText("Etiqueta actual").length).toBeGreaterThan(0);
-      expect(screen.getAllByText("Workstation publica (203.0.113.10)").length).toBeGreaterThan(0);
+      expect(screen.getByLabelText("Host / IP")).toHaveValue("axiomnode-gateway.amksandbox.cloud");
+      expect(screen.getByLabelText("Puerto llama")).toHaveValue("27002");
     });
 
-    await waitFor(() => {
-      expect(screen.getByLabelText("Destino guardado")).toHaveValue("workstation-public");
-      expect(screen.getByLabelText("Nombre de opcion")).toHaveValue("Workstation publica (203.0.113.10)");
-      expect(screen.getByLabelText("Host / IP")).toHaveValue("203.0.113.10");
-    });
+    expect(screen.queryByLabelText("Destino guardado")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Nueva opcion" })).not.toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText("Destino guardado"), {
-      target: { value: "this-pc-lan" },
-    });
-
-    await waitFor(() => {
-      expect(screen.getByLabelText("Nombre de opcion")).toHaveValue("Este PC (192.168.0.14)");
-      expect(screen.getByLabelText("Host / IP")).toHaveValue("192.168.0.14");
-    });
-
-    fireEvent.change(screen.getByLabelText("Destino guardado"), {
-      target: { value: "workstation-public" },
-    });
+    fireEvent.change(screen.getByLabelText("Host / IP"), { target: { value: "198.51.100.10" } });
 
     fireEvent.click(screen.getByRole("button", { name: "Verificar conectividad" }));
 
@@ -474,7 +320,7 @@ describe("ServiceOverviewPanel integration", () => {
         expect.objectContaining({
           method: "POST",
           body: JSON.stringify({
-            host: "203.0.113.10",
+            host: "198.51.100.10",
             protocol: "http",
             port: 27002,
           }),
@@ -491,78 +337,68 @@ describe("ServiceOverviewPanel integration", () => {
         expect.objectContaining({
           method: "PUT",
           body: JSON.stringify({
-            host: "203.0.113.10",
+            host: "198.51.100.10",
             protocol: "http",
             port: 27002,
-            label: "Workstation publica (203.0.113.10)",
+            label: "workstation-gpu",
           }),
         }),
       );
-      expect(screen.getByText("http://203.0.113.10:27002/v1/completions")).toBeInTheDocument();
+    });
+  });
+
+  it("resets the llama target to the environment default", async () => {
+    renderPanel();
+
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar" }));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Host / IP")).toHaveValue("axiomnode-gateway.amksandbox.cloud");
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Nueva opcion" }));
-    await waitFor(() => {
-      expect(screen.getByLabelText("Nombre de opcion")).toHaveValue("");
-    });
-    fireEvent.change(screen.getByLabelText("Nombre de opcion"), {
-      target: { value: "Host alternativo" },
-    });
-    fireEvent.change(screen.getByLabelText("Host / IP"), {
-      target: { value: "10.0.0.25" },
-    });
-    const createButton = screen.getAllByRole("button").find((button) => {
-      const label = button.textContent ?? "";
-      return /opcion/i.test(label) && !/Nueva/i.test(label) && !/Eliminar/i.test(label);
-    });
-    expect(createButton).toBeDefined();
-    fireEvent.click(createButton!);
+    fireEvent.click(screen.getByRole("button", { name: "Volver al destino de entorno" }));
 
     await waitFor(() => {
       expect(fetchJsonMock).toHaveBeenCalledWith(
-        "http://localhost:7005/v1/backoffice/ai-engine/presets",
+        "http://localhost:7005/v1/backoffice/ai-engine/target",
+        expect.objectContaining({ method: "DELETE" }),
+      );
+    });
+  });
+
+  it("uses a safe https fallback port when the typed port is out of range", async () => {
+    renderPanel();
+
+    fireEvent.click(screen.getByRole("button", { name: "Mostrar" }));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Host / IP")).toHaveValue("axiomnode-gateway.amksandbox.cloud");
+    });
+
+    fireEvent.change(screen.getByLabelText("Etiqueta actual"), { target: { value: "TLS relay" } });
+    fireEvent.change(screen.getByLabelText("Host / IP"), { target: { value: "relay.example.com" } });
+    fireEvent.change(screen.getByLabelText("Protocolo"), { target: { value: "https" } });
+    fireEvent.change(screen.getByLabelText("Puerto llama"), { target: { value: "70000" } });
+    fireEvent.click(screen.getByRole("button", { name: "Usar este destino" }));
+
+    await waitFor(() => {
+      expect(fetchJsonMock).toHaveBeenCalledWith(
+        "http://localhost:7005/v1/backoffice/ai-engine/target",
         expect.objectContaining({
-          method: "POST",
+          method: "PUT",
           body: JSON.stringify({
-            name: "Host alternativo",
-            host: "10.0.0.25",
-            protocol: "http",
-            port: 7002,
+            host: "relay.example.com",
+            protocol: "https",
+            port: 443,
+            label: "TLS relay",
           }),
         }),
       );
-      expect(screen.getByRole("option", { name: "Host alternativo" })).toBeInTheDocument();
-    });
-
-    fireEvent.change(screen.getByLabelText("Destino guardado"), {
-      target: { value: "custom-preset" },
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: "Eliminar opcion" }));
-
-    await waitFor(() => {
-      expect(screen.queryByRole("option", { name: "Host alternativo" })).not.toBeInTheDocument();
     });
   });
 
   it("tolerates legacy ai-engine target and probe payloads without blanking the panel", async () => {
     fetchJsonMock.mockImplementation((url: string, options?: RequestInit) => {
-      if (url.endsWith("/v1/backoffice/ai-engine/presets") && (!options?.method || options.method === "GET")) {
-        return Promise.resolve({
-          total: 1,
-          presets: [
-            {
-              id: "legacy-public",
-              name: "Legacy public",
-              host: "203.0.113.10",
-              protocol: "http",
-              port: 7002,
-              updatedAt: "2026-04-19T00:00:00.000Z",
-            },
-          ],
-        });
-      }
-
       if (url.endsWith("/v1/backoffice/ai-engine/target") && (!options?.method || options.method === "GET")) {
         return Promise.resolve({
           source: "override",
@@ -601,20 +437,6 @@ describe("ServiceOverviewPanel integration", () => {
         });
       }
 
-      if (url.endsWith("/v1/backoffice/ai-engine/target") && options?.method === "PUT") {
-        return Promise.resolve({
-          source: "override",
-          label: "Legacy public",
-          host: "203.0.113.10",
-          protocol: "http",
-          apiPort: 7002,
-          statsPort: 7001,
-          apiBaseUrl: "http://203.0.113.10:7002",
-          statsBaseUrl: "http://203.0.113.10:7001",
-          updatedAt: "2026-04-19T21:05:00.000Z",
-        });
-      }
-
       throw new Error(`Unhandled URL: ${url}`);
     });
 
@@ -638,10 +460,15 @@ describe("ServiceOverviewPanel integration", () => {
   });
 
   it("clears ai-target errors after a successful retry", async () => {
-    let presetsShouldFail = true;
+    let targetShouldFail = true;
 
     fetchJsonMock.mockImplementation((url: string, options?: RequestInit) => {
       if (url.endsWith("/v1/backoffice/ai-engine/target") && (!options?.method || options.method === "GET")) {
+        if (targetShouldFail) {
+          targetShouldFail = false;
+          return Promise.reject(new Error("HTTP 404: Not Found"));
+        }
+
         return Promise.resolve({
           source: "override",
           label: "workstation-gpu",
@@ -651,18 +478,6 @@ describe("ServiceOverviewPanel integration", () => {
           llamaBaseUrl: "http://203.0.113.10:7002/v1/completions",
           envLlamaBaseUrl: "http://llama-workstation.invalid:7002/v1/completions",
           updatedAt: "2026-04-19T00:00:00.000Z",
-        });
-      }
-
-      if (url.endsWith("/v1/backoffice/ai-engine/presets") && (!options?.method || options.method === "GET")) {
-        if (presetsShouldFail) {
-          presetsShouldFail = false;
-          return Promise.reject(new Error("HTTP 404: Not Found"));
-        }
-
-        return Promise.resolve({
-          total: 1,
-          presets: [presetsState[0]],
         });
       }
 
@@ -681,7 +496,7 @@ describe("ServiceOverviewPanel integration", () => {
 
     await waitFor(() => {
       expect(screen.queryByText(/No se pudo gestionar el destino del AI engine/i)).not.toBeInTheDocument();
-      expect(screen.getByLabelText("Destino guardado")).toHaveValue("this-pc-lan");
+      expect(screen.getByLabelText("Host / IP")).toHaveValue("203.0.113.10");
     });
   });
 
@@ -713,22 +528,6 @@ describe("ServiceOverviewPanel integration", () => {
     });
 
     fetchJsonMock.mockImplementation((url: string, options?: RequestInit) => {
-      if (url.endsWith("/v1/backoffice/ai-engine/presets") && (!options?.method || options.method === "GET")) {
-        return Promise.resolve({
-          total: 1,
-          presets: [
-            {
-              id: "broken-env",
-              name: "Broken env",
-              host: "10.0.0.9",
-              protocol: "https",
-              port: 8443,
-              updatedAt: "2026-04-19T00:00:00.000Z",
-            },
-          ],
-        });
-      }
-
       if (url.endsWith("/v1/backoffice/ai-engine/target") && (!options?.method || options.method === "GET")) {
         return Promise.resolve({
           source: "env",
@@ -778,10 +577,13 @@ describe("ServiceOverviewPanel integration", () => {
 
       await waitFor(() => {
         expect(screen.getAllByText("--").length).toBeGreaterThan(0);
-        expect(screen.getByLabelText("Destino guardado")).toHaveValue("broken-env");
-        expect(screen.getByLabelText("Host / IP")).toHaveValue("10.0.0.9");
+        expect(screen.getByLabelText("Host / IP")).toHaveValue("");
+        expect(screen.getByRole("button", { name: "Verificar conectividad" })).toBeDisabled();
       });
 
+      fireEvent.change(screen.getByLabelText("Host / IP"), { target: { value: "10.0.0.9" } });
+      fireEvent.change(screen.getByLabelText("Protocolo"), { target: { value: "https" } });
+      fireEvent.change(screen.getByLabelText("Puerto llama"), { target: { value: "8443" } });
       fireEvent.click(screen.getByRole("button", { name: "Verificar conectividad" }));
 
       await waitFor(() => {
@@ -802,24 +604,8 @@ describe("ServiceOverviewPanel integration", () => {
     });
   });
 
-  it("normalizes malformed target and probe payloads when only one preset is available", async () => {
+  it("normalizes malformed target and probe payloads", async () => {
     fetchJsonMock.mockImplementation((url: string, options?: RequestInit) => {
-      if (url.endsWith("/v1/backoffice/ai-engine/presets") && (!options?.method || options.method === "GET")) {
-        return Promise.resolve({
-          total: 1,
-          presets: [
-            {
-              id: "single-env",
-              name: "Single env",
-              host: "relay.internal",
-              protocol: "https",
-              port: 8443,
-              updatedAt: "2026-04-19T00:00:00.000Z",
-            },
-          ],
-        });
-      }
-
       if (url.endsWith("/v1/backoffice/ai-engine/target") && (!options?.method || options.method === "GET")) {
         return Promise.resolve("broken-target-payload");
       }
@@ -837,87 +623,16 @@ describe("ServiceOverviewPanel integration", () => {
 
     await waitFor(() => {
       expect(screen.getAllByText("--").length).toBeGreaterThan(0);
-      expect(screen.getByLabelText("Destino guardado")).toHaveValue("single-env");
-      expect(screen.getByLabelText("Host / IP")).toHaveValue("relay.internal");
-      expect(screen.getByLabelText("Protocolo")).toHaveValue("https");
-      expect(screen.getByLabelText("Puerto llama")).toHaveValue("8443");
+      expect(screen.getByLabelText("Host / IP")).toHaveValue("");
+      expect(screen.getByLabelText("Protocolo")).toHaveValue("http");
+      expect(screen.getByLabelText("Puerto llama")).toHaveValue("7002");
     });
 
+    fireEvent.change(screen.getByLabelText("Host / IP"), { target: { value: "relay.internal" } });
     fireEvent.click(screen.getByRole("button", { name: "Verificar conectividad" }));
 
     await waitFor(() => {
       expect(screen.getByText(/http:\/\/:7002\/v1\/models sin respuesta/i)).toBeInTheDocument();
-    });
-  });
-
-  it("uses protocol changes and a safe https fallback port when creating presets", async () => {
-    renderPanel();
-
-    fireEvent.click(screen.getByRole("button", { name: "Mostrar" }));
-
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Nueva opcion" })).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: "Nueva opcion" }));
-    fireEvent.change(screen.getByLabelText("Nombre de opcion"), { target: { value: "TLS relay" } });
-    fireEvent.change(screen.getByLabelText("Host / IP"), { target: { value: "relay.example.com" } });
-    fireEvent.change(screen.getByLabelText("Protocolo"), { target: { value: "https" } });
-    fireEvent.change(screen.getByLabelText("Puerto llama"), { target: { value: "70000" } });
-    fireEvent.click(screen.getByRole("button", { name: "Anadir opcion" }));
-
-    await waitFor(() => {
-      expect(fetchJsonMock).toHaveBeenCalledWith(
-        "http://localhost:7005/v1/backoffice/ai-engine/presets",
-        expect.objectContaining({
-          method: "POST",
-          body: JSON.stringify({
-            name: "TLS relay",
-            host: "relay.example.com",
-            protocol: "https",
-            port: 443,
-          }),
-        }),
-      );
-    });
-  });
-
-  it("updates an existing preset and preserves the active selection after reload", async () => {
-    renderPanel();
-
-    fireEvent.click(screen.getByRole("button", { name: "Mostrar" }));
-
-    await waitFor(() => {
-      expect(screen.getByLabelText("Destino guardado")).toHaveValue("workstation-public");
-    });
-
-    fireEvent.change(screen.getByLabelText("Nombre de opcion"), {
-      target: { value: "Workstation publica actualizada" },
-    });
-    fireEvent.change(screen.getByLabelText("Host / IP"), {
-      target: { value: "198.51.100.10" },
-    });
-    fireEvent.change(screen.getByLabelText("Puerto llama"), {
-      target: { value: "28002" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Guardar opcion" }));
-
-    await waitFor(() => {
-      expect(fetchJsonMock).toHaveBeenCalledWith(
-        "http://localhost:7005/v1/backoffice/ai-engine/presets/workstation-public",
-        expect.objectContaining({
-          method: "PUT",
-          body: JSON.stringify({
-            name: "Workstation publica actualizada",
-            host: "198.51.100.10",
-            protocol: "http",
-            port: 28002,
-          }),
-        }),
-      );
-      expect(screen.getByLabelText("Destino guardado")).toHaveValue("workstation-public");
-      expect(screen.getByLabelText("Nombre de opcion")).toHaveValue("Workstation publica actualizada");
-      expect(screen.getByLabelText("Host / IP")).toHaveValue("198.51.100.10");
     });
   });
 
@@ -929,13 +644,6 @@ describe("ServiceOverviewPanel integration", () => {
     };
 
     fetchJsonMock.mockImplementation((url: string, options?: RequestInit) => {
-      if (url.endsWith("/v1/backoffice/ai-engine/presets") && (!options?.method || options.method === "GET")) {
-        return Promise.resolve({
-          total: presetsState.length,
-          presets: presetsState,
-        });
-      }
-
       if (url.endsWith("/v1/backoffice/ai-engine/target") && (!options?.method || options.method === "GET")) {
         return Promise.resolve({
           source: "override",
@@ -977,24 +685,8 @@ describe("ServiceOverviewPanel integration", () => {
     }
   });
 
-  it("blocks applying a preset when the probe reports an unreachable target", async () => {
+  it("blocks applying a target when the probe reports an unreachable endpoint", async () => {
     fetchJsonMock.mockImplementation((url: string, options?: RequestInit) => {
-      if (url.endsWith("/v1/backoffice/ai-engine/presets") && (!options?.method || options.method === "GET")) {
-        return Promise.resolve({
-          total: 1,
-          presets: [
-            {
-              id: "broken-env",
-              name: "Broken env",
-              host: "10.0.0.99",
-              protocol: "http",
-              port: 7002,
-              updatedAt: "2026-04-19T00:00:00.000Z",
-            },
-          ],
-        });
-      }
-
       if (url.endsWith("/v1/backoffice/ai-engine/target") && (!options?.method || options.method === "GET")) {
         return Promise.resolve({
           source: "override",
@@ -1032,7 +724,7 @@ describe("ServiceOverviewPanel integration", () => {
     fireEvent.click(screen.getByRole("button", { name: "Mostrar" }));
 
     await waitFor(() => {
-      expect(screen.getByLabelText("Destino guardado")).toHaveValue("broken-env");
+      expect(screen.getByLabelText("Host / IP")).toHaveValue("10.0.0.99");
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Usar este destino" }));
@@ -1051,23 +743,12 @@ describe("ServiceOverviewPanel integration", () => {
     });
   });
 
-  it("shows generic and specific management errors for refresh, save and remove actions", async () => {
+  it("shows generic and specific management errors for refresh, apply and reset actions", async () => {
     let failRefresh = false;
-    let failSave = false;
-    let failDelete = false;
+    let failApply = false;
+    let failReset = false;
 
     fetchJsonMock.mockImplementation((url: string, options?: RequestInit) => {
-      if (url.endsWith("/v1/backoffice/ai-engine/presets") && (!options?.method || options.method === "GET")) {
-        if (failRefresh) {
-          return Promise.reject("refresh-broken");
-        }
-
-        return Promise.resolve({
-          total: presetsState.length,
-          presets: presetsState,
-        });
-      }
-
       if (url.endsWith("/v1/backoffice/ai-engine/target") && (!options?.method || options.method === "GET")) {
         if (failRefresh) {
           return Promise.reject("refresh-broken");
@@ -1085,21 +766,29 @@ describe("ServiceOverviewPanel integration", () => {
         });
       }
 
-      if (url.endsWith("/v1/backoffice/ai-engine/presets") && options?.method === "POST") {
-        if (failSave) {
-          return Promise.reject("save-broken");
-        }
-
+      if (url.endsWith("/v1/backoffice/ai-engine/probe") && options?.method === "POST") {
         const payload = JSON.parse(String(options.body));
-        return Promise.resolve({ id: "new-preset", ...payload, updatedAt: "2026-04-19T00:03:00.000Z" });
+        return Promise.resolve({
+          ...payload,
+          reachable: true,
+          llama: { ok: true, status: 200, url: "http://x/v1/models", latencyMs: 3, message: null },
+        });
       }
 
-      if (url.endsWith("/v1/backoffice/ai-engine/presets/this-pc-lan") && options?.method === "DELETE") {
-        if (failDelete) {
-          return Promise.reject(new Error("delete-broken"));
+      if (url.endsWith("/v1/backoffice/ai-engine/target") && options?.method === "PUT") {
+        if (failApply) {
+          return Promise.reject("apply-broken");
         }
 
-        return Promise.resolve({ deleted: true, presetId: "this-pc-lan" });
+        return Promise.resolve({});
+      }
+
+      if (url.endsWith("/v1/backoffice/ai-engine/target") && options?.method === "DELETE") {
+        if (failReset) {
+          return Promise.reject(new Error("reset-broken"));
+        }
+
+        return Promise.resolve({});
       }
 
       throw new Error(`Unhandled URL: ${url}`);
@@ -1110,7 +799,7 @@ describe("ServiceOverviewPanel integration", () => {
     fireEvent.click(screen.getByRole("button", { name: "Mostrar" }));
 
     await waitFor(() => {
-      expect(screen.getByLabelText("Destino guardado")).toBeInTheDocument();
+      expect(screen.getByLabelText("Host / IP")).toHaveValue("203.0.113.10");
     });
 
     failRefresh = true;
@@ -1121,23 +810,20 @@ describe("ServiceOverviewPanel integration", () => {
     });
 
     failRefresh = false;
-    fireEvent.click(screen.getByRole("button", { name: "Nueva opcion" }));
-    fireEvent.change(screen.getByLabelText("Nombre de opcion"), { target: { value: "Broken save" } });
     fireEvent.change(screen.getByLabelText("Host / IP"), { target: { value: "10.0.0.20" } });
-    failSave = true;
-    fireEvent.click(screen.getByRole("button", { name: "Anadir opcion" }));
+    failApply = true;
+    fireEvent.click(screen.getByRole("button", { name: "Usar este destino" }));
 
     await waitFor(() => {
       expect(screen.getByText(/No se pudo gestionar el destino del AI engine: Error desconocido/i)).toBeInTheDocument();
     });
 
-    failSave = false;
-    fireEvent.change(screen.getByLabelText("Destino guardado"), { target: { value: "this-pc-lan" } });
-    failDelete = true;
-    fireEvent.click(screen.getByRole("button", { name: "Eliminar opcion" }));
+    failApply = false;
+    failReset = true;
+    fireEvent.click(screen.getByRole("button", { name: "Volver al destino de entorno" }));
 
     await waitFor(() => {
-      expect(screen.getByText(/No se pudo gestionar el destino del AI engine: delete-broken/i)).toBeInTheDocument();
+      expect(screen.getByText(/No se pudo gestionar el destino del AI engine: reset-broken/i)).toBeInTheDocument();
     });
   });
 

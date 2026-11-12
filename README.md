@@ -19,7 +19,7 @@ flowchart LR
 	Operator[Operator browser] --> Backoffice[backoffice SPA]
 	Backoffice --> Gateway[api-gateway]
 	Gateway --> BFF[bff-backoffice]
-	BFF --> Services[Internal services and runtime routing state]
+	BFF --> Services[Internal services]
 ```
 
 ### Main responsibilities
@@ -63,7 +63,6 @@ Detailed architecture and operational guidance now live under `docs/` so the roo
 - inspect service summary and operational health
 - inspect AI diagnostics and RAG coverage
 - change the active ai-engine destination used by staging runtime
-- manage shared ai-engine presets for repeated operator use
 - switch the llama server destination dynamically (workstation host/IP) for diagnostics and manual recovery flows
 
 See `docs/architecture/README.md` for the runtime integration model and local source layout.
@@ -98,7 +97,7 @@ docker compose -f docker-compose.edge-integration.yml up -d --build
 
 - CI validation and local verification commands are documented in `docs/operations/README.md`.
 - Cross-repo operator behavior is documented in `../docs/guides/capabilities/operations/backoffice-operational-diagnostics.md`.
-- Runtime routing and targeting semantics are documented in `../docs/guides/capabilities/operations/runtime-routing-control.md`.
+- The ai-engine llama target control is documented in `../docs/guides/capabilities/operations/runtime-routing-control.md`.
 
 ## Dependencies and contracts
 

@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
-  fetchKubernetesOverview,
   fetchServiceOperationalSummary,
-  type KubernetesOverview,
   type ServiceOperationalRow,
 } from "../../application/services/operationalSummary";
 import type { SessionContext, UiDensity } from "../../domain/types/backoffice";
@@ -57,8 +55,6 @@ type ActiveGenerationRow = {
   task: GenerationTaskSnapshot;
 };
 
-type OverviewTab = "operations" | "kubernetes";
-
 function classifyKpiValue(value: string | number): "number" | "text" {
   if (typeof value === "number") {
     return "number";
@@ -98,42 +94,6 @@ function formatTimestamp(value: string | null | undefined): string {
   return timestamp.toLocaleString();
 }
 
-function formatMillicores(value: number | null | undefined): string {
-  if (value === null || value === undefined) {
-    return "--";
-  }
-
-  if (value >= 1000) {
-    return `${(value / 1000).toFixed(value % 1000 === 0 ? 0 : 2)} cores`;
-  }
-
-  return `${value}m`;
-}
-
-function formatBytes(value: number | null | undefined): string {
-  if (value === null || value === undefined) {
-    return "--";
-  }
-
-  const units = ["B", "KiB", "MiB", "GiB", "TiB"];
-  let amount = value;
-  let index = 0;
-  while (amount >= 1024 && index < units.length - 1) {
-    amount /= 1024;
-    index += 1;
-  }
-
-  return `${amount.toFixed(amount >= 100 || index === 0 ? 0 : 1)} ${units[index]}`;
-}
-
-function formatUsageRatio(value: number | null | undefined): string {
-  if (value === null || value === undefined) {
-    return "--";
-  }
-
-  return `${(value * 100).toFixed(1)}%`;
-}
-
 /** Dashboard panel displaying service health KPIs and an auto-refreshing status table. */
 export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelProps) {
   const { t } = useI18n();
@@ -154,29 +114,20 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
     targetLoading: aiTargetLoading,
     targetSaving: aiTargetSaving,
     targetError: aiTargetError,
-    presets,
-    presetsLoading,
-    selectedPresetId,
-    setSelectedPresetId,
-    isCreatingPreset,
-    setIsCreatingPreset,
-    presetName,
-    setPresetName,
-    presetHost,
-    setPresetHost,
-    presetProtocol,
-    setPresetProtocol,
-    presetPort,
-    setPresetPort,
-    activePreset,
+    label: aiLabel,
+    setLabel: setAiLabel,
+    host: aiHost,
+    setHost: setAiHost,
+    protocol: aiProtocol,
+    setProtocol: setAiProtocol,
+    port: aiPort,
+    setPort: setAiPort,
     probeLoading: aiProbeLoading,
     probeResult: aiProbeResult,
     refresh: refreshAiTarget,
     probeTarget: probeAiTarget,
-    savePreset,
-    activateSelectedPreset,
-    deleteSelectedPreset: removePreset,
-    startNewPreset,
+    applyDraftTarget: applyAiTarget,
+    resetTarget: resetAiTarget,
   } = useAiEngineTargetState({
     context,
     unknownErrorLabel: t("roles.errorUnknown"),
@@ -185,10 +136,6 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
   });
   const [activeGenerations, setActiveGenerations] = useState<ActiveGenerationRow[]>([]);
   const [activeGenerationsLoading, setActiveGenerationsLoading] = useState(false);
-  const [selectedTab, setSelectedTab] = useState<OverviewTab>("operations");
-  const [kubernetesOverview, setKubernetesOverview] = useState<KubernetesOverview | null>(null);
-  const [kubernetesLoading, setKubernetesLoading] = useState(false);
-  const [kubernetesError, setKubernetesError] = useState<string | null>(null);
 
   const requestVersionRef = useRef(0);
   const previousByServiceRef = useRef<Record<string, { requestsTotal: number | null; fetchedAt: number }>>({});
@@ -219,21 +166,6 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
         setLoading(false);
         setRefreshCycleVersion((current) => current + 1);
       }
-    }
-  }, [context, t]);
-
-  const loadKubernetes = useCallback(async () => {
-    setKubernetesLoading(true);
-    setKubernetesError(null);
-    try {
-      const payload = await fetchKubernetesOverview(context);
-      setKubernetesOverview(payload);
-      setKubernetesError(null);
-    } catch (loadError) {
-      setKubernetesOverview(null);
-      setKubernetesError(loadError instanceof Error ? loadError.message : t("roles.errorUnknown"));
-    } finally {
-      setKubernetesLoading(false);
     }
   }, [context, t]);
 
@@ -283,14 +215,12 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
 
   useEffect(() => {
     void loadSummary();
-    void loadKubernetes();
     void loadActiveGenerations();
-  }, [loadActiveGenerations, loadKubernetes, loadSummary]);
+  }, [loadActiveGenerations, loadSummary]);
 
   useAutoRefreshScheduler(
     () => {
       void loadSummary();
-      void loadKubernetes();
       void loadActiveGenerations();
     },
     refreshIntervalSeconds * 1000,
@@ -306,24 +236,6 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
   }), [rows]);
 
   const statusClass = (online: boolean) => (online ? "ui-status-chip ui-status-chip--ok" : "ui-status-chip ui-status-chip--error");
-  const kubernetesStatusClass = (status: "healthy" | "degraded" | "down") => {
-    if (status === "healthy") {
-      return "ui-status-chip ui-status-chip--ok";
-    }
-    if (status === "degraded") {
-      return "ui-status-chip ui-status-chip--warn";
-    }
-    return "ui-status-chip ui-status-chip--error";
-  };
-  const applyAiPreset = useCallback(() => activateSelectedPreset({ probeFirst: true }), [activateSelectedPreset]);
-  const kubernetesSummary = useMemo(() => ({
-    nodes: kubernetesOverview?.cluster.nodeCount ?? 0,
-    readyNodes: kubernetesOverview?.cluster.readyNodeCount ?? 0,
-    deployments: kubernetesOverview?.cluster.deploymentCount ?? 0,
-    pods: kubernetesOverview?.cluster.podCount ?? 0,
-    runningPods: kubernetesOverview?.cluster.runningPodCount ?? 0,
-    restarts: kubernetesOverview?.cluster.restartCount ?? 0,
-  }), [kubernetesOverview]);
 
   const activeGenerationSummary = useMemo(() => {
     let failing = 0;
@@ -484,358 +396,202 @@ export function ServiceOverviewPanel({ context, density }: ServiceOverviewPanelP
           )}
         </div>
       </div>
-
-      <div className="mt-3 flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => setSelectedTab("operations")}
-          className={`${selectedTab === "operations" ? "ui-action-pill ui-action-pill--tonal" : "ui-action-pill ui-action-pill--quiet"} min-h-0 px-3 py-1.5 text-xs`}
-        >
-          Operations
-        </button>
-        <button
-          type="button"
-          onClick={() => setSelectedTab("kubernetes")}
-          className={`${selectedTab === "kubernetes" ? "ui-action-pill ui-action-pill--tonal" : "ui-action-pill ui-action-pill--quiet"} min-h-0 px-3 py-1.5 text-xs`}
-        >
-          Kubernetes
-        </button>
-      </div>
       </div>
 
-      {selectedTab === "operations" ? (
-        <>
-          <div className={`grid gap-2 ${compactViewport ? "grid-cols-2" : "sm:grid-cols-2 xl:grid-cols-4"}`}>
-            <KpiCard label={t("overview.summary.total")} value={totals.total} tone="neutral" compact={compactPanel} />
-            <KpiCard label={t("overview.summary.online")} value={totals.onlineCount} tone="ok" compact={compactPanel} />
-            <KpiCard label={t("overview.summary.accessIssues")} value={totals.accessIssues} tone="warn" compact={compactPanel} />
-            <KpiCard label={t("overview.summary.connectionErrors")} value={totals.connectionErrors} tone="error" compact={compactPanel} />
-          </div>
+      <div className={`grid gap-2 ${compactViewport ? "grid-cols-2" : "sm:grid-cols-2 xl:grid-cols-4"}`}>
+        <KpiCard label={t("overview.summary.total")} value={totals.total} tone="neutral" compact={compactPanel} />
+        <KpiCard label={t("overview.summary.online")} value={totals.onlineCount} tone="ok" compact={compactPanel} />
+        <KpiCard label={t("overview.summary.accessIssues")} value={totals.accessIssues} tone="warn" compact={compactPanel} />
+        <KpiCard label={t("overview.summary.connectionErrors")} value={totals.connectionErrors} tone="error" compact={compactPanel} />
+      </div>
 
-          <div className={`grid gap-2 ${compactViewport ? "grid-cols-2" : "sm:grid-cols-2 xl:grid-cols-4"}`}>
-            <KpiCard label={t("overview.llamaServer.title")} value={llamaStatus.value} tone={llamaStatus.tone} compact={compactPanel} />
-            <KpiCard label={t("overview.aiTarget.currentHost")} value={aiTarget?.host ?? "--"} tone={aiTarget?.host ? "ok" : "warn"} compact={compactPanel} />
-            <KpiCard label={t("overview.aiTarget.apiPort")} value={aiTarget?.port ?? "--"} tone="neutral" compact={compactPanel} />
-            <KpiCard label={t("overview.aiTarget.currentLabel")} value={aiTarget?.label ?? "--"} tone="neutral" compact={compactPanel} />
-          </div>
+      <div className={`grid gap-2 ${compactViewport ? "grid-cols-2" : "sm:grid-cols-2 xl:grid-cols-4"}`}>
+        <KpiCard label={t("overview.llamaServer.title")} value={llamaStatus.value} tone={llamaStatus.tone} compact={compactPanel} />
+        <KpiCard label={t("overview.aiTarget.currentHost")} value={aiTarget?.host ?? "--"} tone={aiTarget?.host ? "ok" : "warn"} compact={compactPanel} />
+        <KpiCard label={t("overview.aiTarget.apiPort")} value={aiTarget?.port ?? "--"} tone="neutral" compact={compactPanel} />
+        <KpiCard label={t("overview.aiTarget.currentLabel")} value={aiTarget?.label ?? "--"} tone="neutral" compact={compactPanel} />
+      </div>
 
-          {showActiveGenerationSpotlight && (
-            <div className="ui-panel-block rounded-[1.6rem] p-4 space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h3 className="text-sm font-semibold sm:text-base text-[var(--md-sys-color-on-surface)]">{t("overview.generations.title")}</h3>
-                  <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">{t("overview.generations.subtitle")}</p>
-                </div>
-                <span className="text-xs text-[var(--md-sys-color-on-surface-variant)]">{activeGenerationsLoading ? "..." : activeGenerationSummary.total}</span>
-              </div>
-
-              <div className={`grid gap-2 ${compactViewport ? "grid-cols-2" : "sm:grid-cols-2 xl:grid-cols-4"}`}>
-                <KpiCard label={t("overview.generations.summary.active")} value={activeGenerationSummary.total} tone={activeGenerationSummary.total > 0 ? "warn" : "ok"} compact={compactPanel} />
-                <KpiCard label={t("overview.generations.summary.failed")} value={activeGenerationSummary.failing} tone={activeGenerationSummary.failing > 0 ? "error" : "ok"} compact={compactPanel} />
-                <KpiCard label={t("overview.generations.summary.duplicates")} value={activeGenerationSummary.duplicated} tone={activeGenerationSummary.duplicated > 0 ? "warn" : "ok"} compact={compactPanel} />
-                <KpiCard label={t("overview.generations.summary.stalled")} value={activeGenerationSummary.stalled} tone={activeGenerationSummary.stalled > 0 ? "error" : "ok"} compact={compactPanel} />
-                <KpiCard label={t("overview.generations.summary.progress")} value={`${activeGenerationSummary.processed}/${activeGenerationSummary.requested}`} tone="neutral" compact={compactPanel} />
-              </div>
-
-              <ul className="space-y-2">
-                {activeGenerationSpotlight.map((entry, index) => (
-                  <li key={entry.id} className="ui-summary-band rounded-[1.2rem] p-3">
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div>
-                        <p className="text-sm font-semibold text-[var(--md-sys-color-on-surface)]">{entry.title}</p>
-                        <p className="mt-1 text-xs text-[var(--md-sys-color-on-surface-variant)]">{entry.detail}</p>
-                        {entry.idleLabel && (
-                          <p className="mt-1 text-[11px] font-semibold text-[var(--md-sys-color-error)]">{entry.idleLabel}</p>
-                        )}
-                      </div>
-                      <div className="flex flex-wrap items-center justify-end gap-2">
-                        <span className="ui-surface-soft rounded-full px-2 py-1 text-[11px] font-semibold text-[var(--md-sys-color-on-surface-variant)]">{entry.riskLabel}</span>
-                        <button
-                          type="button"
-                          onClick={() => openGenerationProcess(activeGenerations[index]!)}
-                          className="ui-action-pill ui-action-pill--quiet min-h-0 px-3 py-1.5 text-xs"
-                        >
-                          {t("overview.generations.openProcess")}
-                        </button>
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
+      {showActiveGenerationSpotlight && (
+        <div className="ui-panel-block rounded-[1.6rem] p-4 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-semibold sm:text-base text-[var(--md-sys-color-on-surface)]">{t("overview.generations.title")}</h3>
+              <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">{t("overview.generations.subtitle")}</p>
             </div>
-          )}
+            <span className="text-xs text-[var(--md-sys-color-on-surface-variant)]">{activeGenerationsLoading ? "..." : activeGenerationSummary.total}</span>
+          </div>
 
-          <AiEngineTargetControl
-            labels={{
-              title: t("overview.aiTarget.title"),
-              subtitle: t("overview.aiTarget.subtitle"),
-              show: t("service.section.show"),
-              hide: t("service.section.hide"),
-              refresh: t("overview.aiTarget.refreshBtn"),
-              updating: t("service.button.updating"),
-              error: t("overview.aiTarget.error"),
-              collapsedTitle: t("overview.aiTarget.dayOpsTitle"),
-              dayOpsTitle: t("overview.aiTarget.dayOpsTitle"),
-              dayOpsBody: t("overview.aiTarget.dayOpsBody"),
-              criticalTitle: t("overview.aiTarget.criticalTitle"),
-              criticalBody: t("overview.aiTarget.criticalBody"),
-              source: t("diag.target.source"),
-              sourceEnv: t("diag.target.source.env"),
-              sourceOverride: t("diag.target.source.override"),
-              currentHost: t("overview.aiTarget.currentHost"),
-              port: t("overview.aiTarget.apiPort"),
-              currentLabel: t("overview.aiTarget.currentLabel"),
-              optionsCount: t("overview.aiTarget.optionsCount"),
-              currentHostText: t("overview.aiTarget.currentHostText"),
-              currentUrl: t("overview.aiTarget.currentApiUrl"),
-              envUrl: t("overview.aiTarget.currentStatsUrl"),
-              selector: t("overview.aiTarget.selector"),
-              optionName: t("overview.aiTarget.optionName"),
-              optionHost: t("overview.aiTarget.optionHost"),
-              optionProtocol: t("overview.aiTarget.optionProtocol"),
-              optionPort: t("overview.aiTarget.optionApiPort"),
-              probe: t("overview.aiTarget.probeBtn"),
-              applyPreset: t("overview.aiTarget.applyBtn"),
-              newPreset: t("overview.aiTarget.newBtn"),
-              addPreset: t("overview.aiTarget.addBtn"),
-              savePreset: t("overview.aiTarget.saveBtn"),
-              deletePreset: t("overview.aiTarget.deleteBtn"),
-              probeOk: t("overview.aiTarget.probeOk"),
-              probeFail: t("overview.aiTarget.probeFail"),
-              updatedAt: t("diag.target.lastUpdated"),
-            }}
-            target={aiTarget}
-            targetLoading={aiTargetLoading}
-            targetSaving={aiTargetSaving}
-            targetError={aiTargetError}
-            presets={presets}
-            presetsLoading={presetsLoading}
-            selectedPresetId={selectedPresetId}
-            setSelectedPresetId={setSelectedPresetId}
-            isCreatingPreset={isCreatingPreset}
-            setIsCreatingPreset={setIsCreatingPreset}
-            presetName={presetName}
-            setPresetName={setPresetName}
-            presetHost={presetHost}
-            setPresetHost={setPresetHost}
-            presetProtocol={presetProtocol}
-            setPresetProtocol={setPresetProtocol}
-            presetPort={presetPort}
-            setPresetPort={setPresetPort}
-            activePreset={activePreset}
-            probeLoading={aiProbeLoading}
-            probeResult={aiProbeResult}
-            expanded={aiTargetExpanded}
-            setExpanded={setAiTargetExpanded}
-            onRefresh={() => void refreshAiTarget()}
-            onProbe={() => void probeAiTarget().catch(() => undefined)}
-            onApplyPreset={applyAiPreset}
-            onStartNewPreset={startNewPreset}
-            onSavePreset={() => void savePreset()}
-            onDeletePreset={() => void removePreset()}
-            formatTimestamp={formatTimestamp}
-          />
+          <div className={`grid gap-2 ${compactViewport ? "grid-cols-2" : "sm:grid-cols-2 xl:grid-cols-4"}`}>
+            <KpiCard label={t("overview.generations.summary.active")} value={activeGenerationSummary.total} tone={activeGenerationSummary.total > 0 ? "warn" : "ok"} compact={compactPanel} />
+            <KpiCard label={t("overview.generations.summary.failed")} value={activeGenerationSummary.failing} tone={activeGenerationSummary.failing > 0 ? "error" : "ok"} compact={compactPanel} />
+            <KpiCard label={t("overview.generations.summary.duplicates")} value={activeGenerationSummary.duplicated} tone={activeGenerationSummary.duplicated > 0 ? "warn" : "ok"} compact={compactPanel} />
+            <KpiCard label={t("overview.generations.summary.stalled")} value={activeGenerationSummary.stalled} tone={activeGenerationSummary.stalled > 0 ? "error" : "ok"} compact={compactPanel} />
+            <KpiCard label={t("overview.generations.summary.progress")} value={`${activeGenerationSummary.processed}/${activeGenerationSummary.requested}`} tone="neutral" compact={compactPanel} />
+          </div>
 
-          {error && <p className="ui-feedback ui-feedback--error">{t("overview.error.load")}: {error}</p>}
-
-          <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
-            {rows.map((row) => (
-              <article key={row.key} className="ui-panel-block rounded-[1.35rem] p-4 text-[var(--md-sys-color-on-surface)]">
-                <div className="flex items-start justify-between gap-3">
+          <ul className="space-y-2">
+            {activeGenerationSpotlight.map((entry, index) => (
+              <li key={entry.id} className="ui-summary-band rounded-[1.2rem] p-3">
+                <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
-                    <h3 className="text-sm font-semibold sm:text-base text-[var(--md-sys-color-on-surface)]">{row.title}</h3>
-                    <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">{row.domain}</p>
-                  </div>
-                  <span className={statusClass(row.online)}>
-                    {row.online ? t("overview.status.online") : t("overview.status.offline")}
-                  </span>
-                </div>
-
-                <div className="mt-3 grid gap-2 text-xs sm:grid-cols-2 text-[var(--md-sys-color-on-surface)]">
-                  <p>
-                    <span className="font-semibold">{t("overview.status.accessLabel")}:</span>{" "}
-                    {row.accessGuaranteed ? t("overview.status.accessOk") : t("overview.status.accessDenied")}
-                  </p>
-                  <p>
-                    <span className="font-semibold">{t("overview.status.connectionLabel")}:</span>{" "}
-                    {row.connectionError ? t("overview.status.connectionError") : t("overview.status.connectionOk")}
-                  </p>
-                  <p>
-                    <span className="font-semibold">{t("overview.metric.realtime")}:</span>{" "}
-                    {row.requestsPerSecond !== null ? `${row.requestsPerSecond} req/s` : t("overview.metric.na")}
-                  </p>
-                  <p>
-                    <span className="font-semibold">{t("overview.metric.totalRequests")}:</span>{" "}
-                    {row.requestsTotal !== null ? row.requestsTotal : t("overview.metric.na")}
-                  </p>
-                  <p>
-                    <span className="font-semibold">{t("overview.metric.latency")}:</span>{" "}
-                    {row.latencyMs !== null ? `${row.latencyMs} ms` : t("overview.metric.na")}
-                  </p>
-                  <p>
-                    <span className="font-semibold">{t("overview.metric.lastUpdate")}:</span>{" "}
-                    {row.lastUpdatedAt ? new Date(row.lastUpdatedAt).toLocaleTimeString() : t("overview.metric.na")}
-                  </p>
-                </div>
-
-                {(row.generationRequestedTotal !== null || row.generationCreatedTotal !== null) && (
-                  <div className="mt-3 rounded-xl border border-[var(--md-sys-color-outline-variant)] bg-[color:var(--md-sys-color-surface-container-low)]/70 p-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--md-sys-color-on-surface-variant)]">
-                      {t("overview.metric.conversion")}
-                    </p>
-                    <div className="mt-2 grid gap-2 text-xs sm:grid-cols-2 text-[var(--md-sys-color-on-surface)]">
-                      <p>
-                        <span className="font-semibold">{t("overview.metric.requested")}:</span>{" "}
-                        {row.generationRequestedTotal ?? t("overview.metric.na")}
-                      </p>
-                      <p>
-                        <span className="font-semibold">{t("overview.metric.created")}:</span>{" "}
-                        {row.generationCreatedTotal ?? t("overview.metric.na")}
-                      </p>
-                    </div>
-
-                    {row.generationConversionRatio !== null && (
-                      <div className="mt-2">
-                        <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--md-sys-color-surface-container)]">
-                          <div
-                            className="h-full rounded-full bg-[var(--md-sys-color-primary)] transition-[width] duration-200"
-                            style={{ width: `${Math.min(100, Math.max(0, row.generationConversionRatio * 100))}%` }}
-                          />
-                        </div>
-                        <p className="mt-1 text-[11px] text-[var(--md-sys-color-on-surface-variant)]">
-                          {formatPercent(row.generationConversionRatio)}
-                        </p>
-                      </div>
+                    <p className="text-sm font-semibold text-[var(--md-sys-color-on-surface)]">{entry.title}</p>
+                    <p className="mt-1 text-xs text-[var(--md-sys-color-on-surface-variant)]">{entry.detail}</p>
+                    {entry.idleLabel && (
+                      <p className="mt-1 text-[11px] font-semibold text-[var(--md-sys-color-error)]">{entry.idleLabel}</p>
                     )}
                   </div>
-                )}
-
-                {row.errorMessage && <p className="ui-feedback ui-feedback--error mt-3 p-2 text-xs">{row.errorMessage}</p>}
-              </article>
+                  <div className="flex flex-wrap items-center justify-end gap-2">
+                    <span className="ui-surface-soft rounded-full px-2 py-1 text-[11px] font-semibold text-[var(--md-sys-color-on-surface-variant)]">{entry.riskLabel}</span>
+                    <button
+                      type="button"
+                      onClick={() => openGenerationProcess(activeGenerations[index]!)}
+                      className="ui-action-pill ui-action-pill--quiet min-h-0 px-3 py-1.5 text-xs"
+                    >
+                      {t("overview.generations.openProcess")}
+                    </button>
+                  </div>
+                </div>
+              </li>
             ))}
-          </div>
-        </>
-      ) : (
-        <>
-          <div className={`grid gap-2 ${compactViewport ? "grid-cols-2" : "sm:grid-cols-2 xl:grid-cols-4"}`}>
-            <KpiCard label="Nodos listos" value={`${kubernetesSummary.readyNodes}/${kubernetesSummary.nodes}`} tone={kubernetesSummary.readyNodes === kubernetesSummary.nodes ? "ok" : "warn"} compact={compactPanel} />
-            <KpiCard label="Deployments" value={kubernetesSummary.deployments} tone="neutral" compact={compactPanel} />
-            <KpiCard label="Pods en ejecucion" value={`${kubernetesSummary.runningPods}/${kubernetesSummary.pods}`} tone="ok" compact={compactPanel} />
-            <KpiCard label="Reinicios" value={kubernetesSummary.restarts} tone={kubernetesSummary.restarts > 0 ? "warn" : "ok"} compact={compactPanel} />
-          </div>
-
-          {kubernetesError && <p className="ui-feedback ui-feedback--error">Kubernetes: {kubernetesError}</p>}
-
-          {!kubernetesError && kubernetesOverview && !kubernetesOverview.enabled && (
-            <div className="ui-panel-block rounded-[1.35rem] p-4 text-sm text-[var(--md-sys-color-on-surface-variant)]">
-              {kubernetesOverview.message ?? "La observabilidad Kubernetes no esta disponible en este entorno."}
-            </div>
-          )}
-
-          {kubernetesOverview?.enabled && (
-            <>
-              <div className="grid gap-3 xl:grid-cols-2">
-                <div className="ui-panel-block rounded-[1.35rem] p-4 space-y-3">
-                  <div>
-                    <h3 className="text-sm font-semibold sm:text-base text-[var(--md-sys-color-on-surface)]">Cluster</h3>
-                    <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">Namespace {kubernetesOverview.namespace} · actualizado {formatTimestamp(kubernetesOverview.fetchedAt)}</p>
-                  </div>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <KpiCard label="CPU usada" value={formatMillicores(kubernetesOverview.cluster.cpuUsageMillicores)} tone="neutral" compact={compactPanel} />
-                    <KpiCard label="Memoria usada" value={formatBytes(kubernetesOverview.cluster.memoryUsageBytes)} tone="neutral" compact={compactPanel} />
-                    <KpiCard label="CPU ratio" value={formatUsageRatio(kubernetesOverview.cluster.cpuUsageRatio)} tone="neutral" compact={compactPanel} />
-                    <KpiCard label="Memoria ratio" value={formatUsageRatio(kubernetesOverview.cluster.memoryUsageRatio)} tone="neutral" compact={compactPanel} />
-                  </div>
-                  <div className="grid gap-2 text-xs sm:grid-cols-2 text-[var(--md-sys-color-on-surface)]">
-                    <p><span className="font-semibold">CPU requests:</span> {formatMillicores(kubernetesOverview.cluster.namespaceCpuRequestMillicores)}</p>
-                    <p><span className="font-semibold">CPU limits:</span> {formatMillicores(kubernetesOverview.cluster.namespaceCpuLimitMillicores)}</p>
-                    <p><span className="font-semibold">Memory requests:</span> {formatBytes(kubernetesOverview.cluster.namespaceMemoryRequestBytes)}</p>
-                    <p><span className="font-semibold">Memory limits:</span> {formatBytes(kubernetesOverview.cluster.namespaceMemoryLimitBytes)}</p>
-                  </div>
-                </div>
-
-                <div className="ui-panel-block rounded-[1.35rem] p-4 space-y-3">
-                  <div>
-                    <h3 className="text-sm font-semibold sm:text-base text-[var(--md-sys-color-on-surface)]">Nodos</h3>
-                    <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">Capacidad y consumo por nodo.</p>
-                  </div>
-                  <div className="space-y-2">
-                    {kubernetesOverview.nodes.map((node) => (
-                      <div key={node.name} className="ui-summary-band rounded-[1.2rem] p-3 text-xs text-[var(--md-sys-color-on-surface)]">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <p className="font-semibold">{node.name}</p>
-                          <span className={statusClass(node.ready)}>{node.ready ? "Ready" : "Not ready"}</span>
-                        </div>
-                        <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                          <p><span className="font-semibold">Pods:</span> {node.podCount}</p>
-                          <p><span className="font-semibold">CPU:</span> {formatMillicores(node.cpuUsageMillicores)} / {formatMillicores(node.cpuCapacityMillicores)}</p>
-                          <p><span className="font-semibold">Memoria:</span> {formatBytes(node.memoryUsageBytes)} / {formatBytes(node.memoryCapacityBytes)}</p>
-                          <p><span className="font-semibold">Uso:</span> {formatUsageRatio(node.cpuUsageRatio)} CPU · {formatUsageRatio(node.memoryUsageRatio)} RAM</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div className="ui-panel-block rounded-[1.35rem] p-4 space-y-3">
-                <div>
-                  <h3 className="text-sm font-semibold sm:text-base text-[var(--md-sys-color-on-surface)]">Workloads</h3>
-                  <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">Estado de despliegue y consumo agregado por deployment.</p>
-                </div>
-                <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
-                  {kubernetesOverview.workloads.map((workload) => (
-                    <article key={workload.name} className="ui-summary-band rounded-[1.2rem] p-3 text-xs text-[var(--md-sys-color-on-surface)]">
-                      <div className="flex flex-wrap items-start justify-between gap-2">
-                        <div>
-                          <p className="font-semibold">{workload.name}</p>
-                          <p className="text-[var(--md-sys-color-on-surface-variant)]">{workload.image ?? "Sin imagen detectada"}</p>
-                        </div>
-                        <span className={kubernetesStatusClass(workload.status)}>{workload.status}</span>
-                      </div>
-                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                        <p><span className="font-semibold">Replicas:</span> {workload.readyReplicas}/{workload.desiredReplicas}</p>
-                        <p><span className="font-semibold">Disponibles:</span> {workload.availableReplicas}</p>
-                        <p><span className="font-semibold">Pods:</span> {workload.readyPodCount}/{workload.podCount}</p>
-                        <p><span className="font-semibold">Reinicios:</span> {workload.restartCount}</p>
-                        <p><span className="font-semibold">CPU:</span> {formatMillicores(workload.cpuUsageMillicores)}</p>
-                        <p><span className="font-semibold">Memoria:</span> {formatBytes(workload.memoryUsageBytes)}</p>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              </div>
-
-              <div className="ui-panel-block rounded-[1.35rem] p-4 space-y-3">
-                <div>
-                  <h3 className="text-sm font-semibold sm:text-base text-[var(--md-sys-color-on-surface)]">Pods calientes</h3>
-                  <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">Pods con mayor consumo de memoria y CPU en este namespace.</p>
-                </div>
-                <div className="space-y-2">
-                  {kubernetesOverview.topPods.map((pod) => (
-                    <div key={pod.name} className="ui-summary-band rounded-[1.2rem] p-3 text-xs text-[var(--md-sys-color-on-surface)]">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <p className="font-semibold">{pod.name}</p>
-                        <span className={statusClass(pod.ready)}>{pod.phase}</span>
-                      </div>
-                      <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                        <p><span className="font-semibold">Workload:</span> {pod.workload ?? "--"}</p>
-                        <p><span className="font-semibold">Nodo:</span> {pod.nodeName ?? "--"}</p>
-                        <p><span className="font-semibold">CPU:</span> {formatMillicores(pod.cpuUsageMillicores)} · request {formatMillicores(pod.cpuRequestMillicores)}</p>
-                        <p><span className="font-semibold">Memoria:</span> {formatBytes(pod.memoryUsageBytes)} · request {formatBytes(pod.memoryRequestBytes)}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
-
-          {kubernetesLoading && !kubernetesOverview && !kubernetesError && (
-            <p className="text-sm text-[var(--md-sys-color-on-surface-variant)]">Cargando estado de Kubernetes...</p>
-          )}
-        </>
+          </ul>
+        </div>
       )}
+
+      <AiEngineTargetControl
+        labels={{
+          title: t("overview.aiTarget.title"),
+          subtitle: t("overview.aiTarget.subtitle"),
+          show: t("service.section.show"),
+          hide: t("service.section.hide"),
+          refresh: t("overview.aiTarget.refreshBtn"),
+          updating: t("service.button.updating"),
+          error: t("overview.aiTarget.error"),
+          collapsedTitle: t("overview.aiTarget.dayOpsTitle"),
+          dayOpsTitle: t("overview.aiTarget.dayOpsTitle"),
+          dayOpsBody: t("overview.aiTarget.dayOpsBody"),
+          criticalTitle: t("overview.aiTarget.criticalTitle"),
+          criticalBody: t("overview.aiTarget.criticalBody"),
+          source: t("diag.target.source"),
+          sourceEnv: t("diag.target.source.env"),
+          sourceOverride: t("diag.target.source.override"),
+          currentHost: t("overview.aiTarget.currentHost"),
+          port: t("overview.aiTarget.apiPort"),
+          currentLabel: t("overview.aiTarget.currentLabel"),
+          currentUrl: t("overview.aiTarget.currentApiUrl"),
+          envUrl: t("overview.aiTarget.currentStatsUrl"),
+          optionName: t("overview.aiTarget.currentLabel"),
+          optionHost: t("overview.aiTarget.optionHost"),
+          optionProtocol: t("overview.aiTarget.optionProtocol"),
+          optionPort: t("overview.aiTarget.optionApiPort"),
+          probe: t("overview.aiTarget.probeBtn"),
+          apply: t("overview.aiTarget.applyBtn"),
+          resetTarget: t("diag.target.resetBtn"),
+          probeOk: t("overview.aiTarget.probeOk"),
+          probeFail: t("overview.aiTarget.probeFail"),
+          updatedAt: t("diag.target.lastUpdated"),
+        }}
+        target={aiTarget}
+        targetLoading={aiTargetLoading}
+        targetSaving={aiTargetSaving}
+        targetError={aiTargetError}
+        label={aiLabel}
+        setLabel={setAiLabel}
+        host={aiHost}
+        setHost={setAiHost}
+        protocol={aiProtocol}
+        setProtocol={setAiProtocol}
+        port={aiPort}
+        setPort={setAiPort}
+        probeLoading={aiProbeLoading}
+        probeResult={aiProbeResult}
+        expanded={aiTargetExpanded}
+        setExpanded={setAiTargetExpanded}
+        onRefresh={() => void refreshAiTarget()}
+        onProbe={() => void probeAiTarget().catch(() => undefined)}
+        onApply={() => void applyAiTarget({ probeFirst: true })}
+        onResetTarget={() => void resetAiTarget()}
+        formatTimestamp={formatTimestamp}
+      />
+
+      {error && <p className="ui-feedback ui-feedback--error">{t("overview.error.load")}: {error}</p>}
+
+      <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
+        {rows.map((row) => (
+          <article key={row.key} className="ui-panel-block rounded-[1.35rem] p-4 text-[var(--md-sys-color-on-surface)]">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold sm:text-base text-[var(--md-sys-color-on-surface)]">{row.title}</h3>
+                <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">{row.domain}</p>
+              </div>
+              <span className={statusClass(row.online)}>
+                {row.online ? t("overview.status.online") : t("overview.status.offline")}
+              </span>
+            </div>
+
+            <div className="mt-3 grid gap-2 text-xs sm:grid-cols-2 text-[var(--md-sys-color-on-surface)]">
+              <p>
+                <span className="font-semibold">{t("overview.status.accessLabel")}:</span>{" "}
+                {row.accessGuaranteed ? t("overview.status.accessOk") : t("overview.status.accessDenied")}
+              </p>
+              <p>
+                <span className="font-semibold">{t("overview.status.connectionLabel")}:</span>{" "}
+                {row.connectionError ? t("overview.status.connectionError") : t("overview.status.connectionOk")}
+              </p>
+              <p>
+                <span className="font-semibold">{t("overview.metric.realtime")}:</span>{" "}
+                {row.requestsPerSecond !== null ? `${row.requestsPerSecond} req/s` : t("overview.metric.na")}
+              </p>
+              <p>
+                <span className="font-semibold">{t("overview.metric.totalRequests")}:</span>{" "}
+                {row.requestsTotal !== null ? row.requestsTotal : t("overview.metric.na")}
+              </p>
+              <p>
+                <span className="font-semibold">{t("overview.metric.latency")}:</span>{" "}
+                {row.latencyMs !== null ? `${row.latencyMs} ms` : t("overview.metric.na")}
+              </p>
+              <p>
+                <span className="font-semibold">{t("overview.metric.lastUpdate")}:</span>{" "}
+                {row.lastUpdatedAt ? new Date(row.lastUpdatedAt).toLocaleTimeString() : t("overview.metric.na")}
+              </p>
+            </div>
+
+            {(row.generationRequestedTotal !== null || row.generationCreatedTotal !== null) && (
+              <div className="mt-3 rounded-xl border border-[var(--md-sys-color-outline-variant)] bg-[color:var(--md-sys-color-surface-container-low)]/70 p-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--md-sys-color-on-surface-variant)]">
+                  {t("overview.metric.conversion")}
+                </p>
+                <div className="mt-2 grid gap-2 text-xs sm:grid-cols-2 text-[var(--md-sys-color-on-surface)]">
+                  <p>
+                    <span className="font-semibold">{t("overview.metric.requested")}:</span>{" "}
+                    {row.generationRequestedTotal ?? t("overview.metric.na")}
+                  </p>
+                  <p>
+                    <span className="font-semibold">{t("overview.metric.created")}:</span>{" "}
+                    {row.generationCreatedTotal ?? t("overview.metric.na")}
+                  </p>
+                </div>
+
+                {row.generationConversionRatio !== null && (
+                  <div className="mt-2">
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--md-sys-color-surface-container)]">
+                      <div
+                        className="h-full rounded-full bg-[var(--md-sys-color-primary)] transition-[width] duration-200"
+                        style={{ width: `${Math.min(100, Math.max(0, row.generationConversionRatio * 100))}%` }}
+                      />
+                    </div>
+                    <p className="mt-1 text-[11px] text-[var(--md-sys-color-on-surface-variant)]">
+                      {formatPercent(row.generationConversionRatio)}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {row.errorMessage && <p className="ui-feedback ui-feedback--error mt-3 p-2 text-xs">{row.errorMessage}</p>}
+          </article>
+        ))}
+      </div>
     </section>
   );
 }

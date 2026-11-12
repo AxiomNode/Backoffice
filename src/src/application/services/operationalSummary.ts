@@ -36,75 +36,6 @@ export type ServiceOperationalSummary = {
   };
 };
 
-export type KubernetesOverview = {
-  enabled: boolean;
-  fetchedAt: string;
-  namespace: string;
-  source: "cluster" | "disabled";
-  message: string | null;
-  cluster: {
-    apiBaseUrl: string | null;
-    nodeCount: number;
-    readyNodeCount: number;
-    deploymentCount: number;
-    podCount: number;
-    runningPodCount: number;
-    notReadyPodCount: number;
-    restartCount: number;
-    cpuUsageMillicores: number | null;
-    cpuCapacityMillicores: number | null;
-    cpuUsageRatio: number | null;
-    memoryUsageBytes: number | null;
-    memoryCapacityBytes: number | null;
-    memoryUsageRatio: number | null;
-    namespaceCpuRequestMillicores: number;
-    namespaceCpuLimitMillicores: number;
-    namespaceMemoryRequestBytes: number;
-    namespaceMemoryLimitBytes: number;
-  };
-  nodes: Array<{
-    name: string;
-    ready: boolean;
-    podCount: number;
-    cpuUsageMillicores: number | null;
-    cpuCapacityMillicores: number | null;
-    cpuUsageRatio: number | null;
-    memoryUsageBytes: number | null;
-    memoryCapacityBytes: number | null;
-    memoryUsageRatio: number | null;
-  }>;
-  workloads: Array<{
-    name: string;
-    image: string | null;
-    desiredReplicas: number;
-    readyReplicas: number;
-    availableReplicas: number;
-    updatedReplicas: number;
-    podCount: number;
-    readyPodCount: number;
-    restartCount: number;
-    cpuUsageMillicores: number;
-    memoryUsageBytes: number;
-    cpuRequestMillicores: number;
-    cpuLimitMillicores: number;
-    memoryRequestBytes: number;
-    memoryLimitBytes: number;
-    status: "healthy" | "degraded" | "down";
-  }>;
-  topPods: Array<{
-    name: string;
-    workload: string | null;
-    nodeName: string | null;
-    phase: string;
-    ready: boolean;
-    restartCount: number;
-    cpuUsageMillicores: number;
-    memoryUsageBytes: number;
-    cpuRequestMillicores: number;
-    memoryRequestBytes: number;
-  }>;
-};
-
 type ServiceOperationalSummaryApiResponse = {
   rows: Array<Omit<ServiceOperationalRow, "lastKnownError"> & { lastKnownError?: { message: string; at: string } | null }>;
   totals: ServiceOperationalSummary["totals"];
@@ -171,10 +102,4 @@ export async function fetchServiceOperationalSummary(
     rows,
     totals: payload.totals,
   };
-}
-
-export async function fetchKubernetesOverview(context: SessionContext): Promise<KubernetesOverview> {
-  return fetchJson<KubernetesOverview>(`${EDGE_API_BASE}/v1/backoffice/kubernetes/overview`, {
-    headers: composeAuthHeaders(context),
-  });
 }

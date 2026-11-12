@@ -295,31 +295,20 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
     targetLoading,
     targetSaving,
     targetError,
-    presets: connections,
-    presetsLoading: connectionsLoading,
-    selectedPresetId: selectedConnectionId,
-    setSelectedPresetId: setSelectedConnectionId,
-    isCreatingPreset: creatingConnection,
-    setIsCreatingPreset: setCreatingConnection,
-    presetName: targetLabel,
-    setPresetName: setTargetLabel,
-    presetHost: targetHost,
-    setPresetHost: setTargetHost,
-    presetProtocol: targetProtocol,
-    setPresetProtocol: setTargetProtocol,
-    presetPort: targetPort,
-    setPresetPort: setTargetPort,
-    activePreset: activeConnection,
+    label: targetLabel,
+    setLabel: setTargetLabel,
+    host: targetHost,
+    setHost: setTargetHost,
+    protocol: targetProtocol,
+    setProtocol: setTargetProtocol,
+    port: targetPort,
+    setPort: setTargetPort,
     probeLoading: targetProbeLoading,
     probeResult: targetProbeResult,
     refresh: loadTarget,
     probeTarget,
     applyDraftTarget: applyTarget,
-    savePreset: saveConnection,
-    activateSelectedPreset: activateConnection,
-    deleteSelectedPreset: deleteConnection,
     resetTarget,
-    startNewPreset,
   } = useAiEngineTargetState({
     context,
     unknownErrorLabel: t("roles.errorUnknown"),
@@ -799,24 +788,16 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
             currentHost: t("diag.target.host"),
             port: t("diag.target.apiPort"),
             currentLabel: t("diag.target.currentLabel"),
-            optionsCount: t("diag.target.savedPresetCount"),
-            currentHostText: t("overview.aiTarget.currentHostText"),
             currentUrl: t("diag.target.currentApiUrl"),
             envUrl: t("diag.target.currentStatsUrl"),
-            selector: t("diag.target.savedPreset"),
-            optionName: t("diag.target.presetName"),
+            optionName: t("diag.target.currentLabel"),
             optionNamePlaceholder: t("diag.target.labelHint"),
             optionHost: t("diag.target.host"),
             optionHostPlaceholder: "192.168.1.80",
             optionProtocol: t("diag.target.protocol"),
             optionPort: t("diag.target.apiPort"),
             probe: t("overview.aiTarget.probeBtn"),
-            applyPreset: t("diag.target.activatePresetBtn"),
-            applyForm: t("diag.target.applyBtn"),
-            newPreset: t("diag.target.newPresetBtn"),
-            addPreset: t("diag.target.savePresetBtn"),
-            savePreset: t("diag.target.savePresetBtn"),
-            deletePreset: t("diag.target.deletePresetBtn"),
+            apply: t("diag.target.applyBtn"),
             resetTarget: t("diag.target.resetBtn"),
             probeOk: t("overview.aiTarget.probeOk"),
             probeFail: t("overview.aiTarget.probeFail"),
@@ -827,32 +808,21 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
           targetLoading={targetLoading}
           targetSaving={targetSaving}
           targetError={targetError}
-          presets={connections}
-          presetsLoading={connectionsLoading}
-          selectedPresetId={selectedConnectionId}
-          setSelectedPresetId={setSelectedConnectionId}
-          isCreatingPreset={creatingConnection}
-          setIsCreatingPreset={setCreatingConnection}
-          presetName={targetLabel}
-          setPresetName={setTargetLabel}
-          presetHost={targetHost}
-          setPresetHost={setTargetHost}
-          presetProtocol={targetProtocol}
-          setPresetProtocol={setTargetProtocol}
-          presetPort={targetPort}
-          setPresetPort={setTargetPort}
-          activePreset={activeConnection}
+          label={targetLabel}
+          setLabel={setTargetLabel}
+          host={targetHost}
+          setHost={setTargetHost}
+          protocol={targetProtocol}
+          setProtocol={setTargetProtocol}
+          port={targetPort}
+          setPort={setTargetPort}
           probeLoading={targetProbeLoading}
           probeResult={targetProbeResult}
           expanded={targetExpanded}
           setExpanded={setTargetExpanded}
           onRefresh={() => void loadTarget()}
           onProbe={() => void probeTarget().catch(() => undefined)}
-          onApplyPreset={() => void activateConnection({ probeFirst: true })}
-          onApplyForm={() => void applyTarget({ probeFirst: true })}
-          onStartNewPreset={startNewPreset}
-          onSavePreset={() => void saveConnection()}
-          onDeletePreset={() => void deleteConnection()}
+          onApply={() => void applyTarget({ probeFirst: true })}
           onResetTarget={() => void resetTarget()}
           formatTimestamp={formatTimestamp}
         />
