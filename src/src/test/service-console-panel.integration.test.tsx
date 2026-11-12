@@ -217,7 +217,8 @@ describe("ServiceConsolePanel integration", () => {
     await waitFor(() => {
       expect(screen.getByText("Llamadas")).toBeInTheDocument();
       expect(screen.getByText("42")).toBeInTheDocument();
-      expect(screen.getByText("95.2%")).toBeInTheDocument();
+      // The panel formats with the runtime locale ("95,2%" on es-ES), so build the expectation the same way.
+      expect(screen.getByText(`${(95.2).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`)).toBeInTheDocument();
       expect(screen.getByText("Tipos de juego")).toBeInTheDocument();
       expect(screen.getAllByText("quiz").length).toBeGreaterThan(0);
       expect(screen.getByText("Resultados por juego")).toBeInTheDocument();

@@ -16,6 +16,9 @@ import { LoginGate } from "./ui/panels/LoginGate";
 
 /** @module App - Root component that manages auth state, theming, and top-level routing. */
 
+/** The UI language is fixed to English today; the setter is a stable no-op until a language switcher exists. */
+const noopSetLanguage = () => undefined;
+
 /** Root application component that gates login and renders the backoffice layout. */
 export function App() {
   const language: UiLanguage = "en";
@@ -83,7 +86,7 @@ export function App() {
 
   if (!session || !context) {
     return (
-      <I18nProvider language={language} setLanguage={setLanguage}>
+      <I18nProvider language={language} setLanguage={noopSetLanguage}>
         <LoginGate
           onAuthenticated={handleAuthenticated}
           theme={theme}
@@ -96,7 +99,7 @@ export function App() {
   }
 
   return (
-    <I18nProvider language={language} setLanguage={setLanguage}>
+    <I18nProvider language={language} setLanguage={noopSetLanguage}>
       <BackofficeLayout
         session={session}
         context={context}
