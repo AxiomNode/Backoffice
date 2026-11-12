@@ -2,7 +2,6 @@ import type { AiEngineTarget } from "../../domain/types/backoffice";
 import type {
   AiEngineProbeEndpointStatus,
   AiEngineProbeResult,
-  AiEngineTargetPresetState,
 } from "../hooks/useAiEngineTargetState";
 
 type AiEngineTargetControlLabels = {
@@ -24,11 +23,8 @@ type AiEngineTargetControlLabels = {
   currentHost: string;
   port: string;
   currentLabel: string;
-  optionsCount: string;
-  currentHostText: string;
   currentUrl: string;
   envUrl: string;
-  selector: string;
   optionName: string;
   optionNamePlaceholder?: string;
   optionHost: string;
@@ -36,13 +32,8 @@ type AiEngineTargetControlLabels = {
   optionProtocol: string;
   optionPort: string;
   probe: string;
-  applyPreset: string;
-  applyForm?: string;
-  newPreset: string;
-  addPreset: string;
-  savePreset: string;
-  deletePreset: string;
-  resetTarget?: string;
+  apply: string;
+  resetTarget: string;
   probeOk: string;
   probeFail: string;
   runtimeNote?: string;
@@ -55,33 +46,22 @@ type AiEngineTargetControlProps = {
   targetLoading: boolean;
   targetSaving: boolean;
   targetError: string | null;
-  presets: AiEngineTargetPresetState[];
-  presetsLoading: boolean;
-  selectedPresetId: string;
-  setSelectedPresetId: (value: string) => void;
-  isCreatingPreset: boolean;
-  setIsCreatingPreset: (value: boolean) => void;
-  presetName: string;
-  setPresetName: (value: string) => void;
-  presetHost: string;
-  setPresetHost: (value: string) => void;
-  presetProtocol: "http" | "https";
-  setPresetProtocol: (value: "http" | "https") => void;
-  presetPort: string;
-  setPresetPort: (value: string) => void;
-  activePreset: AiEngineTargetPresetState | null;
+  label: string;
+  setLabel: (value: string) => void;
+  host: string;
+  setHost: (value: string) => void;
+  protocol: "http" | "https";
+  setProtocol: (value: "http" | "https") => void;
+  port: string;
+  setPort: (value: string) => void;
   probeLoading: boolean;
   probeResult: AiEngineProbeResult | null;
   expanded: boolean;
   setExpanded: (updater: (current: boolean) => boolean) => void;
   onRefresh: () => void;
   onProbe: () => void;
-  onApplyPreset: () => void;
-  onApplyForm?: () => void;
-  onStartNewPreset: () => void;
-  onSavePreset: () => void;
-  onDeletePreset: () => void;
-  onResetTarget?: () => void;
+  onApply: () => void;
+  onResetTarget: () => void;
   formatTimestamp?: (value: string | null | undefined) => string;
 };
 
@@ -112,44 +92,31 @@ function describeProbeStatus(status: AiEngineProbeEndpointStatus) {
   return `${status.url} ${status.message ?? "sin respuesta"}`;
 }
 
+/** Controls for the ai-engine llama target: shows the effective target, probes a candidate, applies it or resets to the env default. */
 export function AiEngineTargetControl({
   labels,
   target,
   targetLoading,
   targetSaving,
   targetError,
-  presets,
-  presetsLoading,
-  selectedPresetId,
-  setSelectedPresetId,
-  isCreatingPreset,
-  setIsCreatingPreset,
-  presetName,
-  setPresetName,
-  presetHost,
-  setPresetHost,
-  presetProtocol,
-  setPresetProtocol,
-  presetPort,
-  setPresetPort,
-  activePreset,
+  label,
+  setLabel,
+  host,
+  setHost,
+  protocol,
+  setProtocol,
+  port,
+  setPort,
   probeLoading,
   probeResult,
   expanded,
   setExpanded,
   onRefresh,
   onProbe,
-  onApplyPreset,
-  onApplyForm,
-  onStartNewPreset,
-  onSavePreset,
-  onDeletePreset,
+  onApply,
   onResetTarget,
   formatTimestamp,
 }: AiEngineTargetControlProps) {
-  const activePresetName = presets.find((entry) => entry.active)?.name ?? target?.label ?? "--";
-  const selectedPresetName = presets.find((entry) => entry.id === selectedPresetId)?.name ?? "--";
-
   return (
     <div className="ui-panel-block rounded-[1.6rem] p-4 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -169,10 +136,10 @@ export function AiEngineTargetControl({
           <button
             type="button"
             onClick={onRefresh}
-            disabled={targetLoading || targetSaving || presetsLoading}
+            disabled={targetLoading || targetSaving}
             className="ui-action-pill ui-action-pill--quiet min-h-0 px-3 py-1.5 text-xs"
           >
-            {targetLoading || presetsLoading ? "..." : labels.refresh}
+            {targetLoading ? "..." : labels.refresh}
           </button>
         </div>
       </div>
@@ -221,51 +188,31 @@ export function AiEngineTargetControl({
             </div>
           </div>
 
-          <div className="grid gap-3 xl:grid-cols-[minmax(240px,320px)_1fr]">
-            <label className="ui-control-label text-xs">
-              {labels.selector}
-              <select
-                value={selectedPresetId}
-                onChange={(event) => {
-                  setIsCreatingPreset(false);
-                  setSelectedPresetId(event.target.value);
-                }}
-                className="control-input mt-1 w-full px-2 py-2 text-sm"
-              >
-                {presets.length === 0 && <option value="">--</option>}
-                {presets.map((entry) => (
-                  <option key={entry.id} value={entry.id}>{entry.active ? "* " : ""}{entry.name}</option>
-                ))}
-              </select>
-            </label>
-
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <MetricTile label={labels.optionsCount} value={presets.length} />
-              <MetricTile label={labels.selector} value={selectedPresetName} />
-              <MetricTile label={labels.currentLabel} value={activePresetName} />
-              <MetricTile label={labels.updatedAt ?? labels.currentLabel} value={formatTimestamp ? formatTimestamp(target?.updatedAt) : target?.updatedAt ?? "--"} />
-            </div>
-          </div>
+          {labels.updatedAt && (
+            <p className="text-xs text-[var(--md-sys-color-on-surface-variant)]">
+              {labels.updatedAt}: {formatTimestamp ? formatTimestamp(target?.updatedAt) : target?.updatedAt ?? "--"}
+            </p>
+          )}
 
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <label className="ui-control-label text-xs">
               {labels.optionName}
-              <input value={presetName} onChange={(event) => setPresetName(event.target.value)} placeholder={labels.optionNamePlaceholder} className="control-input mt-1 w-full" />
+              <input value={label} onChange={(event) => setLabel(event.target.value)} placeholder={labels.optionNamePlaceholder} className="control-input mt-1 w-full" />
             </label>
             <label className="ui-control-label text-xs">
               {labels.optionHost}
-              <input value={presetHost} onChange={(event) => setPresetHost(event.target.value)} placeholder={labels.optionHostPlaceholder} className="control-input mt-1 w-full" />
+              <input value={host} onChange={(event) => setHost(event.target.value)} placeholder={labels.optionHostPlaceholder} className="control-input mt-1 w-full" />
             </label>
             <label className="ui-control-label text-xs">
               {labels.optionProtocol}
-              <select value={presetProtocol} onChange={(event) => setPresetProtocol(event.target.value as "http" | "https")} className="control-input mt-1 w-full">
+              <select value={protocol} onChange={(event) => setProtocol(event.target.value as "http" | "https")} className="control-input mt-1 w-full">
                 <option value="http">http</option>
                 <option value="https">https</option>
               </select>
             </label>
             <label className="ui-control-label text-xs">
               {labels.optionPort}
-              <input value={presetPort} onChange={(event) => setPresetPort(event.target.value)} inputMode="numeric" className="control-input mt-1 w-full" />
+              <input value={port} onChange={(event) => setPort(event.target.value)} inputMode="numeric" className="control-input mt-1 w-full" />
             </label>
           </div>
 
@@ -273,53 +220,22 @@ export function AiEngineTargetControl({
             <button
               type="button"
               onClick={onProbe}
-              disabled={probeLoading || presetHost.trim().length === 0}
+              disabled={probeLoading || host.trim().length === 0}
               className="ui-action-pill ui-action-pill--quiet text-xs"
             >
               {probeLoading ? labels.updating : labels.probe}
             </button>
             <button
               type="button"
-              onClick={onApplyPreset}
-              disabled={targetSaving || !activePreset || isCreatingPreset}
+              onClick={onApply}
+              disabled={targetSaving || host.trim().length === 0}
               className="ui-action-pill ui-action-pill--tonal text-xs"
             >
-              {targetSaving ? labels.updating : labels.applyPreset}
+              {targetSaving ? labels.updating : labels.apply}
             </button>
-            {onApplyForm && labels.applyForm && (
-              <button
-                type="button"
-                onClick={onApplyForm}
-                disabled={targetSaving || presetHost.trim().length === 0}
-                className="ui-action-pill ui-action-pill--quiet text-xs"
-              >
-                {labels.applyForm}
-              </button>
-            )}
-            <button type="button" onClick={onStartNewPreset} disabled={targetSaving} className="ui-action-pill ui-action-pill--quiet text-xs">
-              {labels.newPreset}
+            <button type="button" onClick={onResetTarget} disabled={targetSaving} className="ui-action-pill ui-action-pill--quiet text-xs">
+              {labels.resetTarget}
             </button>
-            <button
-              type="button"
-              onClick={onSavePreset}
-              disabled={targetSaving || presetName.trim().length === 0 || presetHost.trim().length === 0}
-              className="ui-action-pill ui-action-pill--quiet text-xs"
-            >
-              {activePreset && !isCreatingPreset ? labels.savePreset : labels.addPreset}
-            </button>
-            <button
-              type="button"
-              onClick={onDeletePreset}
-              disabled={targetSaving || !activePreset || isCreatingPreset}
-              className="ui-action-pill ui-action-pill--quiet text-xs"
-            >
-              {labels.deletePreset}
-            </button>
-            {onResetTarget && labels.resetTarget && (
-              <button type="button" onClick={onResetTarget} disabled={targetSaving} className="ui-action-pill ui-action-pill--quiet text-xs">
-                {labels.resetTarget}
-              </button>
-            )}
           </div>
 
           {probeResult && (

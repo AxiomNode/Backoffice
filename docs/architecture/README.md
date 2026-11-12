@@ -14,7 +14,7 @@ Effective runtime path:
 
 1. browser -> `api-gateway`
 2. `api-gateway` -> `bff-backoffice`
-3. `bff-backoffice` -> downstream services and persisted routing state
+3. `bff-backoffice` -> downstream services
 
 ## Source layout
 

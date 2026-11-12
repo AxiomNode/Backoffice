@@ -131,16 +131,6 @@ export type AiEngineTarget = {
   updatedAt: string | null;
 };
 
-/** Shared ai-engine destination preset stored by the backoffice BFF. */
-export type AiEngineTargetPreset = {
-  id: string;
-  name: string;
-  host: string;
-  protocol: "http" | "https";
-  port: number;
-  updatedAt: string;
-};
-
 /** Sidebar navigation item displayed to the user. */
 export type NavItem = {
   key: NavKey;
