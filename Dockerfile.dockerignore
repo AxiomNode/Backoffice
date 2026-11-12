@@ -1,0 +1,16 @@
+# Patterns are relative to the build context root (the workspace folder that
+# holds the service checkout as `backoffice/`), not to this repository. BuildKit
+# reads this file because it is named after Dockerfile.
+**/.git
+**/.github
+**/node_modules
+**/dist
+**/coverage
+**/.env
+**/.env.*
+!**/.env.example
+**/*.tsbuildinfo
+**/test-results
+**/playwright-report
+**/e2e
+**/docs
