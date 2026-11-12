@@ -15,7 +15,7 @@ React backoffice UI for operations, monitoring, and controlled admin actions.
 
 ## CI/CD notes
 - Push to main dispatches platform-infra build for backoffice image.
-- Runtime deployment is managed by platform-infra (dev first).
+- Deployment is manual-only via the platform-infra `deploy.yaml` workflow (the k3s staging host no longer exists, nothing auto-deploys).
 
 ## LLM editing rules
 - Keep role-gated flows explicit and documented.
