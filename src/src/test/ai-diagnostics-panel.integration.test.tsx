@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { I18nProvider } from "../i18n/context";
@@ -739,4 +739,42 @@ describe("AIDiagnosticsPanel integration", () => {
       expect(screen.getByText(/score=0.1235, retries=2, strict=true/)).toBeInTheDocument();
     });
   }, 12000);
+
+  it("refreshes generator status every 10s and pauses while the tab is hidden", async () => {
+    const setHidden = (value: boolean) => Object.defineProperty(document, "hidden", { configurable: true, value });
+    const workerGets = () =>
+      fetchJsonMock.mock.calls.filter(
+        ([url, options]) => String(url).includes("/generation/worker") && (!options || !options.method || options.method === "GET"),
+      ).length;
+    const settle = async (ms: number) => {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(ms);
+      });
+    };
+
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    setHidden(false);
+    try {
+      renderPanel();
+      await settle(0);
+      const initial = workerGets();
+      expect(initial).toBe(2);
+
+      await settle(10_000);
+      expect(workerGets()).toBe(initial + 2);
+
+      setHidden(true);
+      document.dispatchEvent(new Event("visibilitychange"));
+      await settle(60_000);
+      expect(workerGets()).toBe(initial + 2);
+
+      setHidden(false);
+      document.dispatchEvent(new Event("visibilitychange"));
+      await settle(0);
+      expect(workerGets()).toBe(initial + 4);
+    } finally {
+      setHidden(false);
+      vi.useRealTimers();
+    }
+  });
 });

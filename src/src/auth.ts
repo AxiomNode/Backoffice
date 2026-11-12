@@ -47,60 +47,88 @@ function isFirebaseConfigured(): boolean {
   return Boolean(firebaseConfig.apiKey && firebaseConfig.authDomain && firebaseConfig.projectId);
 }
 
-/** Wraps Firebase Auth (or dev-mode stub) for Google sign-in and session tracking. */
-export class BackofficeAuth {
-  private app: FirebaseApp | null = null;
-  private auth: Auth | null = null;
-  private googleProvider: GoogleAuthProvider | null = null;
+type FirebaseRuntime = {
+  auth: Auth;
+  googleProvider: GoogleAuthProvider;
+  sdk: typeof import("firebase/auth");
+};
 
-  constructor() {
-    if (AUTH_MODE === "firebase" && isFirebaseConfigured()) {
-      this.app = initializeApp(firebaseConfig);
-      this.auth = getAuth(this.app);
-      this.googleProvider = new GoogleAuthProvider();
-    }
-  }
+/**
+ * Wraps Firebase Auth (or dev-mode stub) for Google sign-in and session tracking.
+ * The Firebase SDK is loaded with a dynamic import only when real Firebase auth is configured,
+ * so dev-auth builds never download it.
+ */
+export class BackofficeAuth {
+  private readonly firebaseEnabled = AUTH_MODE === "firebase" && isFirebaseConfigured();
+  private runtime: Promise<FirebaseRuntime> | null = null;
 
   get mode(): RuntimeAuthMode {
-    if (this.auth) {
-      return "firebase";
+    return this.firebaseEnabled ? "firebase" : "dev";
+  }
+
+  private loadRuntime(): Promise<FirebaseRuntime> {
+    if (!this.runtime) {
+      this.runtime = (async () => {
+        const [{ initializeApp }, sdk] = await Promise.all([import("firebase/app"), import("firebase/auth")]);
+        const app = initializeApp(firebaseConfig);
+        return { auth: sdk.getAuth(app), googleProvider: new sdk.GoogleAuthProvider(), sdk };
+      })();
+      // Allow a retry after a transient chunk-load failure.
+      this.runtime.catch(() => {
+        this.runtime = null;
+      });
     }
-    return "dev";
+    return this.runtime;
   }
 
   async signInWithGoogle(): Promise<void> {
-    if (!this.auth || !this.googleProvider) {
+    if (!this.firebaseEnabled) {
       throw new Error("Firebase auth is not configured in this environment.");
     }
-    await signInWithPopup(this.auth, this.googleProvider);
+    const { auth, googleProvider, sdk } = await this.loadRuntime();
+    await sdk.signInWithPopup(auth, googleProvider);
   }
 
   async signOut(): Promise<void> {
-    if (this.auth) {
-      await signOut(this.auth);
+    if (this.firebaseEnabled) {
+      const { auth, sdk } = await this.loadRuntime();
+      await sdk.signOut(auth);
     }
   }
 
   onSessionChanged(handler: (session: RuntimeSession | null) => void): () => void {
-    if (!this.auth) {
+    if (!this.firebaseEnabled) {
       return () => {
         handler(null);
       };
     }
 
-    return onAuthStateChanged(this.auth, async (user) => {
-      if (!user) {
-        handler(null);
+    let disposed = false;
+    let unsubscribe: (() => void) | null = null;
+
+    void this.loadRuntime().then(({ auth, sdk }) => {
+      if (disposed) {
         return;
       }
+      unsubscribe = sdk.onAuthStateChanged(auth, async (user) => {
+        if (!user) {
+          handler(null);
+          return;
+        }
 
-      const tokenResult = await user.getIdTokenResult();
-      handler({
-        idToken: tokenResult.token,
-        email: user.email || undefined,
-        displayName: user.displayName || undefined,
+        const tokenResult = await user.getIdTokenResult();
+        handler({
+          idToken: tokenResult.token,
+          email: user.email || undefined,
+          displayName: user.displayName || undefined,
+        });
       });
     });
+
+    return () => {
+      disposed = true;
+      unsubscribe?.();
+    };
   }
 }
 

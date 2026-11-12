@@ -9,6 +9,7 @@ import {
 import { useI18n } from "../../i18n/context";
 import { AiEngineTargetControl } from "../components/AiEngineTargetControl";
 import { useAiEngineTargetState } from "../hooks/useAiEngineTargetState";
+import { useVisibilityPolling } from "../hooks/useVisibilityPolling";
 
 /** @module AIDiagnosticsPanel - AI diagnostics with RAG coverage stats and hallucination test runner. */
 
@@ -500,15 +501,7 @@ export function AIDiagnosticsPanel({ context, density }: AIDiagnosticsPanelProps
     loadGeneratorStatus();
   }, [loadGeneratorStatus, loadRagStats]);
 
-  useEffect(() => {
-    const timer = setInterval(() => {
-      void loadGeneratorStatus();
-    }, 10_000);
-
-    return () => {
-      clearInterval(timer);
-    };
-  }, [loadGeneratorStatus]);
+  useVisibilityPolling(loadGeneratorStatus, 10_000);
 
   // ---- Test runner --------------------------------------------------------
 
