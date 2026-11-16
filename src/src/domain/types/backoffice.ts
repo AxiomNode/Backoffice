@@ -33,39 +33,6 @@ export type ServiceKey =
 /** Available dataset tabs for services that expose data endpoints. */
 export type DataDataset = "roles" | "leaderboard" | "history" | "processes";
 
-/** Aggregated stats payload returned by a service health endpoint. */
-export type StatsPayload = {
-  service: string;
-  uptimeSeconds?: number;
-  traffic?: {
-    requestsReceivedTotal?: number;
-    requestBytesInTotal?: number;
-    responseBytesOutTotal?: number;
-  };
-  auth?: {
-    authAttemptsTotal?: number;
-    authSuccessTotal?: number;
-    authFailureTotal?: number;
-  };
-  gameplay?: {
-    gameEventsStoredTotal?: number;
-  };
-  generation?: {
-    generationSuccessTotal?: number;
-  };
-};
-
-/** Leaderboard response shape from the users microservice. */
-export type LeaderboardResponse = {
-  metric: "won" | "score" | "played";
-  total: number;
-  rows: Array<{
-    userId: string;
-    displayName: string;
-    value: number;
-  }>;
-};
-
 /** A single user-role record from the admin endpoint. */
 export type RoleItem = {
   firebaseUid: string;
@@ -92,12 +59,6 @@ export type ServiceNavConfig = {
   subtitle: string;
   defaultDataset?: DataDataset;
   datasets?: Array<{ value: DataDataset; label: string }>;
-};
-
-/** Result state for hotfix / runtime operations. */
-export type HotOperationResult = {
-  status: "idle" | "loading" | "done" | "error";
-  message: string;
 };
 
 /** Active session context passed to API calls. */

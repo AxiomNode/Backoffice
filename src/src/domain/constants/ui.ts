@@ -6,8 +6,6 @@ export const UI_DENSITY_STORAGE_KEY = "backoffice.uiDensity";
 export const UI_THEME_STORAGE_KEY = "backoffice.uiTheme";
 /** Storage key for typography scale preference. */
 export const UI_TYPOGRAPHY_STORAGE_KEY = "backoffice.uiTypography";
-/** Storage key for UI language selection. */
-export const UI_LANGUAGE_STORAGE_KEY = "backoffice.uiLanguage";
 /** Storage prefix for per-service route query state. */
 export const UI_SERVICE_ROUTE_QUERY_STORAGE_PREFIX = "backoffice.serviceRouteQuery";
 /** Storage prefix for per-service last-error records. */
